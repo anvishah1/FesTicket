@@ -1,0 +1,23 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "prisma:generate": "dotenv -e .env -- npx prisma generate",
+    "prisma:migrate": "dotenv -e .env -- npx prisma migrate dev --name init",
+    "dev": "dotenv -e .env -- node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^6.18.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "prisma": "^6.18.0"
+  }
+}

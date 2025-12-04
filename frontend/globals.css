@@ -1,0 +1,26 @@
+/* frontend/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* small custom tokens */
+:root{
+  --bg: #f8f5ff;
+  --muted: #6b7280;
+  --glass: rgba(255,255,255,0.7);
+}
+
+html,body,#__next { height: 100%; }
+body {
+  background: var(--bg);
+  color: #0f1724;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+/* small helper */
+.container {
+  @apply mx-auto px-6;
+  max-width: 1200px;
+}

@@ -3,11 +3,11 @@
 "use client";
 
 import React from "react";
+import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import TicketSelector from "@/components/TicketSelector";
 import BookingSummary from "@/components/BookingSummary";
 import AttendeeForm from "@/components/AttendeeForm";
-import PaymentButton from "@/components/PaymentButton";
 import Link from "next/link";
 import Footer from "@/components/Footer";
 
@@ -26,6 +26,10 @@ const demoTickets: TicketType[] = [
 ];
 
 export default function BookingPage() {
+  const params = useParams();
+  const router = useRouter();
+  const eventId = params.id;
+
   // local state: selected ticket quantities
   const [quantities, setQuantities] = React.useState<Record<string, number>>({
     early: 0,
@@ -164,15 +168,31 @@ export default function BookingPage() {
               <div className="text-sm text-slate-600">Total to pay</div>
               <div className="text-2xl font-bold text-slate-900">₹{total}</div>
 
+              {/* Validation message */}
+              {!isValid && (
+                <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
+                  {totalTickets === 0 && "⚠ Please select at least 1 ticket"}
+                  {totalTickets > 0 && attendees.some(a => !a.name.trim()) && 
+                    "⚠ Please fill in the NAME for all attendees"}
+                  {totalTickets > 0 && attendees.every(a => a.name.trim()) && attendees.some(a => !a.email.trim()) && 
+                    "⚠ Please fill in the EMAIL for all attendees"}
+                </div>
+              )}
+
               <div className="mt-4">
-                <PaymentButton disabled={!isValid} amount={total} onSuccess={() => {
-                  // replace with real success flow; for now show a confirmation link
-                  alert("Payment successful (mock) — booking confirmed!");
-                }} />
+                <button
+                  onClick={() => router.push(`/events/${eventId}/payment`)}
+                  disabled={!isValid}
+                  className={`w-full inline-flex items-center justify-center gap-3 px-4 py-2 rounded-md text-white font-semibold ${
+                    !isValid ? "bg-slate-300 cursor-not-allowed" : "bg-primary-600 hover:bg-primary-700"
+                  }`}
+                >
+                  Proceed to Payment →
+                </button>
               </div>
 
               <div className="text-xs text-slate-500 mt-4">
-                Payments processed by demo gateway. This is a mock integration for now.
+                You'll be redirected to our secure payment page.
               </div>
             </div>
           </div>
@@ -180,7 +200,7 @@ export default function BookingPage() {
           <div className="rounded-lg p-5 border bg-white shadow-sm">
             <h4 className="font-semibold mb-3">Need help?</h4>
             <p className="text-sm text-slate-600">Contact support at <a className="text-primary-600 underline" href="mailto:support@tiqrdupe.local">support@tiqrdupe.local</a></p>
-            <Link href="/discover" className="block mt-3 text-sm text-slate-500 hover:underline">Back to events</Link>
+            <Link href="/fests" className="block mt-3 text-sm text-slate-500 hover:underline">Back to events</Link>
           </div>
         </aside>
       </main>

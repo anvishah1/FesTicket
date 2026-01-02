@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Card from "@/components/card";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 interface Fest {
   id: number;
@@ -88,21 +90,23 @@ export default function FestsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-100 py-8 px-4">
-      {/* Header */}
-      <div className="max-w-6xl mx-auto mb-8">
-        <h1 className="text-3xl font-bold">Discover Fests</h1>
-        <p className="text-gray-600 mt-1">
-          Explore the most exciting college festivals across India
-        </p>
-      </div>
+    <div className="min-h-screen bg-[#fdfdff]">
+      <Header />
+      <main className="py-8 px-4">
+        {/* Page Title */}
+        <div className="max-w-6xl mx-auto mb-8">
+          <h1 className="text-3xl font-bold text-[#29104A]">Discover Fests</h1>
+          <p className="text-[#6B597F] mt-1">
+            Explore the most exciting college festivals across India
+          </p>
+        </div>
 
       {/* Cards Grid */}
       <div className="max-w-6xl mx-auto">
         {loading ? (
-          <p className="text-gray-500">Loading fests...</p>
+          <p className="text-[#6B597F]">Loading fests...</p>
         ) : fests.length === 0 ? (
-          <p className="text-gray-500">No fests found</p>
+          <p className="text-[#6B597F]">No fests found</p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {fests.map((fest) => (
@@ -118,6 +122,8 @@ export default function FestsPage() {
           </div>
         )}
       </div>
-    </main>
+      </main>
+      <Footer />
+    </div>
   );
 }

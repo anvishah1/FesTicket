@@ -8,11 +8,11 @@ import AuthForm from "@/components/AuthForm";
 
 export default function SignInPage() {
   return (
-    <div className="min-h-screen bg-[var(--bg)]">
+    <div className="min-h-screen bg-[#DEDCDC]">
       <Header />
       <main className="flex items-start justify-center py-16 px-4">
         <div className="w-full max-w-lg">
-          <div className="bg-white/95 backdrop-blur rounded-2xl shadow-soft-lg border p-8">
+          <div className="bg-[#C5BAC4] rounded-2xl shadow-soft-lg border border-[#6B597F] p-8">
             <div className="flex flex-col items-center gap-4">
               {/* logo / brand */}
               <div className="w-28 h-28 flex items-center justify-center">
@@ -20,8 +20,8 @@ export default function SignInPage() {
                 <img src="/logo.png" alt="tiqrdupe logo" className="w-28 h-auto" />
               </div>
 
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">Sign In</h1>
-              <p className="text-sm text-slate-500">Welcome back — sign in to continue managing your events and tickets.</p>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#29104A]">Sign In</h1>
+              <p className="text-sm text-[#522C5D]">Welcome back — sign in to continue managing your events and tickets.</p>
             </div>
 
             <div className="mt-6">
@@ -29,8 +29,8 @@ export default function SignInPage() {
             </div>
           </div>
 
-          <div className="mt-6 text-center text-xs text-slate-400">
-            By continuing you agree to our <a className="underline" href="/privacy">Privacy</a> &amp; <a className="underline" href="/terms">Terms</a>.
+          <div className="mt-6 text-center text-xs text-[#6B597F]">
+            By continuing you agree to our <a className="underline text-[#29104A]" href="/privacy">Privacy</a> &amp; <a className="underline text-[#29104A]" href="/terms">Terms</a>.
           </div>
         </div>
       </main>

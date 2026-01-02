@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Card from "@/components/card";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 interface Event {
   id: number;
@@ -170,42 +172,52 @@ export default function EventsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-100 py-8 px-4">
-        <div className="max-w-6xl mx-auto">
-          <p className="text-gray-500">Loading events...</p>
-        </div>
-      </main>
+      <div className="min-h-screen bg-[#fdfdff]">
+        <Header />
+        <main className="py-8 px-4">
+          <div className="max-w-6xl mx-auto">
+            <p className="text-[#6B597F]">Loading events...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
     );
   }
 
   if (!festInfo) {
     return (
-      <main className="min-h-screen bg-gray-100 py-8 px-4">
-        <div className="max-w-6xl mx-auto">
-          <p className="text-gray-500">Fest not found</p>
-          <button
-            onClick={() => router.push("/fests")}
-            className="mt-4 text-blue-600 hover:underline"
-          >
-            ← Back to Fests
-          </button>
-        </div>
-      </main>
+      <div className="min-h-screen bg-[#fdfdff]">
+        <Header />
+        <main className="py-8 px-4">
+          <div className="max-w-6xl mx-auto">
+            <p className="text-[#6B597F]">Fest not found</p>
+            <button
+              onClick={() => router.push("/fests")}
+              className="mt-4 text-[#522C5D] hover:underline"
+            >
+              ← Back to Fests
+            </button>
+          </div>
+        </main>
+        <Footer />
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 py-8 px-4">
-      {/* Header */}
-      <div className="max-w-6xl mx-auto mb-8">
+    <div className="min-h-screen bg-[#fdfdff]">
+      <Header />
+      <main className="py-8 px-4">
+        {/* Page Title */}
+        <div className="max-w-6xl mx-auto mb-8">
         <button
           onClick={() => router.push("/fests")}
-          className="text-blue-600 hover:underline mb-4 flex items-center gap-1"
+          className="text-[#522C5D] hover:underline mb-4 flex items-center gap-1"
         >
           <span>←</span> Back to Fests
         </button>
-        <h1 className="text-3xl font-bold">{festInfo.name} Events</h1>
-        <p className="text-gray-600 mt-1">
+        <h1 className="text-3xl font-bold text-[#29104A]">{festInfo.name} Events</h1>
+        <p className="text-[#6B597F] mt-1">
           Explore all events at {festInfo.name} • {festInfo.college}
         </p>
       </div>
@@ -219,8 +231,8 @@ export default function EventsPage() {
               onClick={() => setSelectedCategory(category)}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                 selectedCategory === category
-                  ? "bg-yellow-400 text-black"
-                  : "bg-white text-gray-700 hover:bg-gray-200"
+                  ? "bg-[#522C5D] text-white"
+                  : "bg-white text-[#6B597F] hover:bg-[#C5BAC4]"
               }`}
             >
               {category}
@@ -246,10 +258,12 @@ export default function EventsPage() {
             ))}
           </div>
         ) : (
-          <p className="text-gray-500">No events found in this category</p>
+          <p className="text-[#6B597F]">No events found in this category</p>
         )}
       </div>
-    </main>
+      </main>
+      <Footer />
+    </div>
   );
 }
 

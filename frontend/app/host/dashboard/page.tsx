@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Footer from "@/components/Footer";
 
 interface TicketType {
   name: string;
@@ -167,16 +168,16 @@ export default function HostDashboard() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#0f0f1a]">
+      <main className="min-h-screen bg-[#fdfdff]">
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-gray-800 rounded w-48"></div>
+            <div className="h-8 bg-[#C5BAC4] rounded w-48"></div>
             <div className="grid grid-cols-4 gap-4">
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-24 bg-gray-800 rounded-xl"></div>
+                <div key={i} className="h-24 bg-[#C5BAC4] rounded-xl"></div>
               ))}
             </div>
-            <div className="h-96 bg-gray-800 rounded-xl"></div>
+            <div className="h-96 bg-[#C5BAC4] rounded-xl"></div>
           </div>
         </div>
       </main>
@@ -184,28 +185,31 @@ export default function HostDashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0f0f1a] text-white">
+    <main className="min-h-screen bg-[#fdfdff] text-[#29104A]">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-[#0f0f1a]/80 backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b border-[#C5BAC4] bg-[#6B597F] backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center font-bold text-black">
+            <div className="w-10 h-10 rounded-xl bg-[#29104A] flex items-center justify-center font-bold text-white">
               T
             </div>
             <div>
-              <h1 className="font-bold text-lg">Host Dashboard</h1>
-              <p className="text-xs text-gray-400">{hostInfo.organization}</p>
+              <h1 className="font-bold text-lg text-white">Host Dashboard</h1>
+              <p className="text-xs text-[#C5BAC4]">{hostInfo.organization}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <button className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-semibold rounded-lg transition-colors flex items-center gap-2">
+            <button 
+              onClick={() => router.push("/events/new/create")}
+              className="px-4 py-2 bg-[#29104A] hover:bg-[#522C5D] text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+            >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               Create Event
             </button>
-            <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center">
-              <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-10 h-10 rounded-full bg-[#522C5D] flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
@@ -216,66 +220,66 @@ export default function HostDashboard() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-1">Welcome back, {hostInfo.name.split(" ")[0]}! 👋</h2>
-          <p className="text-gray-400">Here's an overview of your events and ticket sales.</p>
+          <h2 className="text-2xl font-bold mb-1 text-[#29104A]">Welcome back, {hostInfo.name.split(" ")[0]}! 👋</h2>
+          <p className="text-[#6B597F]">Here's an overview of your events and ticket sales.</p>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-gradient-to-br from-amber-500/20 to-orange-500/10 border border-amber-500/30 rounded-2xl p-5">
+          <div className="bg-white border border-[#C5BAC4] rounded-2xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-gray-400 text-sm">Total Revenue</span>
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
-                <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <span className="text-[#6B597F] text-sm">Total Revenue</span>
+              <div className="w-10 h-10 rounded-xl bg-[#522C5D]/10 flex items-center justify-center">
+                <svg className="w-5 h-5 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-amber-400">₹{totalRevenue.toLocaleString()}</p>
+            <p className="text-3xl font-bold text-[#29104A]">₹{totalRevenue.toLocaleString()}</p>
           </div>
 
-          <div className="bg-gradient-to-br from-emerald-500/20 to-green-500/10 border border-emerald-500/30 rounded-2xl p-5">
+          <div className="bg-white border border-[#C5BAC4] rounded-2xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-gray-400 text-sm">Tickets Sold</span>
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <span className="text-[#6B597F] text-sm">Tickets Sold</span>
+              <div className="w-10 h-10 rounded-xl bg-[#522C5D]/10 flex items-center justify-center">
+                <svg className="w-5 h-5 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-emerald-400">{totalTicketsSold.toLocaleString()}</p>
+            <p className="text-3xl font-bold text-[#29104A]">{totalTicketsSold.toLocaleString()}</p>
           </div>
 
-          <div className="bg-gradient-to-br from-blue-500/20 to-indigo-500/10 border border-blue-500/30 rounded-2xl p-5">
+          <div className="bg-white border border-[#C5BAC4] rounded-2xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-gray-400 text-sm">Upcoming Events</span>
-              <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <span className="text-[#6B597F] text-sm">Upcoming Events</span>
+              <div className="w-10 h-10 rounded-xl bg-[#522C5D]/10 flex items-center justify-center">
+                <svg className="w-5 h-5 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-blue-400">{upcomingEventsCount}</p>
+            <p className="text-3xl font-bold text-[#29104A]">{upcomingEventsCount}</p>
           </div>
 
-          <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/10 border border-purple-500/30 rounded-2xl p-5">
+          <div className="bg-white border border-[#C5BAC4] rounded-2xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-gray-400 text-sm">Past Events</span>
-              <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <span className="text-[#6B597F] text-sm">Past Events</span>
+              <div className="w-10 h-10 rounded-xl bg-[#522C5D]/10 flex items-center justify-center">
+                <svg className="w-5 h-5 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-purple-400">{pastEventsCount}</p>
+            <p className="text-3xl font-bold text-[#29104A]">{pastEventsCount}</p>
           </div>
         </div>
 
         {/* Events Table Section */}
-        <div className="bg-[#1a1a2e] rounded-2xl border border-gray-800 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-[#C5BAC4] overflow-hidden shadow-sm">
           {/* Table Header */}
-          <div className="px-6 py-5 border-b border-gray-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <h3 className="text-xl font-bold">Your Events</h3>
+          <div className="px-6 py-5 border-b border-[#C5BAC4] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <h3 className="text-xl font-bold text-[#29104A]">Your Events</h3>
             <div className="flex gap-2">
               {(["all", "upcoming", "past"] as const).map((tab) => (
                 <button
@@ -283,8 +287,8 @@ export default function HostDashboard() {
                   onClick={() => setActiveTab(tab)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     activeTab === tab
-                      ? "bg-amber-500 text-black"
-                      : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                      ? "bg-[#522C5D] text-white"
+                      : "bg-[#C5BAC4]/30 text-[#6B597F] hover:bg-[#C5BAC4]"
                   }`}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -297,20 +301,20 @@ export default function HostDashboard() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-gray-800/50">
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400">Event</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400">Date</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400">Tickets Sold</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400">Ticket Types</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400">Discount</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400">Revenue</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400">Status</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400"></th>
+                <tr className="bg-[#C5BAC4]/20">
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Event</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Date</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Tickets Sold</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Ticket Types</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Discount</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Revenue</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Status</th>
+                  <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-800">
+              <tbody className="divide-y divide-[#C5BAC4]">
                 {filteredEvents.map((event) => (
-                  <tr key={event.id} className="hover:bg-gray-800/30 transition-colors">
+                  <tr key={event.id} className="hover:bg-[#C5BAC4]/10 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <img
@@ -319,24 +323,24 @@ export default function HostDashboard() {
                           className="w-12 h-12 rounded-lg object-cover"
                         />
                         <div>
-                          <p className="font-semibold text-white">{event.name}</p>
-                          <p className="text-sm text-gray-400">{event.category}</p>
+                          <p className="font-semibold text-[#29104A]">{event.name}</p>
+                          <p className="text-sm text-[#6B597F]">{event.category}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-white">{event.date}</p>
-                      <p className="text-sm text-gray-400">{event.time}</p>
+                      <p className="text-[#29104A]">{event.date}</p>
+                      <p className="text-sm text-[#6B597F]">{event.time}</p>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <span className="text-white font-medium">{getTotalTicketsSold(event)}</span>
-                        <span className="text-gray-500">/</span>
-                        <span className="text-gray-400">{getTotalTickets(event)}</span>
+                        <span className="text-[#29104A] font-medium">{getTotalTicketsSold(event)}</span>
+                        <span className="text-[#C5BAC4]">/</span>
+                        <span className="text-[#6B597F]">{getTotalTickets(event)}</span>
                       </div>
-                      <div className="w-24 h-1.5 bg-gray-700 rounded-full mt-2 overflow-hidden">
+                      <div className="w-24 h-1.5 bg-[#C5BAC4] rounded-full mt-2 overflow-hidden">
                         <div
-                          className="h-full bg-emerald-500 rounded-full"
+                          className="h-full bg-[#522C5D] rounded-full"
                           style={{
                             width: `${(getTotalTicketsSold(event) / getTotalTickets(event)) * 100}%`,
                           }}
@@ -348,7 +352,7 @@ export default function HostDashboard() {
                         {event.ticketTypes.map((type, index) => (
                           <span
                             key={index}
-                            className="px-2 py-1 bg-gray-700 rounded text-xs text-gray-300"
+                            className="px-2 py-1 bg-[#C5BAC4]/30 rounded text-xs text-[#522C5D]"
                           >
                             {type.name}
                           </span>
@@ -357,15 +361,15 @@ export default function HostDashboard() {
                     </td>
                     <td className="px-6 py-4">
                       {event.discount > 0 ? (
-                        <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded-lg text-sm font-medium">
+                        <span className="px-2 py-1 bg-[#522C5D]/10 text-[#522C5D] rounded-lg text-sm font-medium">
                           {event.discount}% OFF
                         </span>
                       ) : (
-                        <span className="text-gray-500">—</span>
+                        <span className="text-[#C5BAC4]">—</span>
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-emerald-400 font-bold">
+                      <p className="text-[#29104A] font-bold">
                         ₹{event.totalRevenue.toLocaleString()}
                       </p>
                     </td>
@@ -373,10 +377,10 @@ export default function HostDashboard() {
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-medium ${
                           event.status === "upcoming"
-                            ? "bg-blue-500/20 text-blue-400"
+                            ? "bg-[#522C5D]/10 text-[#522C5D]"
                             : event.status === "live"
-                            ? "bg-green-500/20 text-green-400"
-                            : "bg-gray-600/20 text-gray-400"
+                            ? "bg-[#29104A]/10 text-[#29104A]"
+                            : "bg-[#C5BAC4]/30 text-[#6B597F]"
                         }`}
                       >
                         {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
@@ -385,7 +389,7 @@ export default function HostDashboard() {
                     <td className="px-6 py-4">
                       <button 
                         onClick={() => router.push(`/host/events/${event.id}/manage`)}
-                        className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-black rounded-lg transition-all font-medium text-sm flex items-center gap-2"
+                        className="px-4 py-2 bg-[#522C5D]/10 hover:bg-[#522C5D] text-[#522C5D] hover:text-white rounded-lg transition-all font-medium text-sm flex items-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -402,7 +406,7 @@ export default function HostDashboard() {
 
           {filteredEvents.length === 0 && (
             <div className="px-6 py-12 text-center">
-              <p className="text-gray-400">No events found in this category.</p>
+              <p className="text-[#6B597F]">No events found in this category.</p>
             </div>
           )}
         </div>
@@ -410,15 +414,15 @@ export default function HostDashboard() {
         {/* Quick Stats per Event Type */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Upcoming Events Preview */}
-          <div className="bg-[#1a1a2e] rounded-2xl border border-gray-800 p-6">
+          <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+              <h3 className="text-lg font-bold text-[#29104A] flex items-center gap-2">
+                <span className="w-2 h-2 bg-[#522C5D] rounded-full"></span>
                 Upcoming Events
               </h3>
               <button
                 onClick={() => setActiveTab("upcoming")}
-                className="text-sm text-amber-400 hover:text-amber-300 transition-colors"
+                className="text-sm text-[#522C5D] hover:text-[#29104A] transition-colors"
               >
                 View all →
               </button>
@@ -430,7 +434,7 @@ export default function HostDashboard() {
                 .map((event) => (
                   <div
                     key={event.id}
-                    className="group relative flex items-center gap-4 p-3 rounded-xl bg-gray-800/50 hover:bg-gray-800 transition-colors cursor-pointer"
+                    className="group relative flex items-center gap-4 p-3 rounded-xl bg-[#C5BAC4]/20 hover:bg-[#C5BAC4]/40 transition-colors cursor-pointer"
                     onClick={() => router.push(`/host/events/${event.id}/manage`)}
                   >
                     <div className="relative">
@@ -440,7 +444,7 @@ export default function HostDashboard() {
                         className="w-14 h-14 rounded-lg object-cover"
                       />
                       {/* Hover overlay on image */}
-                      <div className="absolute inset-0 bg-black/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="absolute inset-0 bg-[#29104A]/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -448,19 +452,19 @@ export default function HostDashboard() {
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-white truncate">{event.name}</p>
-                      <p className="text-sm text-gray-400">{event.date} • {event.time}</p>
+                      <p className="font-semibold text-[#29104A] truncate">{event.name}</p>
+                      <p className="text-sm text-[#6B597F]">{event.date} • {event.time}</p>
                     </div>
                     <div className="text-right hidden group-hover:block">
-                      <span className="px-3 py-1.5 bg-amber-500 text-black rounded-lg text-sm font-semibold">
+                      <span className="px-3 py-1.5 bg-[#522C5D] text-white rounded-lg text-sm font-semibold">
                         Manage
                       </span>
                     </div>
                     <div className="text-right group-hover:hidden">
-                      <p className="text-emerald-400 font-bold">
+                      <p className="text-[#522C5D] font-bold">
                         {getTotalTicketsSold(event)}/{getTotalTickets(event)}
                       </p>
-                      <p className="text-xs text-gray-400">tickets</p>
+                      <p className="text-xs text-[#6B597F]">tickets</p>
                     </div>
                   </div>
                 ))}
@@ -468,15 +472,15 @@ export default function HostDashboard() {
           </div>
 
           {/* Past Events Preview */}
-          <div className="bg-[#1a1a2e] rounded-2xl border border-gray-800 p-6">
+          <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                <span className="w-2 h-2 bg-purple-400 rounded-full"></span>
+              <h3 className="text-lg font-bold text-[#29104A] flex items-center gap-2">
+                <span className="w-2 h-2 bg-[#6B597F] rounded-full"></span>
                 Past Events
               </h3>
               <button
                 onClick={() => setActiveTab("past")}
-                className="text-sm text-amber-400 hover:text-amber-300 transition-colors"
+                className="text-sm text-[#522C5D] hover:text-[#29104A] transition-colors"
               >
                 View all →
               </button>
@@ -488,7 +492,7 @@ export default function HostDashboard() {
                 .map((event) => (
                   <div
                     key={event.id}
-                    className="group relative flex items-center gap-4 p-3 rounded-xl bg-gray-800/50 hover:bg-gray-800 transition-colors cursor-pointer"
+                    className="group relative flex items-center gap-4 p-3 rounded-xl bg-[#C5BAC4]/20 hover:bg-[#C5BAC4]/40 transition-colors cursor-pointer"
                     onClick={() => router.push(`/host/events/${event.id}/manage`)}
                   >
                     <div className="relative">
@@ -498,7 +502,7 @@ export default function HostDashboard() {
                         className="w-14 h-14 rounded-lg object-cover grayscale"
                       />
                       {/* Hover overlay on image */}
-                      <div className="absolute inset-0 bg-black/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="absolute inset-0 bg-[#29104A]/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -506,19 +510,19 @@ export default function HostDashboard() {
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-white truncate">{event.name}</p>
-                      <p className="text-sm text-gray-400">{event.date}</p>
+                      <p className="font-semibold text-[#29104A] truncate">{event.name}</p>
+                      <p className="text-sm text-[#6B597F]">{event.date}</p>
                     </div>
                     <div className="text-right hidden group-hover:block">
-                      <span className="px-3 py-1.5 bg-amber-500 text-black rounded-lg text-sm font-semibold">
+                      <span className="px-3 py-1.5 bg-[#522C5D] text-white rounded-lg text-sm font-semibold">
                         Manage
                       </span>
                     </div>
                     <div className="text-right group-hover:hidden">
-                      <p className="text-amber-400 font-bold">
+                      <p className="text-[#29104A] font-bold">
                         ₹{event.totalRevenue.toLocaleString()}
                       </p>
-                      <p className="text-xs text-gray-400">earned</p>
+                      <p className="text-xs text-[#6B597F]">earned</p>
                     </div>
                   </div>
                 ))}
@@ -526,6 +530,7 @@ export default function HostDashboard() {
           </div>
         </div>
       </div>
+      <Footer />
     </main>
   );
 }

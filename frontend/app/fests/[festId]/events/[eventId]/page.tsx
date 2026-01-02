@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 interface Event {
   id: number;
@@ -153,56 +155,64 @@ export default function EventBookingPage() {
   }, [festId, eventId]);
 
   const handleBookNow = () => {
-    // TODO: Implement booking logic
-    alert(`Booking for ${event?.name} - ₹${event?.price}`);
+    // Navigate to booking page with event details
+    router.push(`/events/${eventId}/booking`);
   };
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f8f9fa]">
-        <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="min-h-screen bg-[#fdfdff]">
+        <Header />
+        <main className="max-w-7xl mx-auto px-4 py-8">
           <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-32 mb-8"></div>
+            <div className="h-8 bg-[#C5BAC4] rounded w-32 mb-8"></div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="h-96 bg-gray-200 rounded-2xl"></div>
+              <div className="h-96 bg-[#C5BAC4] rounded-2xl"></div>
               <div className="space-y-4">
-                <div className="h-8 bg-gray-200 rounded w-3/4"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                <div className="h-8 bg-[#C5BAC4] rounded w-3/4"></div>
+                <div className="h-4 bg-[#C5BAC4] rounded w-1/2"></div>
               </div>
             </div>
           </div>
-        </div>
-      </main>
+        </main>
+        <Footer />
+      </div>
     );
   }
 
   if (!event) {
     return (
-      <main className="min-h-screen bg-[#f8f9fa] py-8 px-4">
-        <div className="max-w-7xl mx-auto">
-          <p className="text-gray-500 text-lg">Event not found</p>
-          <button
-            onClick={() => router.push(`/fests/${festId}/events`)}
-            className="mt-4 text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Events
-          </button>
-        </div>
-      </main>
+      <div className="min-h-screen bg-[#fdfdff]">
+        <Header />
+        <main className="py-8 px-4">
+          <div className="max-w-7xl mx-auto">
+            <p className="text-[#6B597F] text-lg">Event not found</p>
+            <button
+              onClick={() => router.push(`/fests/${festId}/events`)}
+              className="mt-4 text-[#522C5D] hover:text-[#29104A] font-medium flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to Events
+            </button>
+          </div>
+        </main>
+        <Footer />
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#f8f9fa]">
+    <div className="min-h-screen bg-[#fdfdff]">
+      <Header />
+      <main>
       {/* Hero Section */}
-      <div className="bg-[#1a1a2e] text-white">
+      <div className="bg-[#29104A] text-white">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <button
             onClick={() => router.push(`/fests/${festId}/events`)}
-            className="text-gray-300 hover:text-white font-medium flex items-center gap-2 transition-colors"
+            className="text-[#C5BAC4] hover:text-white font-medium flex items-center gap-2 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -217,7 +227,7 @@ export default function EventBookingPage() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           {/* Left - Event Poster */}
           <div className="lg:col-span-3">
-            <div className="bg-[#1a1a2e] rounded-2xl overflow-hidden shadow-2xl">
+            <div className="bg-[#29104A] rounded-2xl overflow-hidden shadow-2xl">
               <img
                 src={event.image}
                 alt={event.name}
@@ -228,9 +238,9 @@ export default function EventBookingPage() {
 
           {/* Right - Event Details */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-8">
+            <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-8 border border-[#C5BAC4]">
               {/* Event Title */}
-              <h1 className="text-2xl font-bold text-gray-900 mb-6 leading-tight">
+              <h1 className="text-2xl font-bold text-[#29104A] mb-6 leading-tight">
                 {event.name}
               </h1>
 
@@ -238,58 +248,58 @@ export default function EventBookingPage() {
               <div className="space-y-5">
                 {/* Category */}
                 <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-10 h-10 rounded-full bg-[#C5BAC4]/30 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900">{event.category}</p>
+                    <p className="font-semibold text-[#29104A]">{event.category}</p>
                   </div>
                 </div>
 
                 {/* Date & Time */}
                 <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-10 h-10 rounded-full bg-[#C5BAC4]/30 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900">{event.date}</p>
-                    <p className="text-sm text-gray-500">{event.time}</p>
+                    <p className="font-semibold text-[#29104A]">{event.date}</p>
+                    <p className="text-sm text-[#6B597F]">{event.time}</p>
                   </div>
                 </div>
 
                 {/* Location */}
                 <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-10 h-10 rounded-full bg-[#C5BAC4]/30 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900">{event.venue}</p>
-                    <p className="text-sm text-gray-500 leading-relaxed">{event.venueAddress}</p>
+                    <p className="font-semibold text-[#29104A]">{event.venue}</p>
+                    <p className="text-sm text-[#6B597F] leading-relaxed">{event.venueAddress}</p>
                   </div>
                 </div>
               </div>
 
               {/* Divider */}
-              <div className="border-t border-gray-200 my-6"></div>
+              <div className="border-t border-[#C5BAC4] my-6"></div>
 
               {/* Price & Book Button */}
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">Starts from</p>
-                  <p className="text-3xl font-bold text-gray-900">
+                  <p className="text-sm text-[#6B597F]">Starts from</p>
+                  <p className="text-3xl font-bold text-[#29104A]">
                     {event.price === 0 ? "Free" : `₹${event.price.toLocaleString()}`}
                   </p>
                 </div>
                 <button
                   onClick={handleBookNow}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-8 py-4 rounded-xl flex items-center gap-2 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  className="bg-[#522C5D] hover:bg-[#29104A] text-white font-semibold px-8 py-4 rounded-xl flex items-center gap-2 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
@@ -305,12 +315,12 @@ export default function EventBookingPage() {
         <div className="mt-12 grid grid-cols-1 lg:grid-cols-5 gap-8">
           <div className="lg:col-span-3">
             {/* About The Event */}
-            <div className="bg-white rounded-2xl shadow-lg p-8">
+            <div className="bg-white rounded-2xl shadow-lg p-8 border border-[#C5BAC4]">
               <div className="flex items-center gap-4 mb-6">
-                <h2 className="text-xl font-bold text-gray-900">About The Event</h2>
+                <h2 className="text-xl font-bold text-[#29104A]">About The Event</h2>
                 <div className="flex gap-2">
-                  <button className="p-2 rounded-full border border-gray-200 hover:bg-gray-50 transition-colors">
-                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <button className="p-2 rounded-full border border-[#C5BAC4] hover:bg-[#C5BAC4]/20 transition-colors">
+                    <svg className="w-5 h-5 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                     </svg>
                   </button>
@@ -318,7 +328,7 @@ export default function EventBookingPage() {
               </div>
               <div className="prose prose-gray max-w-none">
                 {event.aboutEvent.split('\n').map((paragraph, index) => (
-                  <p key={index} className="text-gray-600 leading-relaxed mb-4">
+                  <p key={index} className="text-[#6B597F] leading-relaxed mb-4">
                     {paragraph}
                   </p>
                 ))}
@@ -328,16 +338,16 @@ export default function EventBookingPage() {
 
           {/* Location Card */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Location</h3>
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-[#C5BAC4]">
+              <h3 className="text-lg font-bold text-[#29104A] mb-4">Location</h3>
               <div className="space-y-3">
-                <p className="font-semibold text-gray-900">{event.venue}</p>
-                <p className="text-sm text-gray-500 leading-relaxed">{event.venueAddress}</p>
+                <p className="font-semibold text-[#29104A]">{event.venue}</p>
+                <p className="text-sm text-[#6B597F] leading-relaxed">{event.venueAddress}</p>
                 <a
                   href={`https://maps.google.com/?q=${encodeURIComponent(event.venueAddress)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-emerald-600 hover:text-emerald-700 font-medium text-sm mt-2"
+                  className="inline-flex items-center gap-2 text-[#522C5D] hover:text-[#29104A] font-medium text-sm mt-2"
                 >
                   View on Map
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -349,11 +359,9 @@ export default function EventBookingPage() {
           </div>
         </div>
       </div>
-    </main>
+      </main>
+      <Footer />
+    </div>
   );
 }
-
-
-
-
 

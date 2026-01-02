@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Footer from "@/components/Footer";
 
 interface TicketType {
   name: string;
@@ -151,12 +152,12 @@ export default function ManageEventPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#0f0f1a]">
+      <main className="min-h-screen bg-[#fdfdff]">
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-gray-800 rounded w-48"></div>
-            <div className="h-64 bg-gray-800 rounded-xl"></div>
-            <div className="h-96 bg-gray-800 rounded-xl"></div>
+            <div className="h-8 bg-[#C5BAC4] rounded w-48"></div>
+            <div className="h-64 bg-[#C5BAC4] rounded-xl"></div>
+            <div className="h-96 bg-[#C5BAC4] rounded-xl"></div>
           </div>
         </div>
       </main>
@@ -165,12 +166,12 @@ export default function ManageEventPage() {
 
   if (!event) {
     return (
-      <main className="min-h-screen bg-[#0f0f1a] text-white flex items-center justify-center">
+      <main className="min-h-screen bg-[#fdfdff] text-[#29104A] flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-400 text-lg">Event not found</p>
+          <p className="text-[#6B597F] text-lg">Event not found</p>
           <button
             onClick={() => router.push("/host/dashboard")}
-            className="mt-4 text-amber-400 hover:text-amber-300"
+            className="mt-4 text-[#522C5D] hover:text-[#29104A]"
           >
             ← Back to Dashboard
           </button>
@@ -180,32 +181,32 @@ export default function ManageEventPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0f0f1a] text-white">
+    <main className="min-h-screen bg-[#fdfdff] text-[#29104A]">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-[#0f0f1a]/80 backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b border-[#C5BAC4] bg-gradient-to-r from-[#29104A] via-[#3D1B5C] to-[#1A4B6E] backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push("/host/dashboard")}
-              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
             >
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
             <div>
-              <h1 className="font-bold text-lg">Manage Event</h1>
-              <p className="text-xs text-gray-400">{event.name}</p>
+              <h1 className="font-bold text-lg text-white">Manage Event</h1>
+              <p className="text-xs text-white/70">{event.name}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <span
               className={`px-3 py-1 rounded-full text-xs font-medium ${
                 event.status === "upcoming"
-                  ? "bg-blue-500/20 text-blue-400"
+                  ? "bg-white/20 text-white"
                   : event.status === "live"
-                  ? "bg-green-500/20 text-green-400"
-                  : "bg-gray-600/20 text-gray-400"
+                  ? "bg-green-500/20 text-green-300"
+                  : "bg-white/10 text-white/70"
               }`}
             >
               {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
@@ -216,7 +217,7 @@ export default function ManageEventPage() {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Event Header Card */}
-        <div className="bg-[#1a1a2e] rounded-2xl border border-gray-800 overflow-hidden mb-8">
+        <div className="bg-white rounded-2xl border border-[#C5BAC4] overflow-hidden mb-8 shadow-sm">
           <div className="flex flex-col lg:flex-row">
             {/* Event Image */}
             <div className="lg:w-80 h-48 lg:h-auto flex-shrink-0">
@@ -235,19 +236,19 @@ export default function ManageEventPage() {
                       type="text"
                       value={editForm.name}
                       onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                      className="text-2xl font-bold bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 w-full"
+                      className="text-2xl font-bold bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 w-full text-[#29104A]"
                     />
                   ) : (
-                    <h2 className="text-2xl font-bold">{event.name}</h2>
+                    <h2 className="text-2xl font-bold text-[#29104A]">{event.name}</h2>
                   )}
-                  <p className="text-gray-400 mt-1">{event.category}</p>
+                  <p className="text-[#6B597F] mt-1">{event.category}</p>
                 </div>
                 <button
                   onClick={() => isEditing ? handleSaveChanges() : setIsEditing(true)}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
                     isEditing
-                      ? "bg-emerald-500 hover:bg-emerald-400 text-white"
-                      : "bg-gray-800 hover:bg-gray-700 text-gray-300"
+                      ? "bg-[#522C5D] hover:bg-[#29104A] text-white"
+                      : "bg-[#C5BAC4]/30 hover:bg-[#C5BAC4] text-[#29104A]"
                   }`}
                 >
                   {isEditing ? (
@@ -271,8 +272,8 @@ export default function ManageEventPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-8 h-8 rounded-lg bg-[#C5BAC4]/30 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
                     </div>
@@ -281,15 +282,15 @@ export default function ManageEventPage() {
                         type="text"
                         value={editForm.date}
                         onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-sm flex-1"
+                        className="bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 text-sm flex-1 text-[#29104A]"
                       />
                     ) : (
-                      <span className="text-gray-300">{event.date}</span>
+                      <span className="text-[#29104A]">{event.date}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-8 h-8 rounded-lg bg-[#C5BAC4]/30 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
@@ -298,17 +299,17 @@ export default function ManageEventPage() {
                         type="text"
                         value={editForm.time}
                         onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-sm flex-1"
+                        className="bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 text-sm flex-1 text-[#29104A]"
                       />
                     ) : (
-                      <span className="text-gray-300">{event.time}</span>
+                      <span className="text-[#29104A]">{event.time}</span>
                     )}
                   </div>
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-8 h-8 rounded-lg bg-[#C5BAC4]/30 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
@@ -318,15 +319,15 @@ export default function ManageEventPage() {
                         type="text"
                         value={editForm.venue}
                         onChange={(e) => setEditForm({ ...editForm, venue: e.target.value })}
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-sm flex-1"
+                        className="bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 text-sm flex-1 text-[#29104A]"
                       />
                     ) : (
-                      <span className="text-gray-300">{event.venue}</span>
+                      <span className="text-[#29104A]">{event.venue}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-8 h-8 rounded-lg bg-[#C5BAC4]/30 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                       </svg>
                     </div>
@@ -335,10 +336,10 @@ export default function ManageEventPage() {
                         type="text"
                         value={editForm.category}
                         onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                        className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-sm flex-1"
+                        className="bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 text-sm flex-1 text-[#29104A]"
                       />
                     ) : (
-                      <span className="text-gray-300">{event.category}</span>
+                      <span className="text-[#29104A]">{event.category}</span>
                     )}
                   </div>
                 </div>
@@ -346,11 +347,11 @@ export default function ManageEventPage() {
 
               {isEditing && (
                 <div className="mt-4">
-                  <label className="text-sm text-gray-400 mb-1 block">Description</label>
+                  <label className="text-sm text-[#6B597F] mb-1 block">Description</label>
                   <textarea
                     value={editForm.description}
                     onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm resize-none h-20"
+                    className="w-full bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm resize-none h-20 text-[#29104A]"
                   />
                 </div>
               )}
@@ -360,21 +361,21 @@ export default function ManageEventPage() {
 
         {/* Stats Summary */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-[#1a1a2e] rounded-xl border border-gray-800 p-5">
-            <p className="text-gray-400 text-sm mb-1">Total Revenue</p>
-            <p className="text-2xl font-bold text-emerald-400">₹{event.totalRevenue.toLocaleString()}</p>
+          <div className="bg-white rounded-xl border border-[#C5BAC4] p-5 shadow-sm">
+            <p className="text-[#6B597F] text-sm mb-1">Total Revenue</p>
+            <p className="text-2xl font-bold text-[#29104A]">₹{event.totalRevenue.toLocaleString()}</p>
           </div>
-          <div className="bg-[#1a1a2e] rounded-xl border border-gray-800 p-5">
-            <p className="text-gray-400 text-sm mb-1">Tickets Sold</p>
-            <p className="text-2xl font-bold text-amber-400">{getTotalTicketsSold()} / {getTotalTickets()}</p>
+          <div className="bg-white rounded-xl border border-[#C5BAC4] p-5 shadow-sm">
+            <p className="text-[#6B597F] text-sm mb-1">Tickets Sold</p>
+            <p className="text-2xl font-bold text-[#522C5D]">{getTotalTicketsSold()} / {getTotalTickets()}</p>
           </div>
-          <div className="bg-[#1a1a2e] rounded-xl border border-gray-800 p-5">
-            <p className="text-gray-400 text-sm mb-1">Discount Active</p>
-            <p className="text-2xl font-bold text-red-400">{event.discount > 0 ? `${event.discount}%` : "None"}</p>
+          <div className="bg-white rounded-xl border border-[#C5BAC4] p-5 shadow-sm">
+            <p className="text-[#6B597F] text-sm mb-1">Discount Active</p>
+            <p className="text-2xl font-bold text-[#522C5D]">{event.discount > 0 ? `${event.discount}%` : "None"}</p>
           </div>
-          <div className="bg-[#1a1a2e] rounded-xl border border-gray-800 p-5">
-            <p className="text-gray-400 text-sm mb-1">Total Buyers</p>
-            <p className="text-2xl font-bold text-blue-400">{event.buyers.length}</p>
+          <div className="bg-white rounded-xl border border-[#C5BAC4] p-5 shadow-sm">
+            <p className="text-[#6B597F] text-sm mb-1">Total Buyers</p>
+            <p className="text-2xl font-bold text-[#29104A]">{event.buyers.length}</p>
           </div>
         </div>
 
@@ -384,8 +385,8 @@ export default function ManageEventPage() {
             onClick={() => setActiveTab("overview")}
             className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
               activeTab === "overview"
-                ? "bg-amber-500 text-black"
-                : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                ? "bg-[#522C5D] text-white"
+                : "bg-[#C5BAC4]/30 text-[#6B597F] hover:bg-[#C5BAC4]"
             }`}
           >
             Overview & Sales
@@ -394,8 +395,8 @@ export default function ManageEventPage() {
             onClick={() => setActiveTab("buyers")}
             className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
               activeTab === "buyers"
-                ? "bg-amber-500 text-black"
-                : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                ? "bg-[#522C5D] text-white"
+                : "bg-[#C5BAC4]/30 text-[#6B597F] hover:bg-[#C5BAC4]"
             }`}
           >
             Ticket Buyers
@@ -405,13 +406,13 @@ export default function ManageEventPage() {
         {activeTab === "overview" && (
           <>
             {/* Sales Graph */}
-            <div className="bg-[#1a1a2e] rounded-2xl border border-gray-800 p-6 mb-8">
-              <h3 className="text-lg font-bold mb-6">Tickets Sold Over Time</h3>
+            <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 mb-8 shadow-sm">
+              <h3 className="text-lg font-bold mb-6 text-[#29104A]">Tickets Sold Over Time</h3>
               
               {/* Graph Container */}
               <div className="relative h-64">
                 {/* Y-axis labels */}
-                <div className="absolute left-0 top-0 bottom-8 w-12 flex flex-col justify-between text-xs text-gray-500">
+                <div className="absolute left-0 top-0 bottom-8 w-12 flex flex-col justify-between text-xs text-[#6B597F]">
                   <span>{maxTickets}</span>
                   <span>{Math.round(maxTickets * 0.75)}</span>
                   <span>{Math.round(maxTickets * 0.5)}</span>
@@ -420,19 +421,19 @@ export default function ManageEventPage() {
                 </div>
                 
                 {/* Chart Area */}
-                <div className="ml-14 h-full flex items-end gap-2 pb-8 border-l border-b border-gray-700">
+                <div className="ml-14 h-full flex items-end gap-2 pb-8 border-l border-b border-[#C5BAC4]">
                   {event.salesData.map((data, index) => (
                     <div key={index} className="flex-1 flex flex-col items-center group">
                       {/* Bar */}
                       <div className="relative w-full flex justify-center">
                         <div
-                          className="w-8 bg-gradient-to-t from-amber-500 to-amber-400 rounded-t-md transition-all duration-300 group-hover:from-amber-400 group-hover:to-amber-300"
+                          className="w-8 bg-gradient-to-t from-[#1A4B6E] to-[#2E6B8A] rounded-t-md transition-all duration-300 group-hover:from-[#2E6B8A] group-hover:to-[#4A8BA8]"
                           style={{ height: `${(data.tickets / maxTickets) * 180}px` }}
                         ></div>
                         {/* Tooltip */}
-                        <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                        <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-[#1A4B6E] border border-[#2E6B8A] rounded-lg px-3 py-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                           <p className="font-semibold text-white">{data.tickets} tickets</p>
-                          <p className="text-gray-400">₹{data.revenue.toLocaleString()}</p>
+                          <p className="text-[#C5BAC4]">₹{data.revenue.toLocaleString()}</p>
                         </div>
                       </div>
                     </div>
@@ -442,7 +443,7 @@ export default function ManageEventPage() {
                 {/* X-axis labels */}
                 <div className="ml-14 flex gap-2 mt-2">
                   {event.salesData.map((data, index) => (
-                    <div key={index} className="flex-1 text-center text-xs text-gray-500">
+                    <div key={index} className="flex-1 text-center text-xs text-[#6B597F]">
                       {data.date}
                     </div>
                   ))}
@@ -451,29 +452,29 @@ export default function ManageEventPage() {
             </div>
 
             {/* Ticket Types Breakdown */}
-            <div className="bg-[#1a1a2e] rounded-2xl border border-gray-800 p-6">
-              <h3 className="text-lg font-bold mb-6">Ticket Types Breakdown</h3>
+            <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 shadow-sm">
+              <h3 className="text-lg font-bold mb-6 text-[#29104A]">Ticket Types Breakdown</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {event.ticketTypes.map((ticket, index) => (
-                  <div key={index} className="bg-gray-800/50 rounded-xl p-5">
+                  <div key={index} className="bg-[#C5BAC4]/20 rounded-xl p-5">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="font-semibold text-white">{ticket.name}</span>
-                      <span className="text-amber-400 font-bold">₹{ticket.price}</span>
+                      <span className="font-semibold text-[#29104A]">{ticket.name}</span>
+                      <span className="text-[#522C5D] font-bold">₹{ticket.price}</span>
                     </div>
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-400">Sold</span>
-                        <span className="text-white">{ticket.sold} / {ticket.total}</span>
+                        <span className="text-[#6B597F]">Sold</span>
+                        <span className="text-[#29104A]">{ticket.sold} / {ticket.total}</span>
                       </div>
-                      <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                      <div className="w-full h-2 bg-[#C5BAC4] rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-emerald-500 rounded-full"
+                          className="h-full bg-[#522C5D] rounded-full"
                           style={{ width: `${(ticket.sold / ticket.total) * 100}%` }}
                         ></div>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-400">Revenue</span>
-                        <span className="text-emerald-400 font-medium">
+                        <span className="text-[#6B597F]">Revenue</span>
+                        <span className="text-[#29104A] font-medium">
                           ₹{(ticket.sold * ticket.price * (1 - event.discount / 100)).toLocaleString()}
                         </span>
                       </div>
@@ -486,10 +487,10 @@ export default function ManageEventPage() {
         )}
 
         {activeTab === "buyers" && (
-          <div className="bg-[#1a1a2e] rounded-2xl border border-gray-800 overflow-hidden">
-            <div className="px-6 py-5 border-b border-gray-800 flex items-center justify-between">
-              <h3 className="text-lg font-bold">Ticket Buyers ({event.buyers.length})</h3>
-              <button className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+          <div className="bg-white rounded-2xl border border-[#C5BAC4] overflow-hidden shadow-sm">
+            <div className="px-6 py-5 border-b border-[#C5BAC4] flex items-center justify-between">
+              <h3 className="text-lg font-bold text-[#29104A]">Ticket Buyers ({event.buyers.length})</h3>
+              <button className="px-4 py-2 bg-[#C5BAC4]/30 hover:bg-[#C5BAC4] rounded-lg text-sm font-medium transition-colors flex items-center gap-2 text-[#29104A]">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
@@ -500,45 +501,45 @@ export default function ManageEventPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-800/50">
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400">Booking ID</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400">Buyer</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400">Contact</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400">Ticket Type</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400">Qty</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400">Amount Paid</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-gray-400">Date</th>
+                  <tr className="bg-[#C5BAC4]/20">
+                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Booking ID</th>
+                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Buyer</th>
+                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Contact</th>
+                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Ticket Type</th>
+                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Qty</th>
+                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Amount Paid</th>
+                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Date</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800">
+                <tbody className="divide-y divide-[#C5BAC4]">
                   {event.buyers.map((buyer) => (
-                    <tr key={buyer.id} className="hover:bg-gray-800/30 transition-colors">
+                    <tr key={buyer.id} className="hover:bg-[#C5BAC4]/10 transition-colors">
                       <td className="px-6 py-4">
-                        <span className="font-mono text-sm text-amber-400">{buyer.bookingId}</span>
+                        <span className="font-mono text-sm text-[#522C5D]">{buyer.bookingId}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="font-medium text-white">{buyer.name}</p>
+                        <p className="font-medium text-[#29104A]">{buyer.name}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm text-gray-300">{buyer.email}</p>
-                        <p className="text-xs text-gray-500">{buyer.phone}</p>
+                        <p className="text-sm text-[#29104A]">{buyer.email}</p>
+                        <p className="text-xs text-[#6B597F]">{buyer.phone}</p>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           buyer.ticketType === "VVIP"
-                            ? "bg-purple-500/20 text-purple-400"
+                            ? "bg-[#29104A]/10 text-[#29104A]"
                             : buyer.ticketType === "VIP"
-                            ? "bg-amber-500/20 text-amber-400"
-                            : "bg-gray-600/20 text-gray-400"
+                            ? "bg-[#522C5D]/10 text-[#522C5D]"
+                            : "bg-[#C5BAC4]/30 text-[#6B597F]"
                         }`}>
                           {buyer.ticketType}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-white">{buyer.quantity}</td>
+                      <td className="px-6 py-4 text-[#29104A]">{buyer.quantity}</td>
                       <td className="px-6 py-4">
-                        <span className="text-emerald-400 font-bold">₹{buyer.amountPaid.toLocaleString()}</span>
+                        <span className="text-[#29104A] font-bold">₹{buyer.amountPaid.toLocaleString()}</span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-400">{buyer.purchaseDate}</td>
+                      <td className="px-6 py-4 text-sm text-[#6B597F]">{buyer.purchaseDate}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -547,6 +548,7 @@ export default function ManageEventPage() {
           </div>
         )}
       </div>
+      <Footer />
     </main>
   );
 }

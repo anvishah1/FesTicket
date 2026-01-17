@@ -7,7 +7,6 @@ interface Company {
   name: string;
   agreementUrl: string;
   uploadedAt: string;
-  verified: boolean;
   type: "image" | "pdf";
 }
 
@@ -16,24 +15,21 @@ const companies: Company[] = [
     id: 1,
     name: "Red Bull",
     agreementUrl: "/agreements/redbull.png",
-    uploadedAt: "12 Jan 2025",
-    verified: true,
+    uploadedAt: "2025-01-12",
     type: "image",
   },
   {
     id: 2,
     name: "Zomato",
     agreementUrl: "/agreements/zomato.pdf",
-    uploadedAt: "18 Jan 2025",
-    verified: false,
+    uploadedAt: "2025-01-18",
     type: "pdf",
   },
   {
     id: 3,
     name: "Spotify",
     agreementUrl: "/agreements/spotify.png",
-    uploadedAt: "22 Jan 2025",
-    verified: true,
+    uploadedAt: "2025-01-22",
     type: "image",
   },
 ];
@@ -42,61 +38,90 @@ export default function Companies() {
   const [selected, setSelected] = useState<Company | null>(null);
   const [search, setSearch] = useState("");
   const [zoom, setZoom] = useState(false);
+  const [sortBy, setSortBy] = useState<
+    "name-asc" | "name-desc" | "recent"
+  >("name-asc");
 
-  const filtered = companies.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredCompanies = companies
+    .filter((company) =>
+      company.name.toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (sortBy === "name-asc") {
+        return a.name.localeCompare(b.name);
+      }
+      if (sortBy === "name-desc") {
+        return b.name.localeCompare(a.name);
+      }
+      return (
+        new Date(b.uploadedAt).getTime() -
+        new Date(a.uploadedAt).getTime()
+      );
+    });
 
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT: Company List */}
         <div className="space-y-4">
-          <div className="relative">
-            <input
-              placeholder="Search companies..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-4 py-2 pr-10 rounded-lg border border-[#C5BAC4] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#522C5D]/30"
-            />
+          {/* Search + Sort */}
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <input
+                placeholder="Search companies..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full px-4 py-2 pr-10 rounded-lg border border-[#C5BAC4] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#522C5D]/30"
+              />
 
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B597F] hover:text-[#29104A] text-sm"
-                aria-label="Clear search"
-              >
-                ✕
-              </button>
-            )}
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B597F] hover:text-[#29104A]"
+                  aria-label="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <select
+              value={sortBy}
+              onChange={(e) =>
+                setSortBy(e.target.value as any)
+              }
+              className="px-3 py-2 rounded-lg border border-[#C5BAC4] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#522C5D]/30"
+            >
+              <option value="name-asc">A → Z</option>
+              <option value="name-desc">Z → A</option>
+              <option value="recent">Recently added</option>
+            </select>
           </div>
 
-
-          {filtered.length === 0 && (
-            <p className="text-sm text-[#6B597F] text-center py-6">
+          {/* Company Cards */}
+          {filteredCompanies.length === 0 && (
+            <p className="text-sm text-[#6B597F] text-center py-8">
               No companies found
             </p>
           )}
 
-          {filtered.map((company) => (
+          {filteredCompanies.map((company) => (
             <button
               key={company.id}
               onClick={() => setSelected(company)}
-              className={`w-full text-left rounded-xl border transition-all p-5
+              className={`w-full text-left rounded-xl border p-5 transition-all
                 ${
                   selected?.id === company.id
                     ? "border-[#522C5D] bg-[#522C5D]/5 shadow-sm"
                     : "border-[#C5BAC4] bg-white hover:border-[#522C5D]/50 hover:shadow-sm"
                 }`}
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-[#29104A]">
-                  {company.name}
-                </span>
+              <div className="mb-1 font-medium text-[#29104A]">
+                {company.name}
               </div>
-
               <p className="text-xs text-[#6B597F]">
-                Uploaded on {company.uploadedAt}
+                Uploaded on{" "}
+                {new Date(company.uploadedAt).toLocaleDateString("en-GB")}
               </p>
             </button>
           ))}
@@ -130,6 +155,7 @@ export default function Companies() {
                 {selected.type === "image" ? (
                   <img
                     src={selected.agreementUrl}
+                    alt="Agreement"
                     className="max-h-full object-contain"
                   />
                 ) : (
@@ -162,6 +188,7 @@ export default function Companies() {
             {selected.type === "image" ? (
               <img
                 src={selected.agreementUrl}
+                alt="Agreement"
                 className="w-full h-full object-contain"
               />
             ) : (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Footer from "@/components/Footer";
 
 interface TicketType {
@@ -95,6 +95,8 @@ const sampleEventDetails: EventDetails = {
 export default function ManageEventPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromAdmin = searchParams.get("from") === "admin";
   const eventId = Number(params.eventId);
 
   const [event, setEvent] = useState<EventDetails | null>(null);
@@ -185,20 +187,43 @@ export default function ManageEventPage() {
       {/* Header */}
       <header className="border-b border-[#C5BAC4] bg-gradient-to-r from-[#29104A] via-[#3D1B5C] to-[#1A4B6E] backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.push("/host/dashboard")}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
+          <div className="flex items-center gap-6">
+            {/* Back button */}
+            {fromAdmin ? (
+              <button
+                onClick={() => router.push("/admin")}
+                className="flex items-center gap-2 px-4 py-1.5 rounded-lg border border-white/40 text-sm text-white hover:bg-white/10 transition"
+              >
+                ← Back to Admin
+              </button>
+            ) : (
+              <button
+                onClick={() => router.push("/host/dashboard")}
+                className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <svg
+                  className="w-5 h-5 text-white/80"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </button>
+            )}
+
+            {/* Title */}
             <div>
               <h1 className="font-bold text-lg text-white">Manage Event</h1>
               <p className="text-xs text-white/70">{event.name}</p>
             </div>
           </div>
+          
           <div className="flex items-center gap-3">
             <span
               className={`px-3 py-1 rounded-full text-xs font-medium ${

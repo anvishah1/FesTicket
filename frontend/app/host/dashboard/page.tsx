@@ -198,7 +198,16 @@ export default function HostDashboard() {
               <p className="text-xs text-[#C5BAC4]">{hostInfo.organization}</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => router.push("/host/marketing")}
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 border border-white/20"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              Marketing
+            </button>
             <button 
               onClick={() => router.push("/events/new/create")}
               className="px-4 py-2 bg-[#29104A] hover:bg-[#522C5D] text-white font-semibold rounded-lg transition-colors flex items-center gap-2"

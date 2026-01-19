@@ -42,20 +42,23 @@ export default function Home() {
               </Link>
             </div>
 
-            <div className="mt-10 grid grid-cols-3 gap-6 max-w-md">
-              <div className="text-center p-4 rounded-xl bg-[#C5BAC4] border border-[#6B597F]">
-                <div className="text-3xl font-bold text-[#29104A]">400+</div>
-                <div className="text-sm text-[#522C5D] mt-1">Events hosted</div>
+            {/* Sponsor CTA */}
+            <Link href="/sponsor" className="mt-10 block max-w-md">
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-[#29104A]/5 to-[#522C5D]/10 border border-[#522C5D]/30 hover:border-[#522C5D] hover:shadow-lg transition-all duration-300 group cursor-pointer">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#29104A] to-[#522C5D] flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-[#29104A]">Want to sponsor an event?</p>
+                  <p className="text-sm text-[#6B597F]">Partner with us and showcase your brand</p>
+                </div>
+                <svg className="w-5 h-5 text-[#522C5D] group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </div>
-              <div className="text-center p-4 rounded-xl bg-[#C5BAC4] border border-[#6B597F]">
-                <div className="text-3xl font-bold text-[#29104A]">25k+</div>
-                <div className="text-sm text-[#522C5D] mt-1">Tickets sold</div>
-              </div>
-              <div className="text-center p-4 rounded-xl bg-[#C5BAC4] border border-[#6B597F]">
-                <div className="text-3xl font-bold text-[#29104A]">3k+</div>
-                <div className="text-sm text-[#522C5D] mt-1">Hosts onboard</div>
-              </div>
-            </div>
+            </Link>
           </div>
 
           <aside className="order-first lg:order-last lg:scale-105">

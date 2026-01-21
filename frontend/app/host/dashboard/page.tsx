@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Footer from "@/components/Footer";
+import Link from "next/dist/client/link";
 
 interface TicketType {
   name: string;
@@ -189,14 +190,15 @@ export default function HostDashboard() {
       {/* Header */}
       <header className="border-b border-[#C5BAC4] bg-[#6B597F] backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#29104A] flex items-center justify-center font-bold text-white">
-              T
-            </div>
-            <div>
-              <h1 className="font-bold text-lg text-white">Host Dashboard</h1>
-              <p className="text-xs text-[#C5BAC4]">{hostInfo.organization}</p>
-            </div>
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center gap-3 h-16">
+              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white font-bold shadow-md">
+                t
+              </div>
+              <span className="font-bold text-white text-lg">
+                tiqr
+              </span>
+            </Link>
           </div>
           <div className="flex items-center gap-4">
             <button 
@@ -218,12 +220,13 @@ export default function HostDashboard() {
       </header>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Welcome Section */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-1 text-[#29104A]">Welcome back, {hostInfo.name.split(" ")[0]}! 👋</h2>
-          <p className="text-[#6B597F]">Here's an overview of your events and ticket sales.</p>
-        </div>
-
+      {/* Page Title */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-[#29104A]">
+          Host Dashboard
+        </h2>
+      </div>
+      
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white border border-[#C5BAC4] rounded-2xl p-5 shadow-sm">

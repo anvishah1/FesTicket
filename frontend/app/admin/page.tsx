@@ -7,8 +7,9 @@ import Footer from "@/components/Footer";
 import RoleRequests from "@/components/admin/RoleRequests";
 import FestEvents from "@/components/admin/FestEvents";
 import Companies from "@/components/admin/Companies";
+import Expenses from "@/components/admin/Expenses";
 
-type AdminSection = "events" | "approvals" | "companies";
+type AdminSection = "events" | "approvals" | "companies" | "expenses";
 
 export default function AdminPage() {
   const [activeSection, setActiveSection] =
@@ -66,6 +67,17 @@ export default function AdminPage() {
               active={activeSection === "companies"}
               onClick={() => setActiveSection("companies")}
             />
+
+            <SidebarItem
+              label="Expenses"
+              icon={
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+              }
+              active={activeSection === "expenses"}
+              onClick={() => setActiveSection("expenses")}
+            />
           </nav>
 
           {/* Quick Stats */}
@@ -84,6 +96,10 @@ export default function AdminPage() {
                 <span className="text-sm text-[#6B597F]">Sponsors</span>
                 <span className="px-2 py-0.5 bg-[#522C5D]/10 text-[#522C5D] rounded-full text-xs font-medium">8</span>
               </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[#6B597F]">Pending Expenses</span>
+                <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">4</span>
+              </div>
             </div>
           </div>
         </aside>
@@ -96,11 +112,13 @@ export default function AdminPage() {
               {activeSection === "events" && "Manage Events"}
               {activeSection === "approvals" && "Role Approval Requests"}
               {activeSection === "companies" && "Sponsor Agreements"}
+              {activeSection === "expenses" && "Expense Tracking"}
             </h1>
             <p className="text-sm text-[#6B597F] mt-1">
               {activeSection === "events" && "View and manage all fest events"}
               {activeSection === "approvals" && "Review and approve editor role requests"}
               {activeSection === "companies" && "View sponsor documents and agreements"}
+              {activeSection === "expenses" && "Track and review expenses submitted by event hosts"}
             </p>
           </div>
 
@@ -109,6 +127,7 @@ export default function AdminPage() {
             {activeSection === "events" && <FestEvents />}
             {activeSection === "approvals" && <RoleRequests />}
             {activeSection === "companies" && <Companies />}
+            {activeSection === "expenses" && <Expenses />}
           </main>
         </div>
       </div>

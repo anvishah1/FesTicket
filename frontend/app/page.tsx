@@ -90,15 +90,23 @@ export default function Home() {
               <h4 className="font-bold text-[#29104A] text-lg">Sell tickets</h4>
               <p className="text-[#522C5D] mt-2">Flexible ticket types, pricing and promo codes.</p>
             </div>
-            <div className="p-6 rounded-2xl bg-[#C5BAC4] border border-[#6B597F] hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 group">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#6B597F] to-[#522C5D] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg className="w-6 h-6 text-[#DEDCDC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
+            <Link href="/admin/signin" className="block">
+              <div className="p-6 rounded-2xl bg-[#C5BAC4] border border-[#6B597F] hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 group cursor-pointer">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#6B597F] to-[#522C5D] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <svg className="w-6 h-6 text-[#DEDCDC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <h4 className="font-bold text-[#29104A] text-lg">Manage attendees</h4>
+                <p className="text-[#522C5D] mt-2">Check-in tools, exports, and email notifications.</p>
+                <span className="inline-flex items-center gap-1 mt-3 text-sm font-medium text-[#522C5D] group-hover:text-[#29104A]">
+                  Admin Portal
+                  <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </span>
               </div>
-              <h4 className="font-bold text-[#29104A] text-lg">Manage attendees</h4>
-              <p className="text-[#522C5D] mt-2">Check-in tools, exports, and email notifications.</p>
-            </div>
+            </Link>
           </div>
         </section>
 

@@ -6,9 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "prisma:generate": "dotenv -e .env -- npx prisma generate",
-    "prisma:migrate": "dotenv -e .env -- npx prisma migrate dev --name init",
-    "dev": "dotenv -e .env -- node index.js"
+    "dev": "node index.js"
   },
   "keywords": [],
   "author": "",

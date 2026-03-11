@@ -3,10 +3,21 @@
 import { useState, useRef } from "react";
 
 interface EventBasicsProps {
-  onNext: () => void;
+  onNext: (data: EventBasicsData) => void;
+  initialData?: EventBasicsData;
 }
 
-// Default event images (same as discover events)
+export interface EventBasicsData {
+  name: string;
+  shortDescription: string;
+  image: string | null;
+  startDate: string;
+  endDate: string;
+  visibility: "PRIVATE" | "PUBLIC";
+  eventType: "OFFLINE" | "ONLINE";
+  status: "DRAFT" | "PUBLISHED";
+}
+
 const defaultImages = [
   {
     id: 1,
@@ -50,9 +61,18 @@ const defaultImages = [
   },
 ];
 
-export default function EventBasics({ onNext }: EventBasicsProps) {
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [customImage, setCustomImage] = useState<string | null>(null);
+export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
+  const [formData, setFormData] = useState<EventBasicsData>(initialData || {
+    name: "",
+    shortDescription: "",
+    image: null,
+    startDate: "",
+    endDate: "",
+    visibility: "PRIVATE",
+    eventType: "OFFLINE",
+    status: "DRAFT",
+  });
+  
   const [showDefaultImages, setShowDefaultImages] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,8 +81,7 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setCustomImage(reader.result as string);
-        setSelectedImage(reader.result as string);
+        setFormData({ ...formData, image: reader.result as string });
         setShowDefaultImages(false);
       };
       reader.readAsDataURL(file);
@@ -70,9 +89,16 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
   };
 
   const handleSelectDefaultImage = (url: string) => {
-    setSelectedImage(url);
-    setCustomImage(null);
+    setFormData({ ...formData, image: url });
     setShowDefaultImages(false);
+  };
+
+  const handleSubmit = () => {
+    if (!formData.name.trim()) {
+      alert("Please enter an event name");
+      return;
+    }
+    onNext(formData);
   };
 
   return (
@@ -91,22 +117,18 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
             Recommended: Square image (1:1) or landscape. Will be displayed at 320px height.
           </p>
           
-          {/* Current selected image preview - matches card dimensions exactly */}
-          {selectedImage && (
+          {formData.image && (
             <div className="mb-4 relative group">
               <div className="w-full h-80 bg-[#C5BAC4]/20 rounded-xl overflow-hidden border border-[#C5BAC4]">
                 <img 
-                  src={selectedImage} 
+                  src={formData.image} 
                   alt="Event" 
                   className="w-full h-full object-cover"
                 />
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedImage(null);
-                  setCustomImage(null);
-                }}
+                onClick={() => setFormData({ ...formData, image: null })}
                 className="absolute top-3 right-3 p-2 bg-[#29104A]/80 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#29104A]"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,7 +141,6 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
             </div>
           )}
           
-          {/* Upload / Select buttons */}
           <div className="flex gap-3">
             <button
               type="button"
@@ -155,7 +176,6 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
             className="hidden"
           />
           
-          {/* Default images grid */}
           {showDefaultImages && (
             <div className="mt-4 p-4 bg-[#C5BAC4]/20 rounded-xl">
               <p className="text-sm text-[#6B597F] mb-3">Select a default image (all sized for event cards):</p>
@@ -166,12 +186,11 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
                     type="button"
                     onClick={() => handleSelectDefaultImage(img.url)}
                     className={`relative group rounded-lg overflow-hidden border-2 transition-all ${
-                      selectedImage === img.url 
+                      formData.image === img.url 
                         ? "border-[#522C5D] ring-2 ring-[#522C5D]/30" 
                         : "border-transparent hover:border-[#522C5D]/50"
                     }`}
                   >
-                    {/* Preview uses same aspect ratio as card (h-80 equivalent scaled down) */}
                     <div className="w-full h-24 bg-[#C5BAC4]/20">
                       <img 
                         src={img.url} 
@@ -182,7 +201,7 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
                     <div className="absolute inset-0 bg-[#29104A]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <span className="text-white text-xs font-medium">{img.label}</span>
                     </div>
-                    {selectedImage === img.url && (
+                    {formData.image === img.url && (
                       <div className="absolute top-1 right-1 w-5 h-5 bg-[#522C5D] rounded-full flex items-center justify-center">
                         <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -199,10 +218,12 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
         {/* Event Name */}
         <div>
           <label className="block text-sm font-medium text-[#29104A]">
-            Event Name
+            Event Name <span className="text-[#522C5D]">*</span>
           </label>
           <input
             type="text"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="eg: KSUM Investor's Meet"
             className="mt-2 w-full rounded-lg border border-[#C5BAC4] px-4 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
           />
@@ -215,6 +236,8 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
           </label>
           <textarea
             rows={2}
+            value={formData.shortDescription}
+            onChange={(e) => setFormData({ ...formData, shortDescription: e.target.value })}
             placeholder="Describe your event in one or two lines"
             className="mt-2 w-full rounded-lg border border-[#C5BAC4] px-4 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
           />
@@ -228,6 +251,8 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
             </label>
             <input
               type="datetime-local"
+              value={formData.startDate}
+              onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
               className="mt-2 w-full rounded-lg border border-[#C5BAC4] px-4 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
             />
           </div>
@@ -238,6 +263,8 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
             </label>
             <input
               type="datetime-local"
+              value={formData.endDate}
+              onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
               className="mt-2 w-full rounded-lg border border-[#C5BAC4] px-4 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
             />
           </div>
@@ -249,8 +276,16 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
             Event Visibility
           </label>
           <div className="flex gap-4">
-            <OptionButton label="Private" active />
-            <OptionButton label="Public" />
+            <OptionButton 
+              label="Private" 
+              active={formData.visibility === "PRIVATE"} 
+              onClick={() => setFormData({ ...formData, visibility: "PRIVATE" })}
+            />
+            <OptionButton 
+              label="Public" 
+              active={formData.visibility === "PUBLIC"} 
+              onClick={() => setFormData({ ...formData, visibility: "PUBLIC" })}
+            />
           </div>
         </div>
 
@@ -260,8 +295,16 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
             Event Type
           </label>
           <div className="flex gap-4">
-            <OptionButton label="Offline" active />
-            <OptionButton label="Online" />
+            <OptionButton 
+              label="Offline" 
+              active={formData.eventType === "OFFLINE"} 
+              onClick={() => setFormData({ ...formData, eventType: "OFFLINE" })}
+            />
+            <OptionButton 
+              label="Online" 
+              active={formData.eventType === "ONLINE"} 
+              onClick={() => setFormData({ ...formData, eventType: "ONLINE" })}
+            />
           </div>
         </div>
 
@@ -271,14 +314,22 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
             Status
           </label>
           <div className="flex gap-4">
-            <OptionButton label="Draft" active />
-            <OptionButton label="Published" />
+            <OptionButton 
+              label="Draft" 
+              active={formData.status === "DRAFT"} 
+              onClick={() => setFormData({ ...formData, status: "DRAFT" })}
+            />
+            <OptionButton 
+              label="Published" 
+              active={formData.status === "PUBLISHED"} 
+              onClick={() => setFormData({ ...formData, status: "PUBLISHED" })}
+            />
           </div>
         </div>
 
         {/* Save */}
         <button
-          onClick={onNext}
+          onClick={handleSubmit}
           className="mt-6 w-full rounded-lg bg-[#522C5D] py-3 text-white font-medium hover:bg-[#29104A] transition"
         >
           Save & Continue
@@ -291,13 +342,16 @@ export default function EventBasics({ onNext }: EventBasicsProps) {
 function OptionButton({
   label,
   active = false,
+  onClick,
 }: {
   label: string;
   active?: boolean;
+  onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition
         ${
           active

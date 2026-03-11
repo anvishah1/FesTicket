@@ -3,30 +3,36 @@
 import { useState } from "react";
 
 interface TicketsProps {
-  onNext: () => void;
+  onNext: (data: TicketsData) => void;
+  initialData?: TicketsData;
 }
 
-type Ticket = {
+export type TicketType = {
   id: number;
   name: string;
-  price: string;
-  quantity: string;
+  price: number;
+  quantity: number;
 };
 
-export default function Tickets({ onNext }: TicketsProps) {
-  const [isPaid, setIsPaid] = useState(true);
-  const [tickets, setTickets] = useState<Ticket[]>([
-    { id: 1, name: "General Admission", price: "", quantity: "" },
-  ]);
+export interface TicketsData {
+  isPaid: boolean;
+  tickets: TicketType[];
+}
+
+export default function Tickets({ onNext, initialData }: TicketsProps) {
+  const [isPaid, setIsPaid] = useState(initialData?.isPaid ?? true);
+  const [tickets, setTickets] = useState<TicketType[]>(
+    initialData?.tickets || [{ id: 1, name: "General Admission", price: 0, quantity: 100 }]
+  );
 
   function addTicket() {
     setTickets([
       ...tickets,
-      { id: Date.now(), name: "", price: "", quantity: "" },
+      { id: Date.now(), name: "", price: 0, quantity: 100 },
     ]);
   }
 
-  function updateTicket(id: number, field: keyof Ticket, value: string) {
+  function updateTicket(id: number, field: keyof TicketType, value: string | number) {
     setTickets(
       tickets.map((t) =>
         t.id === id ? { ...t, [field]: value } : t
@@ -38,16 +44,31 @@ export default function Tickets({ onNext }: TicketsProps) {
     setTickets(tickets.filter((t) => t.id !== id));
   }
 
+  const handleSubmit = () => {
+    const validTickets = tickets.filter((t) => t.name.trim());
+    if (validTickets.length === 0) {
+      alert("Please add at least one ticket type");
+      return;
+    }
+    onNext({
+      isPaid,
+      tickets: validTickets.map((t) => ({
+        ...t,
+        price: isPaid ? t.price : 0,
+      })),
+    });
+  };
+
   return (
-    <div className="flex-1 rounded-xl border bg-white p-6 shadow-sm">
-      <h2 className="mb-6 text-xl font-semibold text-gray-900">
+    <div className="flex-1 rounded-xl border border-[#C5BAC4] bg-white p-6 shadow-sm">
+      <h2 className="mb-6 text-xl font-semibold text-[#29104A]">
         Tickets
       </h2>
 
       <div className="space-y-6">
         {/* Ticket Type */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">
+          <label className="mb-2 block text-sm font-medium text-[#29104A]">
             Ticket Type
           </label>
 
@@ -70,10 +91,10 @@ export default function Tickets({ onNext }: TicketsProps) {
           {tickets.map((ticket, index) => (
             <div
               key={ticket.id}
-              className="rounded-lg border bg-gray-50 p-4 space-y-4"
+              className="rounded-lg border border-[#C5BAC4] bg-[#C5BAC4]/10 p-4 space-y-4"
             >
               <div className="flex justify-between items-center">
-                <h3 className="text-sm font-medium text-gray-800">
+                <h3 className="text-sm font-medium text-[#29104A]">
                   Ticket {index + 1}
                 </h3>
 
@@ -94,31 +115,33 @@ export default function Tickets({ onNext }: TicketsProps) {
                   onChange={(e) =>
                     updateTicket(ticket.id, "name", e.target.value)
                   }
-                  className="rounded-lg border px-3 py-2 focus:border-emerald-600 focus:outline-none"
+                  className="rounded-lg border border-[#C5BAC4] px-3 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
                 />
 
                 {isPaid ? (
                   <input
+                    type="number"
                     placeholder="Price (₹)"
-                    value={ticket.price}
+                    value={ticket.price || ""}
                     onChange={(e) =>
-                      updateTicket(ticket.id, "price", e.target.value)
+                      updateTicket(ticket.id, "price", parseInt(e.target.value) || 0)
                     }
-                    className="rounded-lg border px-3 py-2 focus:border-emerald-600 focus:outline-none"
+                    className="rounded-lg border border-[#C5BAC4] px-3 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
                   />
                 ) : (
-                  <div className="flex items-center justify-center rounded-lg border bg-gray-100 text-sm text-gray-600">
+                  <div className="flex items-center justify-center rounded-lg border border-[#C5BAC4] bg-[#C5BAC4]/30 text-sm text-[#6B597F]">
                     Free
                   </div>
                 )}
 
                 <input
+                  type="number"
                   placeholder="Quantity"
-                  value={ticket.quantity}
+                  value={ticket.quantity || ""}
                   onChange={(e) =>
-                    updateTicket(ticket.id, "quantity", e.target.value)
+                    updateTicket(ticket.id, "quantity", parseInt(e.target.value) || 0)
                   }
-                  className="rounded-lg border px-3 py-2 focus:border-emerald-600 focus:outline-none"
+                  className="rounded-lg border border-[#C5BAC4] px-3 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
                 />
               </div>
             </div>
@@ -128,15 +151,15 @@ export default function Tickets({ onNext }: TicketsProps) {
         {/* Add Ticket */}
         <button
           onClick={addTicket}
-          className="w-full rounded-lg border-2 border-dashed py-4 text-gray-600 hover:border-gray-400 transition"
+          className="w-full rounded-lg border-2 border-dashed border-[#C5BAC4] py-4 text-[#6B597F] hover:border-[#522C5D] hover:text-[#522C5D] transition"
         >
-          + Add Another Ticket
+          + Add Another Ticket Type
         </button>
 
         {/* Save */}
         <button
-          onClick={onNext}
-          className="mt-6 w-full rounded-lg bg-emerald-700 py-3 text-white font-medium hover:bg-emerald-800 transition"
+          onClick={handleSubmit}
+          className="mt-6 w-full rounded-lg bg-[#522C5D] py-3 text-white font-medium hover:bg-[#29104A] transition"
         >
           Save & Continue
         </button>
@@ -161,8 +184,8 @@ function ToggleButton({
       className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition
         ${
           active
-            ? "border-emerald-600 bg-emerald-50 text-emerald-800"
-            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+            ? "border-[#522C5D] bg-[#522C5D]/10 text-[#522C5D]"
+            : "border-[#C5BAC4] bg-white text-[#6B597F] hover:bg-[#C5BAC4]/20"
         }`}
     >
       {label}

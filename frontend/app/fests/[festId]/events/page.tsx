@@ -9,13 +9,12 @@ import Footer from "@/components/Footer";
 interface Event {
   id: number;
   name: string;
-  date: string;
-  time: string;
-  venue: string;
-  description: string;
-  image: string;
-  category: string;
-  festId: number;
+  startDate: string | null;
+  endDate: string | null;
+  venue: string | null;
+  description: string | null;
+  image: string | null;
+  category: string | null;
 }
 
 interface FestInfo {
@@ -23,108 +22,6 @@ interface FestInfo {
   name: string;
   college: string;
 }
-
-// Sample events data - will be replaced with API call
-const sampleEvents: Event[] = [
-  {
-    id: 1,
-    name: "Proshow Day 1",
-    date: "Feb 14, 2025",
-    time: "7:00 PM",
-    venue: "Main Ground",
-    description: "Opening night featuring top artists",
-    image: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&h=400&fit=crop",
-    category: "Entertainment",
-    festId: 1,
-  },
-  {
-    id: 2,
-    name: "Proshow Day 2",
-    date: "Feb 15, 2025",
-    time: "7:00 PM",
-    venue: "Main Ground",
-    description: "EDM night with international DJs",
-    image: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop",
-    category: "Entertainment",
-    festId: 1,
-  },
-  {
-    id: 3,
-    name: "Robowars",
-    date: "Feb 15, 2025",
-    time: "10:00 AM",
-    venue: "Central Arena",
-    description: "Battle of the machines - robot combat championship",
-    image: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=400&h=400&fit=crop",
-    category: "Technical",
-    festId: 1,
-  },
-  {
-    id: 4,
-    name: "League of Machines",
-    date: "Feb 16, 2025",
-    time: "9:00 AM",
-    venue: "Tech Hall",
-    description: "Autonomous robotics competition",
-    image: "https://images.unsplash.com/photo-1531746790731-6c087fecd65a?w=400&h=400&fit=crop",
-    category: "Technical",
-    festId: 1,
-  },
-  {
-    id: 5,
-    name: "Drone Race",
-    date: "Feb 16, 2025",
-    time: "2:00 PM",
-    venue: "Open Field",
-    description: "High-speed drone racing championship",
-    image: "https://images.unsplash.com/photo-1473968512647-3e447244af8f?w=400&h=400&fit=crop",
-    category: "Technical",
-    festId: 1,
-  },
-  {
-    id: 6,
-    name: "Escape Room",
-    date: "Feb 14-17, 2025",
-    time: "All Day",
-    venue: "Block A",
-    description: "Solve puzzles and escape within time limit",
-    image: "https://images.unsplash.com/photo-1509281373149-e957c6296406?w=400&h=400&fit=crop",
-    category: "Fun",
-    festId: 1,
-  },
-  {
-    id: 7,
-    name: "Hackathon",
-    date: "Feb 15-16, 2025",
-    time: "24 Hours",
-    venue: "Computer Center",
-    description: "48-hour coding marathon with amazing prizes",
-    image: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=400&h=400&fit=crop",
-    category: "Technical",
-    festId: 1,
-  },
-  {
-    id: 8,
-    name: "Dance Battle",
-    date: "Feb 17, 2025",
-    time: "4:00 PM",
-    venue: "Auditorium",
-    description: "Solo and group dance competition",
-    image: "https://images.unsplash.com/photo-1508700929628-666bc8bd84ea?w=400&h=400&fit=crop",
-    category: "Cultural",
-    festId: 1,
-  },
-];
-
-// Sample fests data - will be replaced with API call
-const sampleFests: FestInfo[] = [
-  { id: 1, name: "Tathva", college: "NIT Calicut" },
-  { id: 2, name: "Mood Indigo", college: "IIT Bombay" },
-  { id: 3, name: "Saarang", college: "IIT Madras" },
-  { id: 4, name: "Rendezvous", college: "IIT Delhi" },
-  { id: 5, name: "Ragam", college: "NIT Calicut" },
-  { id: 6, name: "Festember", college: "NIT Trichy" },
-];
 
 export default function EventsPage() {
   const params = useParams();
@@ -137,37 +34,59 @@ export default function EventsPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
   useEffect(() => {
-    // TODO: Replace with actual API calls
-    // Promise.all([
-    //   fetch(`http://localhost:4000/api/fests/${festId}`),
-    //   fetch(`http://localhost:4000/api/fests/${festId}/events`)
-    // ])
-    //   .then(([festRes, eventsRes]) => Promise.all([festRes.json(), eventsRes.json()]))
-    //   .then(([festData, eventsData]) => {
-    //     setFestInfo(festData);
-    //     setEvents(eventsData);
-    //     setLoading(false);
-    //   });
+    const fetchData = async () => {
+      try {
+        const festRes = await fetch(`http://localhost:4000/api/fests/${festId}`);
+        const festJson = await festRes.json();
 
-    // For now, using sample data - filter events by festId
-    const fest = sampleFests.find((f) => f.id === festId);
-    const festEvents = sampleEvents.filter((e) => e.festId === festId);
-    
-    setFestInfo(fest || null);
-    setEvents(festEvents);
-    setLoading(false);
+        if (!festJson.success || !festJson.data) {
+          setFestInfo(null);
+          setEvents([]);
+          setLoading(false);
+          return;
+        }
+
+        setFestInfo({
+          id: festJson.data.id,
+          name: festJson.data.name,
+          college: festJson.data.college,
+        });
+
+        const apiEvents = (festJson.data.events || []) as any[];
+        const mappedEvents: Event[] = apiEvents.map((e) => ({
+          id: e.id,
+          name: e.name,
+          startDate: e.startDate,
+          endDate: e.endDate,
+          venue: e.venue,
+          description: e.shortDescription || e.description || null,
+          image: e.image,
+          category: e.category,
+        }));
+
+        setEvents(mappedEvents);
+      } catch (err) {
+        console.error("Failed to load fest events:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, [festId]);
 
   const handleEventClick = (eventId: number) => {
-    router.push(`/fests/${festId}/events/${eventId}`);
+    // Go to event details page; user can start booking from there
+    router.push(`/events/${eventId}`);
   };
 
-  const categories = events.length > 0
-    ? ["All", ...Array.from(new Set(events.map((e) => e.category)))]
-    : ["All"];
+  const categories =
+    events.length > 0
+      ? ["All", ...Array.from(new Set(events.map((e) => e.category || "Other")))]
+      : ["All"];
 
   const filteredEvents = events.filter(
-    (event) => selectedCategory === "All" || event.category === selectedCategory
+    (event) => selectedCategory === "All" || (event.category || "Other") === selectedCategory
   );
 
   if (loading) {
@@ -249,9 +168,15 @@ export default function EventsPage() {
               <Card
                 key={event.id}
                 title={event.name}
-                subtitle={event.category}
-                description={`${event.date} • ${event.time}`}
-                image={event.image}
+                subtitle={event.category || "Event"}
+                description={`${event.startDate ? new Date(event.startDate).toLocaleDateString(
+                  "en-US",
+                  { month: "short", day: "numeric", year: "numeric" }
+                ) : "Date TBA"}${event.venue ? ` • ${event.venue}` : ""}`}
+                image={
+                  event.image ||
+                  "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop"
+                }
                 hoverText="View Details"
                 onClick={() => handleEventClick(event.id)}
               />

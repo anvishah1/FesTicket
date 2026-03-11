@@ -112,18 +112,96 @@ export default function ManageEventPage() {
   });
 
   useEffect(() => {
-    // TODO: Replace with API call
-    setEvent(sampleEventDetails);
-    setEditForm({
-      name: sampleEventDetails.name,
-      date: sampleEventDetails.date,
-      time: sampleEventDetails.time,
-      venue: sampleEventDetails.venue,
-      venueAddress: sampleEventDetails.venueAddress,
-      description: sampleEventDetails.description,
-      category: sampleEventDetails.category,
-    });
-    setLoading(false);
+    const fetchEventData = async () => {
+      try {
+        // Fetch event details
+        const eventRes = await fetch(`http://localhost:4000/api/events/${eventId}`);
+        const eventData = await eventRes.json();
+
+        // Fetch bookings for this event
+        const bookingsRes = await fetch(`http://localhost:4000/api/bookings/event/${eventId}`);
+        const bookingsData = await bookingsRes.json();
+
+        if (eventData.success && eventData.data) {
+          const ev = eventData.data;
+          const bookings = bookingsData.success ? bookingsData.data : { bookings: [], stats: {} };
+          
+          // Map API data to our interface
+          const mappedEvent: EventDetails = {
+            id: ev.id,
+            name: ev.name,
+            date: ev.startDate ? new Date(ev.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA",
+            time: ev.startTime || "TBA",
+            venue: ev.venue || "TBA",
+            venueAddress: ev.venueAddress || "",
+            description: ev.description || ev.shortDescription || "",
+            image: ev.image || "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&h=600&fit=crop",
+            category: ev.category || "Event",
+            status: ev.status === "PUBLISHED" ? "upcoming" : "upcoming",
+            ticketTypes: ev.ticketTypes?.map((t: any) => ({
+              name: t.name,
+              price: t.price,
+              sold: t.sold || 0,
+              total: t.quantity,
+            })) || [],
+            discount: ev.discount || 0,
+            totalRevenue: bookings.stats?.totalRevenue || 0,
+            salesData: [], // Would need a separate API for historical data
+            buyers: bookings.bookings?.map((b: any) => ({
+              id: b.id,
+              name: b.buyerName,
+              email: b.buyerEmail,
+              phone: b.buyerPhone || "",
+              ticketType: b.tickets?.map((t: any) => t.type).join(", ") || "",
+              quantity: b.totalTickets,
+              amountPaid: b.total,
+              purchaseDate: b.purchaseDate ? new Date(b.purchaseDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Pending",
+              bookingId: b.bookingCode,
+            })) || [],
+          };
+
+          setEvent(mappedEvent);
+          setEditForm({
+            name: mappedEvent.name,
+            date: mappedEvent.date,
+            time: mappedEvent.time,
+            venue: mappedEvent.venue,
+            venueAddress: mappedEvent.venueAddress,
+            description: mappedEvent.description,
+            category: mappedEvent.category,
+          });
+        } else {
+          // Fallback to sample data if API fails
+          setEvent(sampleEventDetails);
+          setEditForm({
+            name: sampleEventDetails.name,
+            date: sampleEventDetails.date,
+            time: sampleEventDetails.time,
+            venue: sampleEventDetails.venue,
+            venueAddress: sampleEventDetails.venueAddress,
+            description: sampleEventDetails.description,
+            category: sampleEventDetails.category,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch event data:", error);
+        // Fallback to sample data
+        setEvent(sampleEventDetails);
+        setEditForm({
+          name: sampleEventDetails.name,
+          date: sampleEventDetails.date,
+          time: sampleEventDetails.time,
+          venue: sampleEventDetails.venue,
+          venueAddress: sampleEventDetails.venueAddress,
+          description: sampleEventDetails.description,
+          category: sampleEventDetails.category,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEventData();
   }, [eventId]);
 
   const handleSaveChanges = () => {

@@ -17,14 +17,16 @@ const steps: { id: Step; label: string }[] = [
   { id: "describe", label: "Describe Your Event" },
   { id: "location", label: "Event Location" },
   { id: "tickets", label: "Tickets" },
-  { id: "form", label: "Form (Optional)" },
+  { id: "form", label: "Registration Form" },
 ];
 
 export default function Sidebar({ current, onChange }: SidebarProps) {
   return (
     <aside className="w-64 shrink-0 space-y-3">
-      {steps.map((step) => {
+      {steps.map((step, index) => {
         const isActive = current === step.id;
+        const currentIndex = steps.findIndex((s) => s.id === current);
+        const isCompleted = index < currentIndex;
 
         return (
           <button
@@ -33,15 +35,34 @@ export default function Sidebar({ current, onChange }: SidebarProps) {
             className={`w-full rounded-xl border px-4 py-3 text-left transition-all
               ${
                 isActive
-                  ? "border-emerald-600 bg-emerald-50 text-emerald-800 font-medium"
-                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                  ? "border-[#522C5D] bg-[#522C5D]/10 text-[#522C5D] font-medium"
+                  : isCompleted
+                  ? "border-[#C5BAC4] bg-white text-[#29104A] hover:bg-[#C5BAC4]/20"
+                  : "border-[#C5BAC4] bg-white text-[#6B597F] hover:bg-[#C5BAC4]/20"
               }`}
           >
             <div className="flex items-center justify-between">
-              <span>{step.label}</span>
+              <div className="flex items-center gap-3">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                  isActive
+                    ? "bg-[#522C5D] text-white"
+                    : isCompleted
+                    ? "bg-green-500 text-white"
+                    : "bg-[#C5BAC4]/50 text-[#6B597F]"
+                }`}>
+                  {isCompleted ? (
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    index + 1
+                  )}
+                </span>
+                <span>{step.label}</span>
+              </div>
 
               {isActive && (
-                <span className="text-sm text-emerald-600">●</span>
+                <span className="text-sm text-[#522C5D]">●</span>
               )}
             </div>
           </button>

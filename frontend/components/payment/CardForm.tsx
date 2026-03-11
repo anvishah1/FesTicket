@@ -2,11 +2,20 @@
 
 import React from "react";
 
-export default function CardForm({ amount }: { amount: number; orderId?: string }) {
+type Props = {
+  amount: number;
+  orderId?: string;
+  onPaymentComplete?: () => void;
+  processing?: boolean;
+};
+
+export default function CardForm({ amount, orderId, onPaymentComplete, processing: externalProcessing }: Props) {
   const [cardNumber, setCardNumber] = React.useState("");
   const [expiry, setExpiry] = React.useState("");
   const [cvv, setCvv] = React.useState("");
   const [processing, setProcessing] = React.useState(false);
+
+  const isProcessing = processing || externalProcessing;
 
   function validCard() {
     return cardNumber.replace(/\s/g, "").length >= 12 && expiry.trim() && cvv.trim().length >= 3;
@@ -20,7 +29,12 @@ export default function CardForm({ amount }: { amount: number; orderId?: string 
     setProcessing(true);
     await new Promise((r) => setTimeout(r, 1200));
     setProcessing(false);
-    alert("Mock: Card payment successful (demo).");
+    
+    if (onPaymentComplete) {
+      onPaymentComplete();
+    } else {
+      alert("Mock: Card payment successful (demo).");
+    }
   }
 
   return (
@@ -41,17 +55,36 @@ export default function CardForm({ amount }: { amount: number; orderId?: string 
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-slate-500">Expiry (MM/YY)</label>
-              <input value={expiry} onChange={(e) => setExpiry(e.target.value)} placeholder="MM/YY" className="mt-1 w-full border rounded-md px-3 py-2" />
+              <input 
+                value={expiry} 
+                onChange={(e) => setExpiry(e.target.value)} 
+                placeholder="MM/YY" 
+                className="mt-1 w-full border rounded-md px-3 py-2" 
+              />
             </div>
             <div>
               <label className="text-xs text-slate-500">CVV</label>
-              <input value={cvv} onChange={(e) => setCvv(e.target.value)} placeholder="CVV" className="mt-1 w-full border rounded-md px-3 py-2" inputMode="numeric" />
+              <input 
+                value={cvv} 
+                onChange={(e) => setCvv(e.target.value)} 
+                placeholder="CVV" 
+                className="mt-1 w-full border rounded-md px-3 py-2" 
+                inputMode="numeric" 
+              />
             </div>
           </div>
 
           <div className="mt-4">
-            <button onClick={pay} disabled={!validCard() || processing} className={`px-4 py-2 rounded-md text-white ${validCard() ? "bg-primary-600 hover:bg-primary-700" : "bg-slate-300 cursor-not-allowed"}`}>
-              {processing ? "Processing…" : `Pay ₹${amount}`}
+            <button 
+              onClick={pay} 
+              disabled={!validCard() || isProcessing} 
+              className={`px-4 py-2 rounded-md text-white ${
+                validCard() && !isProcessing 
+                  ? "bg-primary-600 hover:bg-primary-700" 
+                  : "bg-slate-300 cursor-not-allowed"
+              }`}
+            >
+              {isProcessing ? "Processing…" : `Pay ₹${amount.toLocaleString()}`}
             </button>
           </div>
         </div>

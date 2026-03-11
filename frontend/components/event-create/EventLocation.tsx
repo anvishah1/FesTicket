@@ -3,87 +3,118 @@
 import { useState } from "react";
 
 interface EventLocationProps {
-  onNext: () => void;
+  onNext: (data: EventLocationData) => void;
+  initialData?: EventLocationData;
 }
 
-export default function EventLocation({ onNext }: EventLocationProps) {
-  const [mode, setMode] = useState<"offline" | "online">("offline");
+export interface EventLocationData {
+  locationType: "OFFLINE" | "ONLINE";
+  venue: string;
+  address: string;
+  meetingLink: string;
+}
+
+export default function EventLocation({ onNext, initialData }: EventLocationProps) {
+  const [formData, setFormData] = useState<EventLocationData>(initialData || {
+    locationType: "OFFLINE",
+    venue: "",
+    address: "",
+    meetingLink: "",
+  });
+
+  const handleSubmit = () => {
+    if (formData.locationType === "OFFLINE" && !formData.venue.trim()) {
+      alert("Please enter a venue name");
+      return;
+    }
+    if (formData.locationType === "ONLINE" && !formData.meetingLink.trim()) {
+      alert("Please enter a meeting link");
+      return;
+    }
+    onNext(formData);
+  };
 
   return (
-    <div className="flex-1 rounded-xl border bg-white p-6 shadow-sm">
-      <h2 className="mb-6 text-xl font-semibold text-gray-900">
+    <div className="flex-1 rounded-xl border border-[#C5BAC4] bg-white p-6 shadow-sm">
+      <h2 className="mb-6 text-xl font-semibold text-[#29104A]">
         Event Location
       </h2>
 
       <div className="space-y-6">
         {/* Mode */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">
+          <label className="mb-2 block text-sm font-medium text-[#29104A]">
             Location Type
           </label>
 
           <div className="flex gap-4">
             <ToggleButton
               label="Offline"
-              active={mode === "offline"}
-              onClick={() => setMode("offline")}
+              active={formData.locationType === "OFFLINE"}
+              onClick={() => setFormData({ ...formData, locationType: "OFFLINE" })}
             />
             <ToggleButton
               label="Online"
-              active={mode === "online"}
-              onClick={() => setMode("online")}
+              active={formData.locationType === "ONLINE"}
+              onClick={() => setFormData({ ...formData, locationType: "ONLINE" })}
             />
           </div>
         </div>
 
         {/* Offline Fields */}
-        {mode === "offline" && (
+        {formData.locationType === "OFFLINE" && (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Venue Name
+              <label className="block text-sm font-medium text-[#29104A]">
+                Venue Name <span className="text-[#522C5D]">*</span>
               </label>
               <input
+                value={formData.venue}
+                onChange={(e) => setFormData({ ...formData, venue: e.target.value })}
                 placeholder="eg: Kerala Startup Mission"
-                className="mt-2 w-full rounded-lg border px-4 py-2 focus:border-emerald-600 focus:outline-none"
+                className="mt-2 w-full rounded-lg border border-[#C5BAC4] px-4 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-[#29104A]">
                 Address
               </label>
               <textarea
                 rows={3}
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 placeholder="Street address, city, state"
-                className="mt-2 w-full rounded-lg border px-4 py-2 focus:border-emerald-600 focus:outline-none"
+                className="mt-2 w-full rounded-lg border border-[#C5BAC4] px-4 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
               />
             </div>
 
             {/* Map placeholder */}
-            <div className="rounded-lg border bg-gray-50 p-4 text-center text-sm text-gray-500">
+            <div className="rounded-lg border border-[#C5BAC4] bg-[#C5BAC4]/10 p-4 text-center text-sm text-[#6B597F]">
               Map preview will appear here
             </div>
           </>
         )}
 
         {/* Online Fields */}
-        {mode === "online" && (
+        {formData.locationType === "ONLINE" && (
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Meeting Link
+            <label className="block text-sm font-medium text-[#29104A]">
+              Meeting Link <span className="text-[#522C5D]">*</span>
             </label>
             <input
+              value={formData.meetingLink}
+              onChange={(e) => setFormData({ ...formData, meetingLink: e.target.value })}
               placeholder="https://zoom.us / https://meet.google.com"
-              className="mt-2 w-full rounded-lg border px-4 py-2 focus:border-emerald-600 focus:outline-none"
+              className="mt-2 w-full rounded-lg border border-[#C5BAC4] px-4 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
             />
           </div>
         )}
 
         {/* Save */}
         <button
-          onClick={onNext}
-          className="mt-6 w-full rounded-lg bg-emerald-700 py-3 text-white font-medium hover:bg-emerald-800 transition"
+          onClick={handleSubmit}
+          className="mt-6 w-full rounded-lg bg-[#522C5D] py-3 text-white font-medium hover:bg-[#29104A] transition"
         >
           Save & Continue
         </button>
@@ -108,8 +139,8 @@ function ToggleButton({
       className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition
         ${
           active
-            ? "border-emerald-600 bg-emerald-50 text-emerald-800"
-            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+            ? "border-[#522C5D] bg-[#522C5D]/10 text-[#522C5D]"
+            : "border-[#C5BAC4] bg-white text-[#6B597F] hover:bg-[#C5BAC4]/20"
         }`}
     >
       {label}

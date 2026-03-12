@@ -9,6 +9,7 @@ import { PrismaClient } from "@prisma/client";
 // Import routes
 import festsRouter from "./src/routes/fests.js";
 import eventsRouter from "./src/routes/events.js";
+import marketingRouter from "./src/routes/marketing.js";
 
 const prisma = new PrismaClient({
   log: [
@@ -36,6 +37,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // API Routes
 app.use("/api/fests", festsRouter);
 app.use("/api/events", eventsRouter);
+app.use("/api/marketing", marketingRouter);
 
 // simple health route
 app.get("/api/hello", (req, res) => {

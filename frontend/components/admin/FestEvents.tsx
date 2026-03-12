@@ -1,67 +1,130 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const events = [
-  {
-    id: 1,
-    name: "Proshow Day 1",
-    location: "Main Ground",
-    date: "Feb 14, 2025",
-    time: "7:00 PM",
-    image: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&h=300&fit=crop",
-    status: "upcoming",
-    ticketsSold: 555,
-    totalTickets: 1125,
-  },
-  {
-    id: 2,
-    name: "Proshow Day 2",
-    location: "Main Ground",
-    date: "Feb 15, 2025",
-    time: "7:00 PM",
-    image: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=300&fit=crop",
-    status: "upcoming",
-    ticketsSold: 365,
-    totalTickets: 875,
-  },
-  {
-    id: 3,
-    name: "Robowars",
-    location: "Central Arena",
-    date: "Feb 15, 2025",
-    time: "10:00 AM",
-    image: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=400&h=300&fit=crop",
-    status: "upcoming",
-    ticketsSold: 212,
-    totalTickets: 550,
-  },
-  {
-    id: 4,
-    name: "Hackathon 2025",
-    location: "Computer Center",
-    date: "Feb 16, 2025",
-    time: "9:00 AM",
-    image: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=400&h=300&fit=crop",
-    status: "upcoming",
-    ticketsSold: 120,
-    totalTickets: 150,
-  },
-  {
-    id: 5,
-    name: "Cultural Night",
-    location: "Auditorium",
-    date: "Feb 17, 2025",
-    time: "6:00 PM",
-    image: "https://images.unsplash.com/photo-1508700929628-666bc8bd84ea?w=400&h=300&fit=crop",
-    status: "upcoming",
-    ticketsSold: 280,
-    totalTickets: 500,
-  },
-];
+interface AdminEvent {
+  id: number;
+  name: string;
+  location: string;
+  date: string;
+  time: string;
+  image: string;
+  status: string;
+  ticketsSold: number;
+  totalTickets: number;
+}
 
 export default function FestEvents() {
   const router = useRouter();
+  const [events, setEvents] = useState<AdminEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Treat this admin view as managing fest with ID 4
+  const festId = 4;
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        // Fetch all events for this fest (any status)
+        const res = await fetch(
+          `http://localhost:4000/api/events?festId=${festId}`
+        );
+        const json = await res.json();
+        if (!res.ok || !json.success) return;
+
+        const mapped: AdminEvent[] = json.data.map((ev: any) => {
+          const ticketsSold =
+            ev.ticketTypes?.reduce(
+              (sum: number, t: any) => sum + (t.sold || 0),
+              0
+            ) || 0;
+          const totalTickets =
+            ev.ticketTypes?.reduce(
+              (sum: number, t: any) => sum + (t.quantity || 0),
+              0
+            ) || 0;
+
+          return {
+            id: ev.id,
+            name: ev.name,
+            location: ev.venue || ev.fest?.college || "TBA",
+            date: ev.startDate
+              ? new Date(ev.startDate).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : "TBA",
+            time: ev.startTime || "TBA",
+            image:
+              ev.image ||
+              "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&h=300&fit=crop",
+            status:
+              ev.status?.toLowerCase() === "published"
+                ? "upcoming"
+                : (ev.status || "upcoming").toString().toLowerCase(),
+            ticketsSold,
+            totalTickets: totalTickets || 1,
+          };
+        });
+
+        setEvents(mapped);
+      } catch (err) {
+        console.error("Failed to load admin events:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEvents();
+  }, [festId]);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <div
+              key={i}
+              className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm animate-pulse h-24"
+            />
+          ))}
+        </div>
+        <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 shadow-sm h-64 animate-pulse" />
+      </div>
+    );
+  }
+
+  const totalTicketsSold = events.reduce((sum, e) => sum + e.ticketsSold, 0);
+  const totalCapacity = events.reduce((sum, e) => sum + e.totalTickets, 0);
+  const capacityFilled =
+    totalCapacity > 0 ? Math.round((totalTicketsSold / totalCapacity) * 100) : 0;
+
+  if (events.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
+            <p className="text-sm text-[#6B597F]">Total Events</p>
+            <p className="text-2xl font-bold text-[#29104A]">0</p>
+          </div>
+          <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
+            <p className="text-sm text-[#6B597F]">Total Tickets Sold</p>
+            <p className="text-2xl font-bold text-[#29104A]">0</p>
+          </div>
+          <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
+            <p className="text-sm text-[#6B597F]">Capacity Filled</p>
+            <p className="text-2xl font-bold text-[#522C5D]">0%</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-[#29104A] mb-2">All Events</h2>
+          <p className="text-sm text-[#6B597F]">No events found for this fest.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -74,13 +137,13 @@ export default function FestEvents() {
         <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
           <p className="text-sm text-[#6B597F]">Total Tickets Sold</p>
           <p className="text-2xl font-bold text-[#29104A]">
-            {events.reduce((sum, e) => sum + e.ticketsSold, 0).toLocaleString()}
+            {totalTicketsSold.toLocaleString()}
           </p>
         </div>
         <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
           <p className="text-sm text-[#6B597F]">Capacity Filled</p>
           <p className="text-2xl font-bold text-[#522C5D]">
-            {Math.round((events.reduce((sum, e) => sum + e.ticketsSold, 0) / events.reduce((sum, e) => sum + e.totalTickets, 0)) * 100)}%
+            {capacityFilled}%
           </p>
         </div>
       </div>

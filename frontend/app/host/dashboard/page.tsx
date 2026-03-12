@@ -11,6 +11,17 @@ interface TicketType {
   total: number;
 }
 
+interface Fest {
+  id: number;
+  name: string;
+  college: string;
+  description: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  events: HostEvent[];
+  _count?: { events: number };
+}
+
 interface HostEvent {
   id: number;
   name: string;
@@ -25,106 +36,11 @@ interface HostEvent {
   totalRevenue: number;
 }
 
-interface Fest {
-  id: number;
-  name: string;
-  college: string;
-  description: string | null;
-  startDate: string | null;
-  endDate: string | null;
-  events: HostEvent[];
-  _count?: { events: number };
-}
-
 const hostInfo = {
   name: "Tathva Organizing Committee",
   email: "organizer@tathva.org",
   organization: "NIT Calicut",
 };
-
-// Sample events data for each fest (will be replaced by API later)
-const sampleEventsForFest: HostEvent[] = [
-  {
-    id: 1,
-    name: "Proshow Day 1",
-    date: "Feb 14, 2025",
-    time: "7:00 PM",
-    venue: "Main Ground",
-    image: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&h=400&fit=crop",
-    category: "Entertainment",
-    status: "upcoming",
-    ticketTypes: [
-      { name: "General", price: 999, sold: 450, total: 1000 },
-      { name: "VIP", price: 2499, sold: 85, total: 100 },
-      { name: "VVIP", price: 4999, sold: 20, total: 25 },
-    ],
-    discount: 10,
-    totalRevenue: 789525,
-  },
-  {
-    id: 2,
-    name: "Proshow Day 2",
-    date: "Feb 15, 2025",
-    time: "7:00 PM",
-    venue: "Main Ground",
-    image: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop",
-    category: "Entertainment",
-    status: "upcoming",
-    ticketTypes: [
-      { name: "General", price: 1499, sold: 320, total: 800 },
-      { name: "VIP", price: 3499, sold: 45, total: 75 },
-    ],
-    discount: 0,
-    totalRevenue: 637235,
-  },
-  {
-    id: 3,
-    name: "Robowars",
-    date: "Feb 15, 2025",
-    time: "10:00 AM",
-    venue: "Central Arena",
-    image: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=400&h=400&fit=crop",
-    category: "Technical",
-    status: "upcoming",
-    ticketTypes: [
-      { name: "Spectator", price: 299, sold: 180, total: 500 },
-      { name: "Participant", price: 599, sold: 32, total: 50 },
-    ],
-    discount: 15,
-    totalRevenue: 62098,
-  },
-  {
-    id: 4,
-    name: "Hackathon 2024",
-    date: "Dec 10, 2024",
-    time: "9:00 AM",
-    venue: "Computer Center",
-    image: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=400&h=400&fit=crop",
-    category: "Technical",
-    status: "past",
-    ticketTypes: [
-      { name: "Team Pass", price: 499, sold: 120, total: 150 },
-    ],
-    discount: 0,
-    totalRevenue: 59880,
-  },
-  {
-    id: 5,
-    name: "Cultural Night 2024",
-    date: "Nov 25, 2024",
-    time: "6:00 PM",
-    venue: "Auditorium",
-    image: "https://images.unsplash.com/photo-1508700929628-666bc8bd84ea?w=400&h=400&fit=crop",
-    category: "Cultural",
-    status: "past",
-    ticketTypes: [
-      { name: "General", price: 199, sold: 380, total: 400 },
-      { name: "Premium", price: 499, sold: 95, total: 100 },
-    ],
-    discount: 5,
-    totalRevenue: 117315,
-  },
-];
 
 export default function HostDashboard() {
   const router = useRouter();
@@ -147,17 +63,71 @@ export default function HostDashboard() {
   const [creatingFest, setCreatingFest] = useState(false);
   const [festError, setFestError] = useState("");
   const [festSuccess, setFestSuccess] = useState(false);
+  const [editingFestId, setEditingFestId] = useState<number | null>(null);
 
   const fetchFests = async () => {
     try {
       const response = await fetch("http://localhost:4000/api/fests");
       const data = await response.json();
       if (data.success) {
-        // Merge API fests with sample events data for now
-        const festsWithEvents = data.data.map((fest: Fest) => ({
-          ...fest,
-          events: sampleEventsForFest, // Use sample data until events API is connected
-        }));
+        const festsFromApi: Fest[] = data.data;
+
+        // For each fest, load its real events using the events endpoint filtered by festId
+        const festsWithEvents: Fest[] = await Promise.all(
+          festsFromApi.map(async (fest) => {
+            try {
+              const eventsRes = await fetch(
+                `http://localhost:4000/api/events?festId=${fest.id}`
+              );
+              const eventsJson = await eventsRes.json();
+              const apiEvents = eventsJson.success ? (eventsJson.data as any[]) : [];
+
+              const mappedEvents: HostEvent[] = apiEvents.map((e) => {
+                const totalTickets = e.ticketTypes?.reduce(
+                  (sum: number, t: any) => sum + (t.quantity || 0),
+                  0
+                ) || 0;
+                const soldTickets = e.ticketTypes?.reduce(
+                  (sum: number, t: any) => sum + (t.sold || 0),
+                  0
+                ) || 0;
+
+                return {
+                  id: e.id,
+                  name: e.name,
+                  date: e.startDate
+                    ? new Date(e.startDate).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
+                    : "TBA",
+                  time: e.startTime || "TBA",
+                  venue: e.venue || "TBA",
+                  image:
+                    e.image ||
+                    "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop",
+                  category: e.category || "Event",
+                  status: e.status === "PUBLISHED" ? "upcoming" : "upcoming",
+                  ticketTypes:
+                    e.ticketTypes?.map((t: any) => ({
+                      name: t.name,
+                      price: t.price,
+                      sold: t.sold || 0,
+                      total: t.quantity || 0,
+                    })) || [],
+                  discount: e.discount || 0,
+                  totalRevenue: 0, // can be filled from stats API later
+                };
+              });
+
+              return { ...fest, events: mappedEvents };
+            } catch {
+              return { ...fest, events: [] };
+            }
+          })
+        );
+
         setFests(festsWithEvents);
         if (festsWithEvents.length > 0 && expandedFest === null) {
           setExpandedFest(festsWithEvents[0].id);
@@ -180,8 +150,14 @@ export default function HostDashboard() {
     setFestError("");
 
     try {
-      const response = await fetch("http://localhost:4000/api/fests", {
-        method: "POST",
+      const isEdit = editingFestId !== null;
+      const url = isEdit
+        ? `http://localhost:4000/api/fests/${editingFestId}`
+        : "http://localhost:4000/api/fests";
+      const method = isEdit ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: festForm.name,
@@ -202,10 +178,11 @@ export default function HostDashboard() {
           setFestForm({ name: "", college: "", description: "", image: "", startDate: "", endDate: "" });
           setFestImagePreview(null);
           setFestSuccess(false);
+          setEditingFestId(null);
           fetchFests();
         }, 1500);
       } else {
-        setFestError(data.error || "Failed to create fest");
+        setFestError(data.error || "Failed to save fest");
       }
     } catch (err) {
       setFestError("Failed to connect to server. Make sure backend is running.");
@@ -267,7 +244,7 @@ export default function HostDashboard() {
       {/* Header */}
       <header className="border-b border-[#C5BAC4] bg-[#6B597F] backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#29104A] flex items-center justify-center font-bold text-white">
               T
             </div>
@@ -287,13 +264,13 @@ export default function HostDashboard() {
               Marketing
             </button>
             <button
-              onClick={() => setShowCreateFest(true)}
+              onClick={() => router.push("/host/fests/4/events/create")}
               className="px-4 py-2 bg-[#29104A] hover:bg-[#522C5D] text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Create Fest
+              Create Event
             </button>
             <div className="w-10 h-10 rounded-full bg-[#522C5D] flex items-center justify-center">
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -362,9 +339,9 @@ export default function HostDashboard() {
           </div>
         </div>
 
-        {/* Fests Section */}
+        {/* Events Section */}
         <div className="space-y-4">
-          <h3 className="text-xl font-bold text-[#29104A]">Your Fests</h3>
+          <h3 className="text-xl font-bold text-[#29104A]">Your Events</h3>
 
           {fests.length === 0 ? (
             <div className="bg-white rounded-2xl border border-[#C5BAC4] p-12 text-center">
@@ -373,13 +350,13 @@ export default function HostDashboard() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
-              <h4 className="text-lg font-bold text-[#29104A] mb-2">No fests yet</h4>
-              <p className="text-[#6B597F] mb-4">Create your first fest to start adding events.</p>
+              <h4 className="text-lg font-bold text-[#29104A] mb-2">No events yet</h4>
+              <p className="text-[#6B597F] mb-4">Create your first event to get started.</p>
               <button
-                onClick={() => setShowCreateFest(true)}
+                onClick={() => router.push("/host/fests/4/events/create")}
                 className="px-6 py-3 bg-[#522C5D] hover:bg-[#29104A] text-white font-semibold rounded-lg transition-colors"
               >
-                Create Your First Fest
+                Create Your First Event
               </button>
             </div>
           ) : (
@@ -402,6 +379,27 @@ export default function HostDashboard() {
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingFestId(fest.id);
+                            setFestForm({
+                              name: fest.name,
+                              college: fest.college,
+                              description: fest.description || "",
+                              image: "",
+                              startDate: fest.startDate ? fest.startDate.slice(0, 10) : "",
+                              endDate: fest.endDate ? fest.endDate.slice(0, 10) : "",
+                            });
+                            setFestImagePreview(null);
+                            setFestError("");
+                            setFestSuccess(false);
+                            setShowCreateFest(true);
+                          }}
+                          className="hidden sm:inline-flex px-3 py-1.5 rounded-lg bg-[#C5BAC4]/40 hover:bg-[#C5BAC4] text-xs font-medium text-[#29104A] transition-colors"
+                        >
+                          Edit Fest
+                        </button>
                         <div className="text-right hidden sm:block">
                           <p className="text-sm text-[#6B597F]">{formatDate(fest.startDate, fest.endDate)}</p>
                           <p className="text-sm font-medium text-[#522C5D]">
@@ -614,6 +612,7 @@ export default function HostDashboard() {
                   setShowCreateFest(false);
                   setFestError("");
                   setFestSuccess(false);
+                  setEditingFestId(null);
                 }}
                 className="w-10 h-10 rounded-full bg-[#C5BAC4]/30 hover:bg-[#C5BAC4] transition-colors flex items-center justify-center"
               >

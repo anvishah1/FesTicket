@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface Company {
   id: number;
@@ -11,50 +11,54 @@ interface Company {
   agreementUrl: string;
   uploadedAt: string;
   type: "image" | "pdf";
-  status: "confirmed" | "pending";
+  status: "confirmed" | "pending" | "negotiating";
 }
 
-const companies: Company[] = [
-  {
-    id: 1,
-    name: "Red Bull",
-    contactPerson: "Marketing Team",
-    email: "events@redbull.com",
-    amount: 500000,
-    agreementUrl: "/agreements/redbull.png",
-    uploadedAt: "2025-01-12",
-    type: "image",
-    status: "confirmed",
-  },
-  {
-    id: 2,
-    name: "Zomato",
-    contactPerson: "Priya Sharma",
-    email: "partnerships@zomato.com",
-    amount: 300000,
-    agreementUrl: "/agreements/zomato.pdf",
-    uploadedAt: "2025-01-18",
-    type: "pdf",
-    status: "confirmed",
-  },
-  {
-    id: 3,
-    name: "Spotify",
-    contactPerson: "Alex Johnson",
-    email: "sponsorships@spotify.com",
-    amount: 250000,
-    agreementUrl: "/agreements/spotify.png",
-    uploadedAt: "2025-01-22",
-    type: "image",
-    status: "pending",
-  },
-];
-
 export default function Companies() {
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [selected, setSelected] = useState<Company | null>(null);
   const [search, setSearch] = useState("");
   const [zoom, setZoom] = useState(false);
   const [sortBy, setSortBy] = useState<"name-asc" | "name-desc" | "recent">("recent");
+
+  // Admin is viewing fest 4
+  const festId = 4;
+
+  useEffect(() => {
+    const fetchSponsors = async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:4000/api/events/marketing/fest/${festId}/sponsors`
+        );
+        const json = await res.json();
+        if (!res.ok || !json.success) return;
+
+        const mapped: Company[] = json.data.map((s: any) => ({
+          id: s.id,
+          name: s.companyName,
+          contactPerson: s.contactPerson,
+          email: s.email || "",
+          amount: s.sponsorshipAmount || 0,
+          agreementUrl: s.agreementUrl || "",
+          uploadedAt: s.createdAt,
+          type: (s.agreementType === "PDF" ? "pdf" : "image") as
+            | "image"
+            | "pdf",
+          status: s.status === "CONFIRMED"
+            ? "confirmed"
+            : s.status === "PENDING"
+            ? "pending"
+            : "negotiating",
+        }));
+
+        setCompanies(mapped);
+      } catch (err) {
+        console.error("Failed to load fest sponsors:", err);
+      }
+    };
+
+    fetchSponsors();
+  }, [festId]);
 
   const filteredCompanies = companies
     .filter((company) =>

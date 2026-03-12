@@ -1,6 +1,6 @@
 // backend/src/routes/events.js
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, FileType } from "@prisma/client";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -14,14 +14,19 @@ function safeDate(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-// GET /api/events - List all published events
+// GET /api/events - List events (public + host)
 router.get("/", async (req, res) => {
   try {
     const { status, category, festId } = req.query;
 
     const where = {};
-    if (status) where.status = status;
-    else where.status = "PUBLISHED"; // Default to published events
+    if (status) {
+      // Explicit status filter from caller
+      where.status = status;
+    } else if (!festId) {
+      // Public listing (no festId) defaults to only published events
+      where.status = "PUBLISHED";
+    }
     if (category) where.category = category;
     if (festId) where.festId = parseInt(festId);
 
@@ -569,6 +574,392 @@ router.get("/:id/stats", async (req, res) => {
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch event stats" },
+    });
+  }
+});
+
+// ==================== MARKETING (SPONSORS & EXPENSES) ====================
+
+// GET /api/events/marketing/host/:hostId/sponsors
+router.get("/marketing/host/:hostId/sponsors", async (req, res) => {
+  try {
+    const { hostId } = req.params;
+
+    const sponsors = await prisma.sponsor.findMany({
+      where: {
+        OR: [
+          { event: { hostId: parseInt(hostId) } },
+          { fest: { events: { some: { hostId: parseInt(hostId) } } } },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.json({ success: true, data: sponsors });
+  } catch (error) {
+    console.error("Error fetching sponsors:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "FETCH_ERROR", message: "Failed to fetch sponsors" },
+    });
+  }
+});
+
+// GET /api/events/marketing/fest/:festId/sponsors - all sponsors linked to a fest
+router.get("/marketing/fest/:festId/sponsors", async (req, res) => {
+  try {
+    const { festId } = req.params;
+    const id = parseInt(festId);
+
+    const sponsors = await prisma.sponsor.findMany({
+      where: {
+        OR: [
+          { festId: id },
+          { event: { festId: id } },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.json({ success: true, data: sponsors });
+  } catch (error) {
+    console.error("Error fetching fest sponsors:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "FETCH_ERROR", message: "Failed to fetch fest sponsors" },
+    });
+  }
+});
+
+// POST /api/events/marketing/host/:hostId/sponsors
+router.post("/marketing/host/:hostId/sponsors", async (req, res) => {
+  try {
+    const { hostId } = req.params;
+    const {
+      companyName,
+      contactPerson,
+      email,
+      phone,
+      sponsorshipAmount,
+      receivedAmount,
+      status,
+      notes,
+      festId,
+      eventId,
+    } = req.body;
+
+    if (!companyName || !contactPerson) {
+      return res.status(400).json({
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Company and contact person are required" },
+      });
+    }
+
+    const sponsor = await prisma.sponsor.create({
+      data: {
+        festId: festId ? parseInt(festId) : null,
+        eventId: eventId ? parseInt(eventId) : null,
+        companyName,
+        contactPerson,
+        email: email || null,
+        phone: phone || null,
+        sponsorshipAmount: parseFloat(sponsorshipAmount) || 0,
+        receivedAmount: parseFloat(receivedAmount) || 0,
+        status: status || "NEGOTIATING",
+        notes: notes || null,
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: sponsor,
+      message: "Sponsor saved successfully",
+    });
+  } catch (error) {
+    console.error("Error creating sponsor:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "CREATE_ERROR", message: "Failed to create sponsor" },
+    });
+  }
+});
+
+// PUT /api/events/marketing/sponsors/:id
+router.put("/marketing/sponsors/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      companyName,
+      contactPerson,
+      email,
+      phone,
+      sponsorshipAmount,
+      receivedAmount,
+      status,
+      notes,
+      festId,
+      eventId,
+    } = req.body;
+
+    const sponsor = await prisma.sponsor.update({
+      where: { id: parseInt(id) },
+      data: {
+        companyName,
+        contactPerson,
+        email,
+        phone,
+        sponsorshipAmount: sponsorshipAmount !== undefined ? parseFloat(sponsorshipAmount) : undefined,
+        receivedAmount: receivedAmount !== undefined ? parseFloat(receivedAmount) : undefined,
+        status,
+        notes,
+        festId: festId !== undefined ? (festId ? parseInt(festId) : null) : undefined,
+        eventId: eventId !== undefined ? (eventId ? parseInt(eventId) : null) : undefined,
+      },
+    });
+
+    res.json({
+      success: true,
+      data: sponsor,
+      message: "Sponsor updated successfully",
+    });
+  } catch (error) {
+    console.error("Error updating sponsor:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "UPDATE_ERROR", message: "Failed to update sponsor" },
+    });
+  }
+});
+
+// DELETE /api/events/marketing/sponsors/:id
+router.delete("/marketing/sponsors/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.sponsor.delete({ where: { id: parseInt(id) } });
+
+    res.json({
+      success: true,
+      message: "Sponsor deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting sponsor:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "DELETE_ERROR", message: "Failed to delete sponsor" },
+    });
+  }
+});
+
+// GET /api/events/marketing/host/:hostId/expenses
+router.get("/marketing/host/:hostId/expenses", async (req, res) => {
+  try {
+    const { hostId } = req.params;
+
+    const expenses = await prisma.expense.findMany({
+      where: { hostId: parseInt(hostId) },
+      include: { files: true, fest: true, event: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.json({ success: true, data: expenses });
+  } catch (error) {
+    console.error("Error fetching expenses:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "FETCH_ERROR", message: "Failed to fetch expenses" },
+    });
+  }
+});
+
+// GET /api/events/marketing/fest/:festId/expenses - all expenses for a fest
+router.get("/marketing/fest/:festId/expenses", async (req, res) => {
+  try {
+    const { festId } = req.params;
+    const id = parseInt(festId);
+
+    const expenses = await prisma.expense.findMany({
+      where: {
+        OR: [
+          { festId: id },
+          { event: { festId: id } },
+        ],
+      },
+      include: {
+        host: true,
+        fest: true,
+        event: true,
+        files: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.json({ success: true, data: expenses });
+  } catch (error) {
+    console.error("Error fetching fest expenses:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "FETCH_ERROR", message: "Failed to fetch fest expenses" },
+    });
+  }
+});
+
+// POST /api/events/marketing/host/:hostId/expenses
+router.post("/marketing/host/:hostId/expenses", async (req, res) => {
+  try {
+    const { hostId } = req.params;
+    const {
+      festId,
+      eventId,
+      description,
+      category,
+      vendor,
+      amount,
+      paymentDate,
+      paymentMethod,
+      notes,
+      proofFiles = [],
+      billFiles = [],
+    } = req.body;
+
+    if (!description || !category || !vendor) {
+      return res.status(400).json({
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Description, category and vendor are required" },
+      });
+    }
+
+    const expense = await prisma.expense.create({
+      data: {
+        hostId: parseInt(hostId),
+        festId: festId ? parseInt(festId) : null,
+        eventId: eventId ? parseInt(eventId) : null,
+        description,
+        category,
+        vendor,
+        amount: parseFloat(amount) || 0,
+        paymentDate: safeDate(paymentDate),
+        paymentMethod: paymentMethod || null,
+        notes: notes || null,
+        files: {
+          create: [
+            ...(proofFiles || []).map((file) => ({
+              fileName: file.name,
+              fileType: FileType.PROOF,
+              fileUrl: file.url || "",
+              fileSize: file.size || null,
+              mimeType: file.type || null,
+            })),
+            ...(billFiles || []).map((file) => ({
+              fileName: file.name,
+              fileType: FileType.BILL,
+              fileUrl: file.url || "",
+              fileSize: file.size || null,
+              mimeType: file.type || null,
+            })),
+          ],
+        },
+      },
+      include: { files: true },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: expense,
+      message: "Expense saved successfully",
+    });
+  } catch (error) {
+    console.error("Error creating expense:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "CREATE_ERROR", message: "Failed to create expense" },
+    });
+  }
+});
+
+// PUT /api/events/marketing/expenses/:id
+router.put("/marketing/expenses/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      festId,
+      eventId,
+      description,
+      category,
+      vendor,
+      amount,
+      paymentDate,
+      paymentMethod,
+      notes,
+      proofFiles = [],
+      billFiles = [],
+    } = req.body;
+
+    const updated = await prisma.expense.update({
+      where: { id: parseInt(id) },
+      data: {
+        festId: festId !== undefined ? (festId ? parseInt(festId) : null) : undefined,
+        eventId: eventId !== undefined ? (eventId ? parseInt(eventId) : null) : undefined,
+        description,
+        category,
+        vendor,
+        amount: amount !== undefined ? parseFloat(amount) : undefined,
+        paymentDate: paymentDate !== undefined ? safeDate(paymentDate) : undefined,
+        paymentMethod,
+        notes,
+        files: {
+          deleteMany: {},
+          create: [
+            ...(proofFiles || []).map((file) => ({
+              fileName: file.name,
+              fileType: FileType.PROOF,
+              fileUrl: file.url || "",
+              fileSize: file.size || null,
+              mimeType: file.type || null,
+            })),
+            ...(billFiles || []).map((file) => ({
+              fileName: file.name,
+              fileType: FileType.BILL,
+              fileUrl: file.url || "",
+              fileSize: file.size || null,
+              mimeType: file.type || null,
+            })),
+          ],
+        },
+      },
+      include: { files: true },
+    });
+
+    res.json({
+      success: true,
+      data: updated,
+      message: "Expense updated successfully",
+    });
+  } catch (error) {
+    console.error("Error updating expense:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "UPDATE_ERROR", message: "Failed to update expense" },
+    });
+  }
+});
+
+// DELETE /api/events/marketing/expenses/:id
+router.delete("/marketing/expenses/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.expense.delete({ where: { id: parseInt(id) } });
+
+    res.json({
+      success: true,
+      message: "Expense deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting expense:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "DELETE_ERROR", message: "Failed to delete expense" },
     });
   }
 });

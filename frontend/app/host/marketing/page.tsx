@@ -38,63 +38,6 @@ interface ExpenseEntry {
   createdAt: string;
 }
 
-// Sample data
-const sampleSponsors: SponsorEntry[] = [
-  {
-    id: 1,
-    companyName: "TechCorp Industries",
-    contactPerson: "John Smith",
-    email: "john@techcorp.com",
-    phone: "+91 98765 43210",
-    sponsorshipAmount: 500000,
-    receivedAmount: 500000,
-    status: "confirmed",
-    notes: "Title sponsor for Proshow",
-    createdAt: "2025-01-15",
-  },
-  {
-    id: 2,
-    companyName: "StartupHub",
-    contactPerson: "Priya Sharma",
-    email: "priya@startuphub.io",
-    phone: "+91 87654 32109",
-    sponsorshipAmount: 200000,
-    receivedAmount: 100000,
-    status: "pending",
-    notes: "Awaiting second installment",
-    createdAt: "2025-01-10",
-  },
-];
-
-const sampleExpenses: ExpenseEntry[] = [
-  {
-    id: 1,
-    description: "Stage Setup & Lighting",
-    category: "Infrastructure",
-    vendor: "EventPro Services",
-    amount: 150000,
-    paymentDate: "2025-01-18",
-    paymentMethod: "Bank Transfer",
-    proofFiles: [{ name: "payment_receipt.pdf", size: 245000, type: "application/pdf" }],
-    billFiles: [{ name: "stage_invoice.pdf", size: 189000, type: "application/pdf" }],
-    notes: "Advance payment for Proshow stage",
-    createdAt: "2025-01-18",
-  },
-  {
-    id: 2,
-    description: "Marketing Banners & Posters",
-    category: "Marketing",
-    vendor: "PrintMax",
-    amount: 25000,
-    paymentDate: "2025-01-16",
-    paymentMethod: "UPI",
-    proofFiles: [{ name: "upi_screenshot.png", size: 156000, type: "image/png" }],
-    billFiles: [{ name: "printmax_bill.pdf", size: 98000, type: "application/pdf" }],
-    notes: "500 posters + 20 flex banners",
-    createdAt: "2025-01-16",
-  },
-];
-
 const expenseCategories = [
   "Infrastructure",
   "Marketing",
@@ -123,6 +66,7 @@ export default function MarketingPage() {
   const [sponsors, setSponsors] = useState<SponsorEntry[]>([]);
   const [expenses, setExpenses] = useState<ExpenseEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const hostId = 1; // TODO: replace with logged-in host's id
   
   // Modal states
   const [showSponsorForm, setShowSponsorForm] = useState(false);
@@ -155,12 +99,124 @@ export default function MarketingPage() {
   const [proofFiles, setProofFiles] = useState<UploadedFile[]>([]);
   const [billFiles, setBillFiles] = useState<UploadedFile[]>([]);
 
+  // Map between display text and backend enum for expense categories
+  const toBackendExpenseCategory = (label: string) => {
+    switch (label) {
+      case "Infrastructure": return "INFRASTRUCTURE";
+      case "Marketing": return "MARKETING";
+      case "Artist Fees": return "ARTIST_FEES";
+      case "Catering": return "CATERING";
+      case "Transportation": return "TRANSPORTATION";
+      case "Security": return "SECURITY";
+      case "Decoration": return "DECORATION";
+      case "Sound & AV": return "SOUND_AV";
+      case "Prizes": return "PRIZES";
+      case "Miscellaneous": return "MISCELLANEOUS";
+      default: return "MISCELLANEOUS";
+    }
+  };
+
+  const fromBackendExpenseCategory = (value: string) => {
+    switch (value) {
+      case "INFRASTRUCTURE": return "Infrastructure";
+      case "MARKETING": return "Marketing";
+      case "ARTIST_FEES": return "Artist Fees";
+      case "CATERING": return "Catering";
+      case "TRANSPORTATION": return "Transportation";
+      case "SECURITY": return "Security";
+      case "DECORATION": return "Decoration";
+      case "SOUND_AV": return "Sound & AV";
+      case "PRIZES": return "Prizes";
+      case "MISCELLANEOUS": return "Miscellaneous";
+      default: return value;
+    }
+  };
+
+  const toBackendSponsorStatus = (status: SponsorEntry["status"]) => {
+    switch (status) {
+      case "confirmed": return "CONFIRMED";
+      case "pending": return "PENDING";
+      case "negotiating": 
+      default:
+        return "NEGOTIATING";
+    }
+  };
+
+  const fromBackendSponsorStatus = (status: string): SponsorEntry["status"] => {
+    switch (status) {
+      case "CONFIRMED": return "confirmed";
+      case "PENDING": return "pending";
+      case "NEGOTIATING":
+      default:
+        return "negotiating";
+    }
+  };
+
   useEffect(() => {
-    // TODO: Replace with API call
-    setSponsors(sampleSponsors);
-    setExpenses(sampleExpenses);
-    setLoading(false);
-  }, []);
+    const fetchData = async () => {
+      try {
+        const [sRes, eRes] = await Promise.all([
+          fetch(`http://localhost:4000/api/events/marketing/host/${hostId}/sponsors`),
+          fetch(`http://localhost:4000/api/events/marketing/host/${hostId}/expenses`),
+        ]);
+
+        const sponsorsJson = await sRes.json();
+        const expensesJson = await eRes.json();
+
+        if (sRes.ok && sponsorsJson.success) {
+          const mappedSponsors: SponsorEntry[] = sponsorsJson.data.map((s: any) => ({
+            id: s.id,
+            companyName: s.companyName,
+            contactPerson: s.contactPerson,
+            email: s.email || "",
+            phone: s.phone || "",
+            sponsorshipAmount: s.sponsorshipAmount || 0,
+            receivedAmount: s.receivedAmount || 0,
+            status: fromBackendSponsorStatus(s.status),
+            notes: s.notes || "",
+            createdAt: s.createdAt,
+          }));
+          setSponsors(mappedSponsors);
+        }
+
+        if (eRes.ok && expensesJson.success) {
+          const mappedExpenses: ExpenseEntry[] = expensesJson.data.map((ex: any) => {
+            const proofFiles = (ex.files || []).filter((f: any) => f.fileType === "PROOF").map((f: any) => ({
+              name: f.fileName,
+              size: f.fileSize || 0,
+              type: f.mimeType || "",
+            }));
+            const billFiles = (ex.files || []).filter((f: any) => f.fileType === "BILL").map((f: any) => ({
+              name: f.fileName,
+              size: f.fileSize || 0,
+              type: f.mimeType || "",
+            }));
+
+            return {
+              id: ex.id,
+              description: ex.description,
+              category: fromBackendExpenseCategory(ex.category),
+              vendor: ex.vendor,
+              amount: ex.amount || 0,
+              paymentDate: ex.paymentDate ? ex.paymentDate.split("T")[0] : "",
+              paymentMethod: ex.paymentMethod || "",
+              notes: ex.notes || "",
+              proofFiles,
+              billFiles,
+              createdAt: ex.createdAt,
+            } as ExpenseEntry;
+          });
+          setExpenses(mappedExpenses);
+        }
+      } catch (err) {
+        console.error("Failed to fetch marketing data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [hostId]);
 
   // File handling
   const handleFileUpload = (
@@ -209,31 +265,80 @@ export default function MarketingPage() {
     setEditingSponsor(null);
   };
 
-  const handleSponsorSubmit = (e: React.FormEvent) => {
+  const handleSponsorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (editingSponsor) {
-      setSponsors(sponsors.map(s => 
-        s.id === editingSponsor.id 
-          ? {
-              ...s,
-              ...sponsorForm,
-              sponsorshipAmount: parseFloat(sponsorForm.sponsorshipAmount) || 0,
-              receivedAmount: parseFloat(sponsorForm.receivedAmount) || 0,
-            }
-          : s
-      ));
-    } else {
-      const newSponsor: SponsorEntry = {
-        id: Date.now(),
-        ...sponsorForm,
-        sponsorshipAmount: parseFloat(sponsorForm.sponsorshipAmount) || 0,
-        receivedAmount: parseFloat(sponsorForm.receivedAmount) || 0,
-        createdAt: new Date().toISOString().split('T')[0],
-      };
-      setSponsors([newSponsor, ...sponsors]);
+
+    const payload = {
+      companyName: sponsorForm.companyName,
+      contactPerson: sponsorForm.contactPerson,
+      email: sponsorForm.email || null,
+      phone: sponsorForm.phone || null,
+      sponsorshipAmount: parseFloat(sponsorForm.sponsorshipAmount) || 0,
+      receivedAmount: parseFloat(sponsorForm.receivedAmount) || 0,
+      status: toBackendSponsorStatus(sponsorForm.status),
+      notes: sponsorForm.notes || null,
+    };
+
+    try {
+      if (editingSponsor) {
+        const res = await fetch(`http://localhost:4000/api/events/marketing/sponsors/${editingSponsor.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          alert(data.error?.message || "Failed to update sponsor");
+        } else {
+          const updated: any = data.data;
+          setSponsors(sponsors.map((s) =>
+            s.id === editingSponsor.id
+              ? {
+                  id: updated.id,
+                  companyName: updated.companyName,
+                  contactPerson: updated.contactPerson,
+                  email: updated.email || "",
+                  phone: updated.phone || "",
+                  sponsorshipAmount: updated.sponsorshipAmount || 0,
+                  receivedAmount: updated.receivedAmount || 0,
+                  status: fromBackendSponsorStatus(updated.status),
+                  notes: updated.notes || "",
+                  createdAt: updated.createdAt,
+                }
+              : s
+          ));
+        }
+      } else {
+        const res = await fetch(`http://localhost:4000/api/events/marketing/host/${hostId}/sponsors`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          alert(data.error?.message || "Failed to create sponsor");
+        } else {
+          const s: any = data.data;
+          const newSponsor: SponsorEntry = {
+            id: s.id,
+            companyName: s.companyName,
+            contactPerson: s.contactPerson,
+            email: s.email || "",
+            phone: s.phone || "",
+            sponsorshipAmount: s.sponsorshipAmount || 0,
+            receivedAmount: s.receivedAmount || 0,
+            status: fromBackendSponsorStatus(s.status),
+            notes: s.notes || "",
+            createdAt: s.createdAt,
+          };
+          setSponsors([newSponsor, ...sponsors]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to save sponsor:", err);
+      alert("Failed to save sponsor. Please try again.");
     }
-    
+
     setShowSponsorForm(false);
     resetSponsorForm();
   };
@@ -253,9 +358,22 @@ export default function MarketingPage() {
     setShowSponsorForm(true);
   };
 
-  const handleDeleteSponsor = (id: number) => {
+  const handleDeleteSponsor = async (id: number) => {
     if (confirm("Are you sure you want to delete this sponsor entry?")) {
-      setSponsors(sponsors.filter(s => s.id !== id));
+      try {
+        const res = await fetch(`http://localhost:4000/api/events/marketing/sponsors/${id}`, {
+          method: "DELETE",
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          alert(data.error?.message || "Failed to delete sponsor");
+          return;
+        }
+        setSponsors(sponsors.filter((s) => s.id !== id));
+      } catch (err) {
+        console.error("Failed to delete sponsor:", err);
+        alert("Failed to delete sponsor. Please try again.");
+      }
     }
   };
 
@@ -275,33 +393,106 @@ export default function MarketingPage() {
     setEditingExpense(null);
   };
 
-  const handleExpenseSubmit = (e: React.FormEvent) => {
+  const handleExpenseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (editingExpense) {
-      setExpenses(expenses.map(ex => 
-        ex.id === editingExpense.id 
-          ? {
-              ...ex,
-              ...expenseForm,
-              amount: parseFloat(expenseForm.amount) || 0,
-              proofFiles,
-              billFiles,
-            }
-          : ex
-      ));
-    } else {
-      const newExpense: ExpenseEntry = {
-        id: Date.now(),
-        ...expenseForm,
-        amount: parseFloat(expenseForm.amount) || 0,
-        proofFiles,
-        billFiles,
-        createdAt: new Date().toISOString().split('T')[0],
-      };
-      setExpenses([newExpense, ...expenses]);
+
+    const payload = {
+      description: expenseForm.description,
+      category: toBackendExpenseCategory(expenseForm.category),
+      vendor: expenseForm.vendor,
+      amount: parseFloat(expenseForm.amount) || 0,
+      paymentDate: expenseForm.paymentDate || null,
+      paymentMethod: expenseForm.paymentMethod || null,
+      notes: expenseForm.notes || null,
+      proofFiles: proofFiles.map((f) => ({
+        name: f.name,
+        size: f.size,
+        type: f.type,
+        url: "", // plug in actual upload URL if you add storage
+      })),
+      billFiles: billFiles.map((f) => ({
+        name: f.name,
+        size: f.size,
+        type: f.type,
+        url: "",
+      })),
+    };
+
+    try {
+      if (editingExpense) {
+        const res = await fetch(`http://localhost:4000/api/events/marketing/expenses/${editingExpense.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          alert(data.error?.message || "Failed to update expense");
+        } else {
+          const ex: any = data.data;
+          const updated: ExpenseEntry = {
+            id: ex.id,
+            description: ex.description,
+            category: fromBackendExpenseCategory(ex.category),
+            vendor: ex.vendor,
+            amount: ex.amount || 0,
+            paymentDate: ex.paymentDate ? ex.paymentDate.split("T")[0] : "",
+            paymentMethod: ex.paymentMethod || "",
+            notes: ex.notes || "",
+            proofFiles: (ex.files || []).filter((f: any) => f.fileType === "PROOF").map((f: any) => ({
+              name: f.fileName,
+              size: f.fileSize || 0,
+              type: f.mimeType || "",
+            })),
+            billFiles: (ex.files || []).filter((f: any) => f.fileType === "BILL").map((f: any) => ({
+              name: f.fileName,
+              size: f.fileSize || 0,
+              type: f.mimeType || "",
+            })),
+            createdAt: ex.createdAt,
+          };
+          setExpenses(expenses.map((e) => (e.id === editingExpense.id ? updated : e)));
+        }
+      } else {
+        const res = await fetch(`http://localhost:4000/api/events/marketing/host/${hostId}/expenses`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          alert(data.error?.message || "Failed to create expense");
+        } else {
+          const ex: any = data.data;
+          const newExpense: ExpenseEntry = {
+            id: ex.id,
+            description: ex.description,
+            category: fromBackendExpenseCategory(ex.category),
+            vendor: ex.vendor,
+            amount: ex.amount || 0,
+            paymentDate: ex.paymentDate ? ex.paymentDate.split("T")[0] : "",
+            paymentMethod: ex.paymentMethod || "",
+            notes: ex.notes || "",
+            proofFiles: (ex.files || []).filter((f: any) => f.fileType === "PROOF").map((f: any) => ({
+              name: f.fileName,
+              size: f.fileSize || 0,
+              type: f.mimeType || "",
+            })),
+            billFiles: (ex.files || []).filter((f: any) => f.fileType === "BILL").map((f: any) => ({
+              name: f.fileName,
+              size: f.fileSize || 0,
+              type: f.mimeType || "",
+            })),
+            createdAt: ex.createdAt,
+          };
+          setExpenses([newExpense, ...expenses]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to save expense:", err);
+      alert("Failed to save expense. Please try again.");
     }
-    
+
     setShowExpenseForm(false);
     resetExpenseForm();
   };
@@ -322,9 +513,22 @@ export default function MarketingPage() {
     setShowExpenseForm(true);
   };
 
-  const handleDeleteExpense = (id: number) => {
+  const handleDeleteExpense = async (id: number) => {
     if (confirm("Are you sure you want to delete this expense entry?")) {
-      setExpenses(expenses.filter(ex => ex.id !== id));
+      try {
+        const res = await fetch(`http://localhost:4000/api/events/marketing/expenses/${id}`, {
+          method: "DELETE",
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          alert(data.error?.message || "Failed to delete expense");
+          return;
+        }
+        setExpenses(expenses.filter((ex) => ex.id !== id));
+      } catch (err) {
+        console.error("Failed to delete expense:", err);
+        alert("Failed to delete expense. Please try again.");
+      }
     }
   };
 

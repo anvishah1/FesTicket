@@ -47,50 +47,16 @@ interface EventDetails {
   buyers: TicketBuyer[];
 }
 
-// Sample event data
-const sampleEventDetails: EventDetails = {
-  id: 1,
-  name: "Proshow Day 1",
-  date: "Feb 14, 2025",
-  time: "7:00 PM - 11:00 PM",
-  venue: "Main Ground",
-  venueAddress: "NIT Calicut Campus, Kozhikode, Kerala 673601, India",
-  description: "Opening night featuring top artists. Get ready for an electrifying evening with the biggest names in music!",
-  image: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&h=600&fit=crop",
-  category: "Entertainment",
-  status: "upcoming",
-  ticketTypes: [
-    { name: "General", price: 999, sold: 450, total: 1000 },
-    { name: "VIP", price: 2499, sold: 85, total: 100 },
-    { name: "VVIP", price: 4999, sold: 20, total: 25 },
-  ],
-  discount: 10,
-  totalRevenue: 789525,
-  salesData: [
-    { date: "Dec 1", tickets: 45, revenue: 52000 },
-    { date: "Dec 2", tickets: 62, revenue: 71000 },
-    { date: "Dec 3", tickets: 38, revenue: 44000 },
-    { date: "Dec 4", tickets: 89, revenue: 102000 },
-    { date: "Dec 5", tickets: 124, revenue: 145000 },
-    { date: "Dec 6", tickets: 78, revenue: 89000 },
-    { date: "Dec 7", tickets: 95, revenue: 108000 },
-    { date: "Dec 8", tickets: 67, revenue: 76000 },
-    { date: "Dec 9", tickets: 42, revenue: 48000 },
-    { date: "Dec 10", tickets: 15, revenue: 54525 },
-  ],
-  buyers: [
-    { id: 1, name: "Rahul Sharma", email: "rahul.sharma@email.com", phone: "+91 98765 43210", ticketType: "VIP", quantity: 2, amountPaid: 4498, purchaseDate: "Dec 10, 2024", bookingId: "TKT-001234" },
-    { id: 2, name: "Priya Nair", email: "priya.n@email.com", phone: "+91 87654 32109", ticketType: "General", quantity: 4, amountPaid: 3596, purchaseDate: "Dec 10, 2024", bookingId: "TKT-001235" },
-    { id: 3, name: "Arun Kumar", email: "arun.k@email.com", phone: "+91 76543 21098", ticketType: "VVIP", quantity: 1, amountPaid: 4499, purchaseDate: "Dec 9, 2024", bookingId: "TKT-001230" },
-    { id: 4, name: "Sneha Menon", email: "sneha.m@email.com", phone: "+91 65432 10987", ticketType: "General", quantity: 2, amountPaid: 1798, purchaseDate: "Dec 9, 2024", bookingId: "TKT-001228" },
-    { id: 5, name: "Vishnu Prasad", email: "vishnu.p@email.com", phone: "+91 54321 09876", ticketType: "VIP", quantity: 3, amountPaid: 6747, purchaseDate: "Dec 8, 2024", bookingId: "TKT-001220" },
-    { id: 6, name: "Anjali Krishnan", email: "anjali.k@email.com", phone: "+91 43210 98765", ticketType: "General", quantity: 5, amountPaid: 4495, purchaseDate: "Dec 8, 2024", bookingId: "TKT-001218" },
-    { id: 7, name: "Mohammed Faisal", email: "faisal.m@email.com", phone: "+91 32109 87654", ticketType: "VVIP", quantity: 2, amountPaid: 8998, purchaseDate: "Dec 7, 2024", bookingId: "TKT-001210" },
-    { id: 8, name: "Lakshmi Devi", email: "lakshmi.d@email.com", phone: "+91 21098 76543", ticketType: "General", quantity: 3, amountPaid: 2697, purchaseDate: "Dec 7, 2024", bookingId: "TKT-001205" },
-    { id: 9, name: "Suresh Babu", email: "suresh.b@email.com", phone: "+91 10987 65432", ticketType: "VIP", quantity: 1, amountPaid: 2249, purchaseDate: "Dec 6, 2024", bookingId: "TKT-001198" },
-    { id: 10, name: "Deepa Rajan", email: "deepa.r@email.com", phone: "+91 09876 54321", ticketType: "General", quantity: 2, amountPaid: 1798, purchaseDate: "Dec 5, 2024", bookingId: "TKT-001190" },
-  ],
-};
+// Convert various time representations coming from the API into a value
+// that works nicely with `<input type="time">` (HH:MM).
+function toTimeInputValue(value?: string | null): string {
+  if (!value) return "";
+  // If it's already in HH:MM or HH:MM:SS, just return it.
+  if (/^\d{2}:\d{2}(:\d{2})?$/.test(value)) return value.slice(0, 5);
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(11, 16);
+}
 
 export default function ManageEventPage() {
   const params = useParams();
@@ -114,88 +80,71 @@ export default function ManageEventPage() {
   useEffect(() => {
     const fetchEventData = async () => {
       try {
-        // Fetch event details
-        const eventRes = await fetch(`http://localhost:4000/api/events/${eventId}`);
+        // Fetch event details only (we'll wire buyers/sales later)
+        const eventRes = await fetch(
+          `http://localhost:4000/api/events/${eventId}`
+        );
         const eventData = await eventRes.json();
 
-        // Fetch bookings for this event
-        const bookingsRes = await fetch(`http://localhost:4000/api/bookings/event/${eventId}`);
-        const bookingsData = await bookingsRes.json();
-
-        if (eventData.success && eventData.data) {
+        if (eventRes.ok && eventData.success && eventData.data) {
           const ev = eventData.data;
-          const bookings = bookingsData.success ? bookingsData.data : { bookings: [], stats: {} };
-          
-          // Map API data to our interface
+
+          // Map API data to our interface (salesData and buyers empty for now)
           const mappedEvent: EventDetails = {
             id: ev.id,
             name: ev.name,
-            date: ev.startDate ? new Date(ev.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA",
+            date: ev.startDate
+              ? new Date(ev.startDate).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : "TBA",
             time: ev.startTime || "TBA",
             venue: ev.venue || "TBA",
             venueAddress: ev.venueAddress || "",
             description: ev.description || ev.shortDescription || "",
-            image: ev.image || "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&h=600&fit=crop",
+            image:
+              ev.image ||
+              "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&h=600&fit=crop",
             category: ev.category || "Event",
             status: ev.status === "PUBLISHED" ? "upcoming" : "upcoming",
-            ticketTypes: ev.ticketTypes?.map((t: any) => ({
-              name: t.name,
-              price: t.price,
-              sold: t.sold || 0,
-              total: t.quantity,
-            })) || [],
+            ticketTypes:
+              ev.ticketTypes?.map((t: any) => ({
+                name: t.name,
+                price: t.price,
+                sold: t.sold || 0,
+                total: t.quantity,
+              })) || [],
             discount: ev.discount || 0,
-            totalRevenue: bookings.stats?.totalRevenue || 0,
-            salesData: [], // Would need a separate API for historical data
-            buyers: bookings.bookings?.map((b: any) => ({
-              id: b.id,
-              name: b.buyerName,
-              email: b.buyerEmail,
-              phone: b.buyerPhone || "",
-              ticketType: b.tickets?.map((t: any) => t.type).join(", ") || "",
-              quantity: b.totalTickets,
-              amountPaid: b.total,
-              purchaseDate: b.purchaseDate ? new Date(b.purchaseDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Pending",
-              bookingId: b.bookingCode,
-            })) || [],
+            totalRevenue: 0,
+            salesData: [],
+            buyers: [],
           };
 
           setEvent(mappedEvent);
+          // Use values formatted specifically for native date/time inputs so
+          // hosts see familiar pickers instead of raw ISO strings.
           setEditForm({
             name: mappedEvent.name,
-            date: mappedEvent.date,
-            time: mappedEvent.time,
+            // YYYY-MM-DD for `<input type="date">`
+            date: ev.startDate
+              ? new Date(ev.startDate).toISOString().slice(0, 10)
+              : "",
+            // HH:MM for `<input type="time">`
+            time: toTimeInputValue(ev.startTime),
             venue: mappedEvent.venue,
             venueAddress: mappedEvent.venueAddress,
             description: mappedEvent.description,
             category: mappedEvent.category,
           });
         } else {
-          // Fallback to sample data if API fails
-          setEvent(sampleEventDetails);
-          setEditForm({
-            name: sampleEventDetails.name,
-            date: sampleEventDetails.date,
-            time: sampleEventDetails.time,
-            venue: sampleEventDetails.venue,
-            venueAddress: sampleEventDetails.venueAddress,
-            description: sampleEventDetails.description,
-            category: sampleEventDetails.category,
-          });
+          // Backend responded but without a valid event
+          setEvent(null);
         }
       } catch (error) {
         console.error("Failed to fetch event data:", error);
-        // Fallback to sample data
-        setEvent(sampleEventDetails);
-        setEditForm({
-          name: sampleEventDetails.name,
-          date: sampleEventDetails.date,
-          time: sampleEventDetails.time,
-          venue: sampleEventDetails.venue,
-          venueAddress: sampleEventDetails.venueAddress,
-          description: sampleEventDetails.description,
-          category: sampleEventDetails.category,
-        });
+        setEvent(null);
       } finally {
         setLoading(false);
       }
@@ -204,16 +153,55 @@ export default function ManageEventPage() {
     fetchEventData();
   }, [eventId]);
 
-  const handleSaveChanges = () => {
-    // TODO: API call to save changes
-    if (event) {
+  const handleSaveChanges = async () => {
+    if (!event) return;
+
+    try {
+      const res = await fetch(`http://localhost:4000/api/events/${eventId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editForm.name,
+          description: editForm.description,
+          category: editForm.category,
+          venue: editForm.venue,
+          venueAddress: editForm.venueAddress,
+          // Persist date & time back to the DB so that the public
+          // event details page reflects these edits too.
+          startDate: editForm.date || null,
+          startTime: editForm.time || null,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.error?.message || "Failed to update event");
+        return;
+      }
+
+      const updated = data.data;
       setEvent({
         ...event,
-        ...editForm,
+        name: updated.name,
+        description: updated.description || updated.shortDescription || "",
+        venue: updated.venue || "",
+        venueAddress: updated.venueAddress || "",
+        category: updated.category || "Event",
+        date: updated.startDate
+          ? new Date(updated.startDate).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })
+          : event.date,
+        time: updated.startTime || event.time,
       });
+      setIsEditing(false);
+      alert("Changes saved successfully!");
+    } catch (err) {
+      console.error("Failed to update event:", err);
+      alert("Failed to update event. Please try again.");
     }
-    setIsEditing(false);
-    alert("Changes saved successfully!");
   };
 
   const getTotalTicketsSold = () => {
@@ -357,7 +345,7 @@ export default function ManageEventPage() {
                     </div>
                     {isEditing ? (
                       <input
-                        type="text"
+                        type="date"
                         value={editForm.date}
                         onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
                         className="bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 text-sm flex-1 text-[#29104A]"
@@ -374,7 +362,7 @@ export default function ManageEventPage() {
                     </div>
                     {isEditing ? (
                       <input
-                        type="text"
+                        type="time"
                         value={editForm.time}
                         onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
                         className="bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 text-sm flex-1 text-[#29104A]"

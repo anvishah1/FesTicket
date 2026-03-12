@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import dynamic from "next/dynamic";
 
 interface TicketType {
   id: number;
@@ -33,6 +34,20 @@ interface EventData {
   ticketTypes: TicketType[];
 }
 
+// Dynamically import React Leaflet components on client only
+const MapContainer = dynamic(
+  () => import("react-leaflet").then((mod) => mod.MapContainer),
+  { ssr: false }
+);
+const TileLayer = dynamic(
+  () => import("react-leaflet").then((mod) => mod.TileLayer),
+  { ssr: false }
+);
+const Marker = dynamic(
+  () => import("react-leaflet").then((mod) => mod.Marker),
+  { ssr: false }
+);
+
 export default function EventDetailsPage() {
   const params = useParams();
   const router = useRouter();
@@ -40,6 +55,8 @@ export default function EventDetailsPage() {
 
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [geocoding, setGeocoding] = useState(false);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -48,6 +65,28 @@ export default function EventDetailsPage() {
         const data = await res.json();
         if (data.success && data.data) {
           setEvent(data.data);
+          // Kick off geocoding based on venue address, if available
+          const addr = data.data.venueAddress || data.data.venue;
+          if (addr) {
+            setGeocoding(true);
+            const query = encodeURIComponent(addr);
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}`)
+              .then((res) => res.json())
+              .then((results) => {
+                if (Array.isArray(results) && results.length > 0) {
+                  const first = results[0];
+                  const lat = parseFloat(first.lat);
+                  const lng = parseFloat(first.lon);
+                  if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+                    setCoords({ lat, lng });
+                  }
+                }
+              })
+              .catch((err) => {
+                console.error("Geocoding failed:", err);
+              })
+              .finally(() => setGeocoding(false));
+          }
         }
       } catch (err) {
         console.error("Failed to fetch event details:", err);
@@ -175,11 +214,41 @@ export default function EventDetailsPage() {
             </p>
           </div>
 
-          {/* Venue details if available */}
-          {event.venueAddress && (
-            <div className="rounded-2xl border border-[#C5BAC4] bg-white p-6 space-y-2">
-              <h3 className="text-base font-semibold text-[#29104A]">Venue details</h3>
-              <p className="text-sm text-[#4B3F60]">{event.venueAddress}</p>
+          {/* Venue details + map */}
+          {(event.venueAddress || event.venue) && (
+            <div className="rounded-2xl border border-[#C5BAC4] bg-white p-6 space-y-4">
+              <div>
+                <h3 className="text-base font-semibold text-[#29104A]">Venue details</h3>
+                <p className="text-sm text-[#4B3F60]">
+                  {event.venueAddress || event.venue}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs text-[#6B597F]">Location on map</p>
+                <div className="h-64 w-full overflow-hidden rounded-xl border border-[#C5BAC4]/80 bg-[#f3eef7]">
+                  {coords ? (
+                    <MapContainer
+                      center={[coords.lat, coords.lng]}
+                      zoom={16}
+                      scrollWheelZoom={false}
+                      style={{ height: "100%", width: "100%" }}
+                    >
+                      <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      />
+                      <Marker position={[coords.lat, coords.lng]} />
+                    </MapContainer>
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-xs text-[#6B597F] px-4 text-center">
+                      {geocoding
+                        ? "Loading map for this venue…"
+                        : "We couldn't place this venue on the map automatically, but you can still find it using the address above."}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </section>

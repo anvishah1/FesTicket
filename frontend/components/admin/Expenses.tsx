@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface UploadedFile {
   name: string;
@@ -24,160 +24,6 @@ interface Expense {
   createdAt: string;
 }
 
-// Sample data - aggregated from all hosts' marketing pages
-const allExpenses: Expense[] = [
-  {
-    id: 1,
-    hostName: "Rahul Menon",
-    festName: "Tathva 2025",
-    description: "Stage Setup & Lighting",
-    category: "Infrastructure",
-    vendor: "EventPro Services",
-    amount: 150000,
-    paymentDate: "2025-01-18",
-    paymentMethod: "Bank Transfer",
-    proofFiles: [{ name: "payment_receipt.pdf", size: 245000, type: "application/pdf" }],
-    billFiles: [{ name: "stage_invoice.pdf", size: 189000, type: "application/pdf" }],
-    notes: "Advance payment for Proshow stage",
-    createdAt: "2025-01-18",
-  },
-  {
-    id: 2,
-    hostName: "Rahul Menon",
-    festName: "Tathva 2025",
-    description: "Marketing Banners & Posters",
-    category: "Marketing",
-    vendor: "PrintMax",
-    amount: 25000,
-    paymentDate: "2025-01-16",
-    paymentMethod: "UPI",
-    proofFiles: [{ name: "upi_screenshot.png", size: 156000, type: "image/png" }],
-    billFiles: [{ name: "printmax_bill.pdf", size: 98000, type: "application/pdf" }],
-    notes: "500 posters + 20 flex banners",
-    createdAt: "2025-01-16",
-  },
-  {
-    id: 3,
-    hostName: "Priya Nair",
-    festName: "Tathva 2025",
-    description: "DJ Performance Fee",
-    category: "Artist Fees",
-    vendor: "DJ Sunburn Agency",
-    amount: 200000,
-    paymentDate: "2025-01-15",
-    paymentMethod: "Bank Transfer - NEFT/RTGS",
-    proofFiles: [{ name: "neft_receipt.pdf", size: 180000, type: "application/pdf" }],
-    billFiles: [{ name: "artist_contract.pdf", size: 320000, type: "application/pdf" }],
-    notes: "50% advance for Proshow Day 2",
-    createdAt: "2025-01-15",
-  },
-  {
-    id: 4,
-    hostName: "Arun Kumar",
-    festName: "Tathva 2025",
-    description: "Sound System Rental",
-    category: "Sound & AV",
-    vendor: "AudioTech Solutions",
-    amount: 85000,
-    paymentDate: "2025-01-14",
-    paymentMethod: "Cheque",
-    proofFiles: [{ name: "cheque_photo.jpg", size: 210000, type: "image/jpeg" }],
-    billFiles: [{ name: "audio_quotation.pdf", size: 145000, type: "application/pdf" }],
-    notes: "Main stage sound for 3 days",
-    createdAt: "2025-01-14",
-  },
-  {
-    id: 5,
-    hostName: "Sneha Thomas",
-    festName: "Tathva 2025",
-    description: "Catering for Participants",
-    category: "Catering",
-    vendor: "Tasty Bites Catering",
-    amount: 65000,
-    paymentDate: "2025-01-12",
-    paymentMethod: "UPI",
-    proofFiles: [{ name: "gpay_screenshot.png", size: 125000, type: "image/png" }],
-    billFiles: [{ name: "catering_bill.pdf", size: 95000, type: "application/pdf" }],
-    notes: "Hackathon meals - 150 participants x 3 days",
-    createdAt: "2025-01-12",
-  },
-  {
-    id: 6,
-    hostName: "Mohammed Faisal",
-    festName: "Tathva 2025",
-    description: "Security Personnel",
-    category: "Security",
-    vendor: "SafeGuard Services",
-    amount: 45000,
-    paymentDate: "2025-01-10",
-    paymentMethod: "Bank Transfer",
-    proofFiles: [{ name: "bank_statement.pdf", size: 198000, type: "application/pdf" }],
-    billFiles: [{ name: "security_agreement.pdf", size: 256000, type: "application/pdf" }],
-    notes: "30 security guards for all 4 days",
-    createdAt: "2025-01-10",
-  },
-  {
-    id: 7,
-    hostName: "Anjali Krishnan",
-    festName: "Tathva 2025",
-    description: "Stage Decorations",
-    category: "Decoration",
-    vendor: "Creative Decors",
-    amount: 35000,
-    paymentDate: "2025-01-08",
-    paymentMethod: "Cash",
-    proofFiles: [{ name: "cash_receipt.jpg", size: 110000, type: "image/jpeg" }],
-    billFiles: [{ name: "decor_estimate.pdf", size: 87000, type: "application/pdf" }],
-    notes: "Cultural night stage setup",
-    createdAt: "2025-01-08",
-  },
-  {
-    id: 8,
-    hostName: "Rahul Menon",
-    festName: "Tathva 2025",
-    description: "Transportation - Equipment",
-    category: "Transportation",
-    vendor: "FastMove Logistics",
-    amount: 18000,
-    paymentDate: "2025-01-06",
-    paymentMethod: "UPI",
-    proofFiles: [{ name: "phonepe_ss.png", size: 95000, type: "image/png" }],
-    billFiles: [{ name: "transport_bill.pdf", size: 68000, type: "application/pdf" }],
-    notes: "Sound equipment from Chennai",
-    createdAt: "2025-01-06",
-  },
-  {
-    id: 9,
-    hostName: "Priya Nair",
-    festName: "Tathva 2025",
-    description: "Prizes & Trophies",
-    category: "Prizes",
-    vendor: "Trophy World",
-    amount: 28000,
-    paymentDate: "2025-01-05",
-    paymentMethod: "Credit Card",
-    proofFiles: [{ name: "card_statement.pdf", size: 142000, type: "application/pdf" }],
-    billFiles: [{ name: "trophy_invoice.pdf", size: 78000, type: "application/pdf" }],
-    notes: "Competition prizes for all events",
-    createdAt: "2025-01-05",
-  },
-  {
-    id: 10,
-    hostName: "Arun Kumar",
-    festName: "Tathva 2025",
-    description: "Miscellaneous Supplies",
-    category: "Miscellaneous",
-    vendor: "Various Vendors",
-    amount: 12000,
-    paymentDate: "2025-01-03",
-    paymentMethod: "Cash",
-    proofFiles: [],
-    billFiles: [{ name: "misc_bills.pdf", size: 234000, type: "application/pdf" }],
-    notes: "Cables, tapes, stationery etc.",
-    createdAt: "2025-01-03",
-  },
-];
-
 const expenseCategories = [
   "Infrastructure",
   "Marketing",
@@ -192,10 +38,76 @@ const expenseCategories = [
 ];
 
 export default function Expenses() {
+  const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
   const [search, setSearch] = useState("");
   const [filterHost, setFilterHost] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+
+  const festId = 4;
+
+  useEffect(() => {
+    const fetchExpenses = async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:4000/api/events/marketing/fest/${festId}/expenses`
+        );
+        const json = await res.json();
+        if (!res.ok || !json.success) return;
+
+        const mapped: Expense[] = json.data.map((ex: any) => {
+          const hostName =
+            ex.host?.name ||
+            ex.host?.email ||
+            ex.hostId
+              ? `Host #${ex.hostId}`
+              : "Unknown host";
+
+          const festName = ex.fest?.name || ex.event?.fest?.name || "Fest";
+
+          const proofFiles: UploadedFile[] = (ex.files || [])
+            .filter((f: any) => f.fileType === "PROOF")
+            .map((f: any) => ({
+              name: f.fileName,
+              size: f.fileSize || 0,
+              type: f.mimeType || "",
+            }));
+
+          const billFiles: UploadedFile[] = (ex.files || [])
+            .filter((f: any) => f.fileType === "BILL")
+            .map((f: any) => ({
+              name: f.fileName,
+              size: f.fileSize || 0,
+              type: f.mimeType || "",
+            }));
+
+          return {
+            id: ex.id,
+            hostName,
+            festName,
+            description: ex.description,
+            category: ex.category, // backend already uses enum-like strings
+            vendor: ex.vendor,
+            amount: ex.amount || 0,
+            paymentDate: ex.paymentDate
+              ? ex.paymentDate.split("T")[0]
+              : "",
+            paymentMethod: ex.paymentMethod || "",
+            proofFiles,
+            billFiles,
+            notes: ex.notes || "",
+            createdAt: ex.createdAt,
+          };
+        });
+
+        setAllExpenses(mapped);
+      } catch (err) {
+        console.error("Failed to load fest expenses:", err);
+      }
+    };
+
+    fetchExpenses();
+  }, [festId]);
 
   const uniqueHosts = Array.from(new Set(allExpenses.map((e) => e.hostName)));
 

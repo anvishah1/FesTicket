@@ -7,35 +7,423 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/*
-  Basic models for prototyping:
-  - User (for auth, registrations)
-  - Post (example of relation to User)
-  - Event (events table)
-*/
+////////////////////////////////////////////////////////
+// CORE MODELS
+////////////////////////////////////////////////////////
 
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String?
-  email     String   @unique
-  password  String?           // store hashed password (bcrypt) later
-  posts     Post[]            // relation: one user -> many posts
+  id                Int     @id @default(autoincrement())
+  email             String  @unique
+  password          String?
+  name              String?
+  phone             String?
+  organizationName  String?
+  organizationEmail String?
+
+  role       Role       @default(VIEWER)
+  roleStatus RoleStatus @default(ACTIVE)
+
+  profileCompleted Boolean @default(false)
+
+  emailVerified    Boolean @default(false)
+  emailVerifyToken String?
+
+  resetPasswordToken  String?
+  resetPasswordExpiry DateTime?
+
+  lastLogin DateTime?
+
+  // LOGIN SECURITY
+  failedLoginAttempts Int       @default(0)
+  lockUntil           DateTime?
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  hostedEvents     Event[]
+  bookings         Booking[]
+  expenses         Expense[]
+  roleRequests     RoleRequest[] @relation("requester")
+  reviewedRequests RoleRequest[] @relation("reviewer")
+
+  refreshTokens RefreshToken[]
 }
 
-model Post {
-  id        Int      @id @default(autoincrement())
-  title     String
-  content   String?
-  authorId  Int
-  author    User     @relation(fields: [authorId], references: [id])
+////////////////////////////////////////////////////////
+// FEST + EVENTS
+////////////////////////////////////////////////////////
+
+model Fest {
+  id          Int       @id @default(autoincrement())
+  name        String
+  college     String
+  description String?
+  image       String?
+  startDate   DateTime?
+  endDate     DateTime?
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events   Event[]
+  sponsors Sponsor[]
+  expenses Expense[]
 }
 
 model Event {
-  id        Int      @id @default(autoincrement())
-  name      String
+  id     Int  @id @default(autoincrement())
+  festId Int?
+  hostId Int
+
+  name        String
   description String?
-  date      DateTime?
+  aboutEvent  String?
+  image       String?
+  category    String?
+
+  startDate DateTime?
+  endDate   DateTime?
+
+  venue        String?
+  venueAddress String?
+  onlineLink   String?
+
+  isOnline Boolean @default(false)
+
+  visibility Visibility  @default(PUBLIC)
+  status     EventStatus @default(DRAFT)
+
+  discount Float @default(0)
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fest Fest? @relation(fields: [festId], references: [id])
+  host User  @relation(fields: [hostId], references: [id])
+
+  ticketTypes TicketType[]
+  bookings    Booking[]
+  sponsors    Sponsor[]
+  expenses    Expense[]
+  salesData   SalesData[]
+}
+
+////////////////////////////////////////////////////////
+// TICKETING
+////////////////////////////////////////////////////////
+
+model TicketType {
+  id          Int     @id @default(autoincrement())
+  eventId     Int
+  name        String
+  price       Float
+  quantity    Int
+  sold        Int     @default(0)
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event        Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  bookingItems BookingItem[]
+  attendees    Attendee[]
+}
+
+model Booking {
+  id          Int    @id @default(autoincrement())
+  bookingCode String @unique @default(cuid())
+
+  eventId Int
+  userId  Int?
+
+  guestEmail String?
+  guestName  String?
+  guestPhone String?
+
+  subtotal    Float
+  platformFee Float @default(0)
+  tax         Float @default(0)
+  total       Float
+
+  status       BookingStatus @default(PENDING)
+  purchaseDate DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id])
+  user  User? @relation(fields: [userId], references: [id])
+
+  items     BookingItem[]
+  attendees Attendee[]
+  payment   Payment?
+}
+
+model BookingItem {
+  id Int @id @default(autoincrement())
+
+  bookingId    Int
+  ticketTypeId Int
+
+  quantity   Int
+  unitPrice  Float
+  totalPrice Float
+
+  createdAt DateTime @default(now())
+
+  booking    Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ticketType TicketType @relation(fields: [ticketTypeId], references: [id])
+}
+
+model Attendee {
+  id Int @id @default(autoincrement())
+
+  bookingId    Int
+  ticketTypeId Int
+
+  name  String
+  email String
+
+  createdAt DateTime @default(now())
+
+  booking    Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ticketType TicketType @relation(fields: [ticketTypeId], references: [id])
+}
+
+model Payment {
+  id Int @id @default(autoincrement())
+
+  bookingId Int @unique
+
+  orderId String?
+  amount  Float
+
+  method PaymentMethod?
+  status PaymentStatus  @default(PENDING)
+
+  transactionId String?
+  paymentDate   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+////////////////////////////////////////////////////////
+// FINANCE
+////////////////////////////////////////////////////////
+
+model Sponsor {
+  id Int @id @default(autoincrement())
+
+  festId  Int?
+  eventId Int?
+
+  companyName   String
+  contactPerson String
+
+  email String?
+  phone String?
+
+  sponsorshipAmount Float
+  receivedAmount    Float @default(0)
+
+  status SponsorStatus @default(NEGOTIATING)
+
+  notes String?
+
+  agreementUrl  String?
+  agreementType String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fest  Fest?  @relation(fields: [festId], references: [id])
+  event Event? @relation(fields: [eventId], references: [id])
+}
+
+model Expense {
+  id Int @id @default(autoincrement())
+
+  hostId  Int
+  festId  Int?
+  eventId Int?
+
+  description String
+  category    ExpenseCategory
+  vendor      String
+
+  amount Float
+
+  paymentDate   DateTime?
+  paymentMethod String?
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  host  User   @relation(fields: [hostId], references: [id])
+  fest  Fest?  @relation(fields: [festId], references: [id])
+  event Event? @relation(fields: [eventId], references: [id])
+
+  files ExpenseFile[]
+}
+
+model ExpenseFile {
+  id Int @id @default(autoincrement())
+
+  expenseId Int
+
+  fileName String
+  fileType FileType
+  fileUrl  String
+
+  fileSize Int?
+  mimeType String?
+
+  createdAt DateTime @default(now())
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+}
+
+////////////////////////////////////////////////////////
+// ADMIN
+////////////////////////////////////////////////////////
+
+model RoleRequest {
+  id Int @id @default(autoincrement())
+
+  userId Int
+
+  requestedRole Role
+  organization  String?
+
+  status RoleRequestStatus @default(PENDING)
+
+  requestDate DateTime @default(now())
+
+  reviewedAt   DateTime?
+  reviewedById Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User  @relation("requester", fields: [userId], references: [id])
+  reviewedBy User? @relation("reviewer", fields: [reviewedById], references: [id])
+}
+
+model SalesData {
+  id Int @id @default(autoincrement())
+
+  eventId Int
+  date    DateTime @db.Date
+
+  ticketsSold Int   @default(0)
+  revenue     Float @default(0)
+
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, date])
+}
+
+////////////////////////////////////////////////////////
+// TOKENS
+////////////////////////////////////////////////////////
+
+model RefreshToken {
+  id Int @id @default(autoincrement())
+
+  token  String @unique
+  userId Int
+
+  userAgent String?
+  ipAddress String?
+
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+////////////////////////////////////////////////////////
+// ENUMS
+////////////////////////////////////////////////////////
+
+enum Role {
+  VIEWER
+  EDITOR
+  ADMIN
+}
+
+enum RoleStatus {
+  ACTIVE
+  PENDING
+  DENIED
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  UPCOMING
+  LIVE
+  PAST
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum BookingStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CARD
+  UPI
+  NETBANKING
+  WALLET
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum SponsorStatus {
+  NEGOTIATING
+  PENDING
+  CONFIRMED
+}
+
+enum ExpenseCategory {
+  INFRASTRUCTURE
+  MARKETING
+  ARTIST_FEES
+  CATERING
+  TRANSPORTATION
+  SECURITY
+  DECORATION
+  SOUND_AV
+  PRIZES
+  MISCELLANEOUS
+}
+
+enum FileType {
+  PROOF
+  BILL
+}
+
+enum RoleRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
 }

@@ -2,6 +2,7 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import Razorpay from "razorpay";
+import { sendBookingConfirmation } from "../utils/email.js";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -322,8 +323,15 @@ router.post("/:id/verify-payment", async (req, res) => {
 
     const updated = await prisma.booking.findUnique({
       where: { id: bookingId },
-      include: { event: true, items: { include: { ticketType: true } }, attendees: true },
+      include: {
+        event: true,
+        items: { include: { ticketType: true } },
+        attendees: true,
+        user: { select: { email: true, name: true } },
+      },
     });
+
+    sendBookingConfirmation(updated).catch((e) => console.error("[email] Booking confirmation failed:", e));
 
     res.json({
       success: true,
@@ -356,6 +364,7 @@ router.put("/:id/complete", async (req, res) => {
           event: true,
           items: { include: { ticketType: true } },
           attendees: true,
+          user: { select: { email: true, name: true } },
         },
       });
 
@@ -384,6 +393,8 @@ router.put("/:id/complete", async (req, res) => {
       }
       return updatedBooking;
     });
+
+    sendBookingConfirmation(booking).catch((e) => console.error("[email] Booking confirmation failed:", e));
 
     res.json({
       success: true,

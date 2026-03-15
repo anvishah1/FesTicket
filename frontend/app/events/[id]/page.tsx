@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { getApiUrl } from "@/lib/auth";
 import dynamic from "next/dynamic";
 
 interface TicketType {
@@ -61,7 +62,7 @@ export default function EventDetailsPage() {
   useEffect(() => {
     const fetchEvent = async () => {
       try {
-        const res = await fetch(`http://localhost:4000/api/events/${eventId}`);
+        const res = await fetch(`${getApiUrl()}/api/events/${eventId}`);
         const data = await res.json();
         if (data.success && data.data) {
           setEvent(data.data);

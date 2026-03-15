@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import * as XLSX from "xlsx";
 import Footer from "@/components/Footer";
+import { getApiUrl } from "@/lib/auth";
 
 interface TicketType {
   name: string;
@@ -80,68 +82,110 @@ export default function ManageEventPage() {
   useEffect(() => {
     const fetchEventData = async () => {
       try {
-        // Fetch event details only (we'll wire buyers/sales later)
-        const eventRes = await fetch(
-          `http://localhost:4000/api/events/${eventId}`
-        );
+        const [eventRes, bookingsRes] = await Promise.all([
+          fetch(`${getApiUrl()}/api/events/${eventId}`),
+          fetch(`${getApiUrl()}/api/bookings/event/${eventId}`),
+        ]);
         const eventData = await eventRes.json();
+        const bookingsData = await bookingsRes.json();
 
-        if (eventRes.ok && eventData.success && eventData.data) {
-          const ev = eventData.data;
-
-          // Map API data to our interface (salesData and buyers empty for now)
-          const mappedEvent: EventDetails = {
-            id: ev.id,
-            name: ev.name,
-            date: ev.startDate
-              ? new Date(ev.startDate).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })
-              : "TBA",
-            time: ev.startTime || "TBA",
-            venue: ev.venue || "TBA",
-            venueAddress: ev.venueAddress || "",
-            description: ev.description || ev.shortDescription || "",
-            image:
-              ev.image ||
-              "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&h=600&fit=crop",
-            category: ev.category || "Event",
-            status: ev.status === "PUBLISHED" ? "upcoming" : "upcoming",
-            ticketTypes:
-              ev.ticketTypes?.map((t: any) => ({
-                name: t.name,
-                price: t.price,
-                sold: t.sold || 0,
-                total: t.quantity,
-              })) || [],
-            discount: ev.discount || 0,
-            totalRevenue: 0,
-            salesData: [],
-            buyers: [],
-          };
-
-          setEvent(mappedEvent);
-          // Use values formatted specifically for native date/time inputs so
-          // hosts see familiar pickers instead of raw ISO strings.
-          setEditForm({
-            name: mappedEvent.name,
-            // YYYY-MM-DD for `<input type="date">`
-            date: ev.startDate
-              ? new Date(ev.startDate).toISOString().slice(0, 10)
-              : "",
-            // HH:MM for `<input type="time">`
-            time: toTimeInputValue(ev.startTime),
-            venue: mappedEvent.venue,
-            venueAddress: mappedEvent.venueAddress,
-            description: mappedEvent.description,
-            category: mappedEvent.category,
-          });
-        } else {
-          // Backend responded but without a valid event
+        if (!eventRes.ok || !eventData.success || !eventData.data) {
           setEvent(null);
+          setLoading(false);
+          return;
         }
+
+        const ev = eventData.data;
+        const bookings = bookingsData.success && bookingsData.data?.bookings ? bookingsData.data.bookings : [];
+        const stats = bookingsData.success && bookingsData.data?.stats ? bookingsData.data.stats : { totalRevenue: 0, totalTicketsSold: 0 };
+
+        const completed = bookings.filter((b: { status: string }) => b.status === "COMPLETED");
+
+        // Build buyers from completed bookings (scoped to this event)
+        const buyers: TicketBuyer[] = completed.map((b: any) => ({
+          id: b.id,
+          bookingId: b.bookingCode,
+          name: b.buyerName || "Guest",
+          email: b.buyerEmail || "",
+          phone: b.buyerPhone || "",
+          ticketType: b.tickets?.map((t: any) => t.type).join(", ") || "—",
+          quantity: b.totalTickets ?? 0,
+          amountPaid: b.total ?? 0,
+          purchaseDate: b.purchaseDate
+            ? new Date(b.purchaseDate).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+            : "—",
+        }));
+
+        // Build salesData: group completed bookings by date, sum tickets and revenue
+        const byDate: Record<string, { tickets: number; revenue: number }> = {};
+        for (const b of completed) {
+          const dateKey = b.purchaseDate
+            ? new Date(b.purchaseDate).toISOString().slice(0, 10)
+            : new Date(b.createdAt).toISOString().slice(0, 10);
+          if (!byDate[dateKey]) byDate[dateKey] = { tickets: 0, revenue: 0 };
+          byDate[dateKey].tickets += b.totalTickets ?? 0;
+          byDate[dateKey].revenue += b.total ?? 0;
+        }
+        const salesData: SalesDataPoint[] = Object.entries(byDate)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([dateKey, { tickets, revenue }]) => ({
+            date: new Date(dateKey).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            tickets,
+            revenue,
+          }));
+
+        // Per-ticket-type sold from completed bookings only (so breakdown matches payments)
+        const soldByTypeName: Record<string, number> = {};
+        for (const b of completed) {
+          for (const t of b.tickets || []) {
+            const name = t.type || "—";
+            soldByTypeName[name] = (soldByTypeName[name] ?? 0) + (t.quantity ?? 0);
+          }
+        }
+
+        const ticketTypes = (ev.ticketTypes || []).map((t: any) => ({
+          name: t.name,
+          price: t.price,
+          sold: soldByTypeName[t.name] ?? t.sold ?? 0,
+          total: t.quantity ?? 0,
+        }));
+
+        const mappedEvent: EventDetails = {
+          id: ev.id,
+          name: ev.name,
+          date: ev.startDate
+            ? new Date(ev.startDate).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })
+            : "TBA",
+          time: ev.startTime || "TBA",
+          venue: ev.venue || "TBA",
+          venueAddress: ev.venueAddress || "",
+          description: ev.description || ev.shortDescription || "",
+          image:
+            ev.image ||
+            "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&h=600&fit=crop",
+          category: ev.category || "Event",
+          status: "upcoming",
+          ticketTypes,
+          discount: ev.discount || 0,
+          totalRevenue: stats.totalRevenue ?? 0,
+          salesData,
+          buyers,
+        };
+
+        setEvent(mappedEvent);
+        setEditForm({
+          name: ev.name,
+          date: ev.startDate ? new Date(ev.startDate).toISOString().slice(0, 10) : "",
+          time: toTimeInputValue(ev.startTime),
+          venue: ev.venue || "TBA",
+          venueAddress: ev.venueAddress || "",
+          description: ev.description || ev.shortDescription || "",
+          category: ev.category || "Event",
+        });
       } catch (error) {
         console.error("Failed to fetch event data:", error);
         setEvent(null);
@@ -157,7 +201,7 @@ export default function ManageEventPage() {
     if (!event) return;
 
     try {
-      const res = await fetch(`http://localhost:4000/api/events/${eventId}`, {
+      const res = await fetch(`${getApiUrl()}/api/events/${eventId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -209,12 +253,36 @@ export default function ManageEventPage() {
     return event.ticketTypes.reduce((sum, t) => sum + t.sold, 0);
   };
 
+  const handleExportExcel = () => {
+    if (!event) return;
+    const headers = ["Booking ID", "Buyer", "Email", "Phone", "Ticket Type", "Qty", "Amount Paid (₹)", "Date"];
+    const rows = event.buyers.map((b) => [
+      b.bookingId,
+      b.name,
+      b.email,
+      b.phone || "",
+      b.ticketType,
+      b.quantity,
+      b.amountPaid,
+      b.purchaseDate,
+    ]);
+    const data = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Ticket Buyers");
+    const safeName = event.name.replace(/[^\w\s-]/g, "").slice(0, 30) || "event";
+    XLSX.writeFile(wb, `${safeName}-ticket-buyers.xlsx`);
+  };
+
   const getTotalTickets = () => {
     if (!event) return 0;
     return event.ticketTypes.reduce((sum, t) => sum + t.total, 0);
   };
 
-  const maxTickets = event ? Math.max(...event.salesData.map((d) => d.tickets)) : 0;
+  const maxTickets =
+    event && event.salesData.length > 0
+      ? Math.max(1, ...event.salesData.map((d) => d.tickets))
+      : 1;
 
   if (loading) {
     return (
@@ -474,47 +542,50 @@ export default function ManageEventPage() {
             {/* Sales Graph */}
             <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 mb-8 shadow-sm">
               <h3 className="text-lg font-bold mb-6 text-[#29104A]">Tickets Sold Over Time</h3>
-              
-              {/* Graph Container */}
-              <div className="relative h-64">
-                {/* Y-axis labels */}
-                <div className="absolute left-0 top-0 bottom-8 w-12 flex flex-col justify-between text-xs text-[#6B597F]">
-                  <span>{maxTickets}</span>
-                  <span>{Math.round(maxTickets * 0.75)}</span>
-                  <span>{Math.round(maxTickets * 0.5)}</span>
-                  <span>{Math.round(maxTickets * 0.25)}</span>
-                  <span>0</span>
+
+              {event.salesData.length === 0 ? (
+                <div className="flex items-center justify-center h-64 border border-[#C5BAC4] rounded-lg bg-[#C5BAC4]/5">
+                  <p className="text-[#6B597F]">No sales yet. Completed payments will appear here.</p>
                 </div>
-                
-                {/* Chart Area */}
-                <div className="ml-14 h-full flex items-end gap-2 pb-8 border-l border-b border-[#C5BAC4]">
-                  {event.salesData.map((data, index) => (
-                    <div key={index} className="flex-1 flex flex-col items-center group">
-                      {/* Bar */}
-                      <div className="relative w-full flex justify-center">
-                        <div
-                          className="w-8 bg-gradient-to-t from-[#1A4B6E] to-[#2E6B8A] rounded-t-md transition-all duration-300 group-hover:from-[#2E6B8A] group-hover:to-[#4A8BA8]"
-                          style={{ height: `${(data.tickets / maxTickets) * 180}px` }}
-                        ></div>
-                        {/* Tooltip */}
-                        <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-[#1A4B6E] border border-[#2E6B8A] rounded-lg px-3 py-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                          <p className="font-semibold text-white">{data.tickets} tickets</p>
-                          <p className="text-[#C5BAC4]">₹{data.revenue.toLocaleString()}</p>
+              ) : (
+                <div className="relative h-64">
+                  {/* Y-axis labels */}
+                  <div className="absolute left-0 top-0 bottom-8 w-12 flex flex-col justify-between text-xs text-[#6B597F]">
+                    <span>{maxTickets}</span>
+                    <span>{Math.round(maxTickets * 0.75)}</span>
+                    <span>{Math.round(maxTickets * 0.5)}</span>
+                    <span>{Math.round(maxTickets * 0.25)}</span>
+                    <span>0</span>
+                  </div>
+
+                  {/* Chart Area */}
+                  <div className="ml-14 h-full flex items-end gap-2 pb-8 border-l border-b border-[#C5BAC4]">
+                    {event.salesData.map((data, index) => (
+                      <div key={index} className="flex-1 flex flex-col items-center group">
+                        <div className="relative w-full flex justify-center">
+                          <div
+                            className="w-8 bg-gradient-to-t from-[#1A4B6E] to-[#2E6B8A] rounded-t-md transition-all duration-300 group-hover:from-[#2E6B8A] group-hover:to-[#4A8BA8]"
+                            style={{ height: `${(data.tickets / maxTickets) * 180}px` }}
+                          />
+                          <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-[#1A4B6E] border border-[#2E6B8A] rounded-lg px-3 py-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                            <p className="font-semibold text-white">{data.tickets} tickets</p>
+                            <p className="text-[#C5BAC4]">₹{data.revenue.toLocaleString()}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+
+                  {/* X-axis labels */}
+                  <div className="ml-14 flex gap-2 mt-2">
+                    {event.salesData.map((data, index) => (
+                      <div key={index} className="flex-1 text-center text-xs text-[#6B597F]">
+                        {data.date}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                
-                {/* X-axis labels */}
-                <div className="ml-14 flex gap-2 mt-2">
-                  {event.salesData.map((data, index) => (
-                    <div key={index} className="flex-1 text-center text-xs text-[#6B597F]">
-                      {data.date}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Ticket Types Breakdown */}
@@ -535,8 +606,8 @@ export default function ManageEventPage() {
                       <div className="w-full h-2 bg-[#C5BAC4] rounded-full overflow-hidden">
                         <div
                           className="h-full bg-[#522C5D] rounded-full"
-                          style={{ width: `${(ticket.sold / ticket.total) * 100}%` }}
-                        ></div>
+                          style={{ width: `${ticket.total ? (ticket.sold / ticket.total) * 100 : 0}%` }}
+                        />
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-[#6B597F]">Revenue</span>
@@ -556,11 +627,15 @@ export default function ManageEventPage() {
           <div className="bg-white rounded-2xl border border-[#C5BAC4] overflow-hidden shadow-sm">
             <div className="px-6 py-5 border-b border-[#C5BAC4] flex items-center justify-between">
               <h3 className="text-lg font-bold text-[#29104A]">Ticket Buyers ({event.buyers.length})</h3>
-              <button className="px-4 py-2 bg-[#C5BAC4]/30 hover:bg-[#C5BAC4] rounded-lg text-sm font-medium transition-colors flex items-center gap-2 text-[#29104A]">
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="px-4 py-2 bg-[#C5BAC4]/30 hover:bg-[#C5BAC4] rounded-lg text-sm font-medium transition-colors flex items-center gap-2 text-[#29104A]"
+              >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Export CSV
+                Export Excel
               </button>
             </div>
             

@@ -99,7 +99,7 @@ model Event {
   onlineLink       String?
   isOnline         Boolean     @default(false)
   visibility       Visibility  @default(PUBLIC)
-  status           EventStatus @default(DRAFT)
+  status           EventStatus @default(PUBLISHED)
   discount         Float       @default(0)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt

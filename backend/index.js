@@ -10,6 +10,7 @@ import { PrismaClient } from "@prisma/client";
 // Import routes
 import festsRouter from "./src/routes/fests.js";
 import eventsRouter from "./src/routes/events.js";
+import bookingsRouter from "./src/routes/bookings.js";
 import marketingRouter from "./src/routes/marketing.js";
 import authRoutes from "./src/routes/auth.js";
 import userRoutes from "./src/routes/user.js";
@@ -53,6 +54,7 @@ app.use("/api/admin-requests", adminRequestsRouter);
 // App API Routes
 app.use("/api/fests", festsRouter);
 app.use("/api/events", eventsRouter);
+app.use("/api/bookings", bookingsRouter);
 app.use("/api/marketing", marketingRouter);
 
 // simple health route

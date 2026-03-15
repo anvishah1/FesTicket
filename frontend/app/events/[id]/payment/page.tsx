@@ -4,8 +4,8 @@ import React, { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import PaymentTabs from "@/components/payment/PaymentTabs";
 import PaymentSidebar from "@/components/payment/PaymentSidebar";
+import { getApiUrl } from "@/lib/auth";
 
 interface BookingData {
   id: number;
@@ -45,7 +45,7 @@ export default function PaymentPage() {
           const data = JSON.parse(pending);
           // Fetch full booking details
           try {
-            const res = await fetch(`http://localhost:4000/api/bookings/${data.bookingId}`);
+            const res = await fetch(`${getApiUrl()}/api/bookings/${data.bookingId}`);
             const result = await res.json();
             if (result.success) {
               setBooking(result.data);
@@ -59,7 +59,7 @@ export default function PaymentPage() {
       }
 
       try {
-        const res = await fetch(`http://localhost:4000/api/bookings/${bookingId}`);
+        const res = await fetch(`${getApiUrl()}/api/bookings/${bookingId}`);
         const data = await res.json();
         if (data.success) {
           setBooking(data.data);
@@ -74,14 +74,17 @@ export default function PaymentPage() {
     fetchBooking();
   }, [bookingId]);
 
+  const completeBookingAndRedirect = (bookingCode: string) => {
+    localStorage.removeItem("pendingBooking");
+    alert(`Payment successful! Your booking code is: ${bookingCode}`);
+    router.push(`/fests`);
+  };
+
   const handlePaymentComplete = async (paymentMethod: string) => {
     if (!booking || processing) return;
-
     setProcessing(true);
-
     try {
-      // Complete the booking
-      const res = await fetch(`http://localhost:4000/api/bookings/${booking.id}/complete`, {
+      const res = await fetch(`${getApiUrl()}/api/bookings/${booking.id}/complete`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -89,23 +92,95 @@ export default function PaymentPage() {
           paymentMethod: paymentMethod.toUpperCase(),
         }),
       });
-
       const data = await res.json();
-
-      if (data.success) {
-        // Clear pending booking
-        localStorage.removeItem("pendingBooking");
-        
-        // Show success and redirect
-        alert(`Payment successful! Your booking code is: ${booking.bookingCode}`);
-        router.push(`/fests`);
-      } else {
-        alert(data.error?.message || "Payment failed. Please try again.");
-      }
+      if (data.success) completeBookingAndRedirect(booking.bookingCode);
+      else alert(data.error?.message || "Payment failed. Please try again.");
     } catch (error) {
       console.error("Payment error:", error);
       alert("Payment failed. Please try again.");
     } finally {
+      setProcessing(false);
+    }
+  };
+
+  const payWithRazorpay = async () => {
+    if (!booking || processing) return;
+    setProcessing(true);
+    try {
+      const orderRes = await fetch(`${getApiUrl()}/api/bookings/${booking.id}/create-order`, { method: "POST" });
+      const orderData = await orderRes.json();
+
+      if (!orderRes.ok || !orderData.success) {
+        if (orderData?.error?.code === "RAZORPAY_DISABLED") {
+          if (confirm("Razorpay is not configured. Use demo payment instead?")) {
+            await handlePaymentComplete("CARD");
+          }
+        } else {
+          alert(orderData?.error?.message || "Could not create order.");
+        }
+        setProcessing(false);
+        return;
+      }
+
+      const { orderId, amount, currency, keyId } = orderData.data;
+      if (!keyId) {
+        await handlePaymentComplete("CARD");
+        setProcessing(false);
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+      document.body.appendChild(script);
+
+      const loadCheckout = () => {
+        const Razorpay = (window as unknown as { Razorpay: { new (options: unknown): { open: () => void } } }).Razorpay;
+        if (!Razorpay) {
+          setTimeout(loadCheckout, 100);
+          return;
+        }
+        const options = {
+          key: keyId,
+          amount,
+          currency,
+          order_id: orderId,
+          name: "tiqr",
+          description: booking.event?.name || "Event booking",
+          handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string }) => {
+            try {
+              const verifyRes = await fetch(`${getApiUrl()}/api/bookings/${booking.id}/verify-payment`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                }),
+              });
+              const verifyData = await verifyRes.json();
+              if (verifyData.success) completeBookingAndRedirect(booking.bookingCode);
+              else alert(verifyData.error?.message || "Payment verification failed.");
+            } catch (e) {
+              console.error(e);
+              alert("Verification failed. Please contact support with your booking code.");
+            } finally {
+              setProcessing(false);
+            }
+          },
+          modal: { ondismiss: () => setProcessing(false) },
+        };
+        const rzp = new Razorpay(options);
+        rzp.open();
+      };
+
+      script.onload = loadCheckout;
+      script.onerror = () => {
+        alert("Could not load payment. Try again or use another method.");
+        setProcessing(false);
+      };
+    } catch (error) {
+      console.error("Razorpay error:", error);
+      alert("Payment failed. Please try again.");
       setProcessing(false);
     }
   };
@@ -154,15 +229,18 @@ export default function PaymentPage() {
         <section className="lg:col-span-2 space-y-6">
           <div className="rounded-lg bg-white border p-6 shadow-sm">
             <h2 className="text-xl font-semibold">Payment Methods</h2>
-            <p className="text-sm text-slate-500 mt-1">Choose your preferred payment method.</p>
+            <p className="text-sm text-slate-500 mt-1">Pay securely via UPI, card, or netbanking.</p>
 
             <div className="mt-6">
-              <PaymentTabs 
-                amount={amount} 
-                orderId={orderId} 
-                onPaymentComplete={handlePaymentComplete}
-                processing={processing}
-              />
+              <button
+                type="button"
+                onClick={payWithRazorpay}
+                disabled={processing}
+                className="w-full py-3 px-4 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold"
+              >
+                {processing ? "Opening…" : `Pay ₹${amount.toLocaleString()}`}
+              </button>
+              <p className="text-xs text-slate-500 mt-3 text-center">You’ll be redirected to a secure payment page.</p>
             </div>
           </div>
 

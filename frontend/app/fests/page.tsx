@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Card from "@/components/card";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { getApiUrl } from "@/lib/auth";
 
 interface Fest {
   id: number;
@@ -23,7 +24,7 @@ export default function FestsPage() {
 
   useEffect(() => {
     // Fetch fests from backend API
-    fetch("http://localhost:4000/api/fests")
+    fetch(`${getApiUrl()}/api/fests`)
       .then((res) => res.json())
       .then((response) => {
         if (response.success) {

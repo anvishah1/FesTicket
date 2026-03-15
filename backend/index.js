@@ -4,12 +4,17 @@ dotenv.config(); // load .env immediately
 
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import { PrismaClient } from "@prisma/client";
 
 // Import routes
 import festsRouter from "./src/routes/fests.js";
 import eventsRouter from "./src/routes/events.js";
 import marketingRouter from "./src/routes/marketing.js";
+import authRoutes from "./src/routes/auth.js";
+import userRoutes from "./src/routes/user.js";
+import roleRequestsRouter from "./src/routes/roleRequests.js";
+import adminRequestsRouter from "./src/routes/adminRequests.js";
 
 const prisma = new PrismaClient({
   log: [
@@ -30,11 +35,22 @@ prisma.$on("error", (e) => {
 });
 
 const app = express();
-app.use(cors({ origin: "http://localhost:3000" })); // allow your frontend
+app.set("trust proxy", 1);
+app.use(helmet());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  credentials: true
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// API Routes
+// Auth API (login, signup, refresh, sessions, forgot/reset password, verify email)
+app.use("/api/auth", authRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/role-requests", roleRequestsRouter);
+app.use("/api/admin-requests", adminRequestsRouter);
+
+// App API Routes
 app.use("/api/fests", festsRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/marketing", marketingRouter);
@@ -87,6 +103,23 @@ app.get("/api/testdb", async (req, res) => {
     });
   }
 });
+
+// Dev-only: check that users are being stored (hit GET /api/dev/db-check)
+if (process.env.NODE_ENV !== "production") {
+  app.get("/api/dev/db-check", async (req, res) => {
+    try {
+      const userCount = await prisma.user.count();
+      const roleRequestCount = await prisma.roleRequest.count();
+      res.json({
+        message: "DB is writable; data is stored in backend/prisma/dev.db (SQLite)",
+        userCount,
+        roleRequestCount,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err?.message });
+    }
+  });
+}
 
 // Try connecting at startup (non-blocking)
 (async () => {

@@ -1,8 +1,9 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Footer from "@/components/Footer";
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Footer from '@/components/Footer';
+import { getApiUrl, getAccessToken, getStoredUser, isAuthenticated } from '@/lib/auth';
 
 interface TicketType {
   name: string;
@@ -36,14 +37,50 @@ interface HostEvent {
   totalRevenue: number;
 }
 
-const hostInfo = {
-  name: "Tathva Organizing Committee",
-  email: "organizer@tathva.org",
-  organization: "NIT Calicut",
-};
+// Map API event (from GET /api/fests/:id) to HostEvent
+function mapApiEventToHostEvent(e: any): HostEvent {
+  const statusMap: Record<string, "upcoming" | "past" | "live"> = {
+    PUBLISHED: "upcoming",
+    UPCOMING: "upcoming",
+    LIVE: "live",
+    PAST: "past",
+    DRAFT: "upcoming",
+    CANCELLED: "past",
+  };
+  const totalRevenue =
+    e.ticketTypes?.reduce((sum: number, t: any) => sum + (t.sold || 0) * (t.price || 0), 0) ?? 0;
+  return {
+    id: e.id,
+    name: e.name,
+    date: e.startDate
+      ? new Date(e.startDate).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "TBA",
+    time: e.startTime || "TBA",
+    venue: e.venue || "TBA",
+    image:
+      e.image ||
+      "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop",
+    category: e.category || "Event",
+    status: statusMap[e.status] ?? "upcoming",
+    ticketTypes:
+      e.ticketTypes?.map((t: any) => ({
+        name: t.name,
+        price: t.price,
+        sold: t.sold ?? 0,
+        total: t.quantity ?? 0,
+      })) ?? [],
+    discount: e.discount ?? 0,
+    totalRevenue,
+  };
+}
 
 export default function HostDashboard() {
   const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
   const [fests, setFests] = useState<Fest[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedFest, setExpandedFest] = useState<number | null>(null);
@@ -65,84 +102,76 @@ export default function HostDashboard() {
   const [festSuccess, setFestSuccess] = useState(false);
   const [editingFestId, setEditingFestId] = useState<number | null>(null);
 
+  const user = getStoredUser();
+  // Editor's linked fest (same festID as admin and the fest); no fallback so we only create events for their fest
+  const editorFestId = user?.editorFestId ?? null;
+  const createEventFestId = editorFestId;
+
+  useEffect(() => {
+    // Only editors can access the host dashboard
+    if (!isAuthenticated() || !user || user.role !== "EDITOR") {
+      router.replace("/signin");
+    } else {
+      setAuthChecked(true);
+    }
+  }, [router, user]);
+
   const fetchFests = async () => {
+    // If this editor isn't linked to any fest yet, don't try to load one
+    if (!editorFestId) {
+      setFests([]);
+      setLoading(false);
+      return;
+    }
     try {
-      const response = await fetch("http://localhost:4000/api/fests");
-      const data = await response.json();
-      if (data.success) {
-        const festsFromApi: Fest[] = data.data;
-
-        // For each fest, load its real events using the events endpoint filtered by festId
-        const festsWithEvents: Fest[] = await Promise.all(
-          festsFromApi.map(async (fest) => {
-            try {
-              const eventsRes = await fetch(
-                `http://localhost:4000/api/events?festId=${fest.id}`
-              );
-              const eventsJson = await eventsRes.json();
-              const apiEvents = eventsJson.success ? (eventsJson.data as any[]) : [];
-
-              const mappedEvents: HostEvent[] = apiEvents.map((e) => {
-                const totalTickets = e.ticketTypes?.reduce(
-                  (sum: number, t: any) => sum + (t.quantity || 0),
-                  0
-                ) || 0;
-                const soldTickets = e.ticketTypes?.reduce(
-                  (sum: number, t: any) => sum + (t.sold || 0),
-                  0
-                ) || 0;
-
-                return {
-                  id: e.id,
-                  name: e.name,
-                  date: e.startDate
-                    ? new Date(e.startDate).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })
-                    : "TBA",
-                  time: e.startTime || "TBA",
-                  venue: e.venue || "TBA",
-                  image:
-                    e.image ||
-                    "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop",
-                  category: e.category || "Event",
-                  status: e.status === "PUBLISHED" ? "upcoming" : "upcoming",
-                  ticketTypes:
-                    e.ticketTypes?.map((t: any) => ({
-                      name: t.name,
-                      price: t.price,
-                      sold: t.sold || 0,
-                      total: t.quantity || 0,
-                    })) || [],
-                  discount: e.discount || 0,
-                  totalRevenue: 0, // can be filled from stats API later
-                };
-              });
-
-              return { ...fest, events: mappedEvents };
-            } catch {
-              return { ...fest, events: [] };
-            }
-          })
-        );
-
-        setFests(festsWithEvents);
-        if (festsWithEvents.length > 0 && expandedFest === null) {
-          setExpandedFest(festsWithEvents[0].id);
-        }
+      // Fetch fest details (name, etc.)
+      const festRes = await fetch(`${getApiUrl()}/api/fests/${editorFestId}`);
+      const festJson = await festRes.json();
+      if (!festJson.success || !festJson.data) {
+        setFests([]);
+        setLoading(false);
+        return;
       }
+      const fest = festJson.data;
+      // Fetch all events for this fest (same fest id as the user's)
+      const eventsRes = await fetch(`${getApiUrl()}/api/events?festId=${editorFestId}`);
+      const eventsJson = await eventsRes.json();
+      const apiEvents = eventsJson.success ? (eventsJson.data ?? []) : [];
+      const mappedEvents: HostEvent[] = apiEvents.map((e: any) => mapApiEventToHostEvent(e));
+      const singleFest: Fest = {
+        id: fest.id,
+        name: fest.name,
+        college: fest.college ?? "",
+        description: fest.description ?? null,
+        startDate: fest.startDate ?? null,
+        endDate: fest.endDate ?? null,
+        events: mappedEvents,
+        _count: { events: mappedEvents.length },
+      };
+      setFests([singleFest]);
+      setExpandedFest(singleFest.id);
     } catch (err) {
-      console.error("Failed to fetch fests:", err);
+      console.error("Failed to fetch fest:", err);
+      setFests([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchFests();
-  }, []);
+    if (authChecked) {
+      fetchFests();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, editorFestId]);
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#fdfdff]">
+        <p className="text-[#6B597F]">Loading...</p>
+      </div>
+    );
+  }
 
   const handleCreateFest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,8 +181,8 @@ export default function HostDashboard() {
     try {
       const isEdit = editingFestId !== null;
       const url = isEdit
-        ? `http://localhost:4000/api/fests/${editingFestId}`
-        : "http://localhost:4000/api/fests";
+        ? `${getApiUrl()}/api/fests/${editingFestId}`
+        : `${getApiUrl()}/api/fests`;
       const method = isEdit ? "PUT" : "POST";
 
       const response = await fetch(url, {
@@ -250,7 +279,7 @@ export default function HostDashboard() {
             </div>
             <div>
               <h1 className="font-bold text-lg text-white">Host Dashboard</h1>
-              <p className="text-xs text-[#C5BAC4]">{hostInfo.organization}</p>
+              <p className="text-xs text-[#C5BAC4]">{fests[0]?.college ?? fests[0]?.name ?? "Your fest"}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -264,8 +293,9 @@ export default function HostDashboard() {
               Marketing
             </button>
             <button
-              onClick={() => router.push("/host/fests/4/events/create")}
-              className="px-4 py-2 bg-[#29104A] hover:bg-[#522C5D] text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+              onClick={() => createEventFestId != null && router.push(`/host/fests/${createEventFestId}/events/create`)}
+              disabled={createEventFestId == null}
+              className="px-4 py-2 bg-[#29104A] hover:bg-[#522C5D] text-white font-semibold rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -284,8 +314,12 @@ export default function HostDashboard() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-1 text-[#29104A]">Welcome back, {hostInfo.name.split(" ")[0]}! 👋</h2>
-          <p className="text-[#6B597F]">Here's an overview of your fests and events.</p>
+          <h2 className="text-2xl font-bold mb-1 text-[#29104A]">
+            Welcome back, {user?.name?.trim() || user?.email?.split("@")[0] || "there"}! 👋
+          </h2>
+          <p className="text-[#6B597F]">
+            {fests.length > 0 ? "Here's an overview of your fest and events." : "Here's an overview of your fest and events."}
+          </p>
         </div>
 
         {/* Stats Cards */}
@@ -328,14 +362,14 @@ export default function HostDashboard() {
 
           <div className="bg-white border border-[#C5BAC4] rounded-2xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[#6B597F] text-sm">Total Fests</span>
+              <span className="text-[#6B597F] text-sm">Your Fest</span>
               <div className="w-10 h-10 rounded-xl bg-[#522C5D]/10 flex items-center justify-center">
                 <svg className="w-5 h-5 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-[#29104A]">{fests.length}</p>
+            <p className="text-lg font-bold text-[#29104A] truncate">{fests[0]?.name ?? "—"}</p>
           </div>
         </div>
 
@@ -350,14 +384,23 @@ export default function HostDashboard() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
-              <h4 className="text-lg font-bold text-[#29104A] mb-2">No events yet</h4>
-              <p className="text-[#6B597F] mb-4">Create your first event to get started.</p>
-              <button
-                onClick={() => router.push("/host/fests/4/events/create")}
-                className="px-6 py-3 bg-[#522C5D] hover:bg-[#29104A] text-white font-semibold rounded-lg transition-colors"
-              >
-                Create Your First Event
-              </button>
+              {editorFestId ? (
+                <>
+                  <h4 className="text-lg font-bold text-[#29104A] mb-2">No events yet</h4>
+                  <p className="text-[#6B597F] mb-4">Create your first event to get started.</p>
+                  <button
+                    onClick={() => router.push(`/host/fests/${createEventFestId}/events/create`)}
+                    className="px-6 py-3 bg-[#522C5D] hover:bg-[#29104A] text-white font-semibold rounded-lg transition-colors"
+                  >
+                    Create Your First Event
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h4 className="text-lg font-bold text-[#29104A] mb-2">Not linked to a fest</h4>
+                  <p className="text-[#6B597F]">Contact your admin to get access to your fest.</p>
+                </>
+              )}
             </div>
           ) : (
             <div className="space-y-4">

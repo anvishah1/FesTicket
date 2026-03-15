@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { getApiUrl, setAuth } from "@/lib/auth";
 
 export default function AdminSignInPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
-    username: "",
+    email: "",
     password: "",
   });
   const [error, setError] = useState("");
@@ -19,39 +20,52 @@ export default function AdminSignInPage() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSubmitted, setForgotSubmitted] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
-
-    // TODO: Replace with actual API call
-    // Simulated auth check
-    if (formData.username && formData.password) {
-      // Mock validation - replace with real API
-      if (formData.username === "admin" && formData.password === "admin123") {
-        // Store auth token/session
-        localStorage.setItem("adminAuth", "true");
-        router.push("/admin");
-      } else {
-        setError("Invalid username or password");
+    try {
+      const res = await fetch(`${getApiUrl()}/api/auth/signin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: formData.email, password: formData.password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.message || "Invalid email or password");
+        setLoading(false);
+        return;
       }
-    } else {
-      setError("Please fill in all fields");
+      setAuth(data.accessToken, data.refreshToken, data.user);
+      router.push("/admin/dashboard");
+    } catch {
+      setError("Could not reach server. Try again.");
     }
-
     setLoading(false);
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    setForgotError("");
     setForgotLoading(true);
-
-    // TODO: Replace with actual API call
-    // Simulated API call to send password reset request to owners
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    setForgotSubmitted(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/api/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setForgotError(data.message || "Something went wrong.");
+        setForgotLoading(false);
+        return;
+      }
+      setForgotSubmitted(true);
+    } catch {
+      setForgotError("Could not reach server. Try again.");
+    }
     setForgotLoading(false);
   };
 
@@ -90,15 +104,15 @@ export default function AdminSignInPage() {
 
               <div>
                 <label className="block text-sm font-medium text-[#29104A] mb-1.5">
-                  Username
+                  Email
                 </label>
                 <input
-                  type="text"
+                  type="email"
                   required
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl bg-[#F9F7FA] text-[#29104A] focus:outline-none focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] transition"
-                  placeholder="Enter your username"
+                  placeholder="you@example.com"
                 />
               </div>
 
@@ -209,9 +223,9 @@ export default function AdminSignInPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-bold text-[#29104A] mb-2">Request Sent!</h3>
+                <h3 className="text-lg font-bold text-[#29104A] mb-2">Check your email</h3>
                 <p className="text-[#6B597F] text-sm mb-6">
-                  Your password reset request has been sent to the platform owners. You'll receive an email with further instructions once they process your request.
+                  If an account exists for that email, we sent a password reset link. Check your inbox and spam folder.
                 </p>
                 <button
                   onClick={closeForgotModal}
@@ -224,9 +238,13 @@ export default function AdminSignInPage() {
               /* Form State */
               <form onSubmit={handleForgotPassword} className="p-6 space-y-4">
                 <p className="text-sm text-[#6B597F]">
-                  Enter your email address and we'll send a password reset request to the platform owners.
+                  Enter your email address and we'll send you a password reset link.
                 </p>
-
+                {forgotError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                    {forgotError}
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-[#29104A] mb-1.5">
                     Email Address
@@ -247,7 +265,7 @@ export default function AdminSignInPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <p className="text-xs text-amber-800">
-                      For security, password resets require manual approval from platform owners.
+                      If an account exists for this email, you will receive a reset link. Check your inbox and spam folder.
                     </p>
                   </div>
                 </div>

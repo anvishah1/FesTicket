@@ -4,15 +4,20 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { getApiUrl } from "@/lib/auth";
 
 export default function SignUpPage() {
   const router = useRouter();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirm, setConfirm] = React.useState("");
+  const [fullName, setFullName] = React.useState("");
+  const [wantsEditor, setWantsEditor] = React.useState(false);
+  const [festKey, setFestKey] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [captchaOk, setCaptchaOk] = React.useState(false); // demo checkbox for reCAPTCHA
+  const [submitted, setSubmitted] = React.useState(false);
 
   // password visibility toggles
   const [showPassword, setShowPassword] = React.useState(false);
@@ -21,24 +26,96 @@ export default function SignUpPage() {
   // match check: exact equality and non-empty
   const passwordsMatch = password.length > 0 && password === confirm;
 
+  const festKeyValid = !wantsEditor || festKey.trim().length >= 1;
+
   // The button should only be clickable when all requirements satisfied:
-  const canSubmit = email.trim().length > 3 && passwordsMatch && captchaOk && !loading;
+  const canSubmit =
+    email.trim().length > 3 &&
+    passwordsMatch &&
+    captchaOk &&
+    festKeyValid &&
+    !loading;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!canSubmit) {
-      setError("Please complete all fields, matching passwords, and reCAPTCHA.");
+      setError("Please complete all fields correctly (including fest key if requesting editor) and reCAPTCHA.");
       return;
     }
     setLoading(true);
 
-    // TODO: call your backend /api/auth/signup with { email, password }
-    await new Promise((r) => setTimeout(r, 900)); // simulate API call
+    try {
+      const res = await fetch(`${getApiUrl()}/api/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password,
+          name: fullName || undefined,
+          wantsEditor: !!wantsEditor,
+          festKey: wantsEditor ? festKey.trim() : undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg =
+          data.errors
+            ? Object.entries(data.errors)
+                .map(([k, v]) => `${k}: ${v}`)
+                .join(" ")
+            : data.message || "Signup failed. Please try again.";
+        setError(msg);
+        setLoading(false);
+        return;
+      }
+      setSubmitted(true);
+    } catch {
+      setError("Could not reach server. Please try again.");
+    }
     setLoading(false);
-    
-    // Redirect to onboarding page to collect mandatory details
-    router.push("/host/onboarding");
+  }
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen flex flex-col bg-[#fdfdff]">
+        <Header />
+        <main className="flex-1 flex items-center justify-center px-6 py-10">
+          <div className="w-full max-w-md">
+            <div className="bg-white rounded-2xl shadow-lg border border-[#C5BAC4] p-8 text-center">
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
+                <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-[#29104A] mb-2">
+                {wantsEditor ? "Request Submitted!" : "Account Created"}
+              </h2>
+              <p className="text-[#6B597F] mb-6">
+                {wantsEditor
+                  ? "Your request to become an editor for this fest has been sent to the admin for approval. You can sign in once you're approved."
+                  : "You can now sign in with your email and password."}
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => router.push("/signin")}
+                  className="w-full py-3 bg-gradient-to-r from-[#29104A] to-[#522C5D] text-white font-semibold rounded-xl hover:opacity-90 transition"
+                >
+                  Go to Sign In
+                </button>
+                <button
+                  onClick={() => router.push("/")}
+                  className="w-full py-3 border border-[#C5BAC4] text-[#6B597F] font-medium rounded-xl hover:bg-[#C5BAC4]/20 transition"
+                >
+                  Back to Home
+                </button>
+              </div>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
   }
 
   return (
@@ -84,6 +161,17 @@ export default function SignUpPage() {
               {error && <div className="mt-4 text-sm text-red-600">{error}</div>}
 
               <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-white/90">Full Name (optional)</label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Your name"
+                    className="mt-2 w-full border border-[#6B597F] rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D]"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-white/90">Email</label>
                   <input
@@ -170,6 +258,39 @@ export default function SignUpPage() {
                     </div>
                 </div>
 
+
+                {/* Editor request toggle */}
+                <div className="mt-2">
+                  <label className="flex items-start gap-3 text-sm text-white/90">
+                    <input
+                      type="checkbox"
+                      checked={wantsEditor}
+                      onChange={(e) => setWantsEditor(e.target.checked)}
+                      className="mt-1 w-4 h-4 accent-[#DEDCDC]"
+                    />
+                    <span>
+                      I want to become an <span className="font-semibold">Editor (student fest head)</span> for a specific fest.
+                    </span>
+                  </label>
+                </div>
+
+                {wantsEditor && (
+                  <div>
+                    <label className="block text-sm font-medium text-white/90 mt-2">
+                      Fest key <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={festKey}
+                      onChange={(e) => setFestKey(e.target.value)}
+                      placeholder="Enter the key provided by your fest admin"
+                      className="mt-2 w-full border border-[#6B597F] rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D]"
+                    />
+                    <p className="text-xs text-white/70 mt-1">
+                      Get this key from your fest admin (professor) after they are approved.
+                    </p>
+                  </div>
+                )}
 
                 {/* reCAPTCHA placeholder */}
                 <div className="mt-2">

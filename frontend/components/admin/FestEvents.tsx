@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getApiUrl } from "@/lib/auth";
 
 interface AdminEvent {
   id: number;
@@ -15,20 +16,20 @@ interface AdminEvent {
   totalTickets: number;
 }
 
-export default function FestEvents() {
+interface FestEventsProps {
+  festId: number;
+}
+
+export default function FestEvents({ festId }: FestEventsProps) {
   const router = useRouter();
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Treat this admin view as managing fest with ID 4
-  const festId = 4;
-
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        // Fetch all events for this fest (any status)
         const res = await fetch(
-          `http://localhost:4000/api/events?festId=${festId}`
+          `${getApiUrl()}/api/events?festId=${festId}`
         );
         const json = await res.json();
         if (!res.ok || !json.success) return;

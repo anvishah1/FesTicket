@@ -1,61 +1,104 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getApiUrl, getAccessToken } from "@/lib/auth";
 
 interface RoleRequest {
   id: number;
+  userId: number;
+  festId?: number | null;
+  festName?: string | null;
   studentName: string;
   email: string;
-  organization: string;
+  organization: string | null;
   requestedRole: string;
   requestDate: string;
+  status?: string;
 }
 
 export default function RoleRequests() {
-  const [requests, setRequests] = useState<RoleRequest[]>([
-    {
-      id: 1,
-      studentName: "Abhiram Bojja",
-      email: "abhiram@nitc.ac.in",
-      organization: "Tathva Organizing Committee",
-      requestedRole: "Editor",
-      requestDate: "Jan 18, 2025",
-    },
-    {
-      id: 2,
-      studentName: "Rohan Menon",
-      email: "rohan.m@nitc.ac.in",
-      organization: "Tech Club",
-      requestedRole: "Editor",
-      requestDate: "Jan 17, 2025",
-    },
-    {
-      id: 3,
-      studentName: "Ananya Pillai",
-      email: "ananya.p@nitc.ac.in",
-      organization: "Cultural Committee",
-      requestedRole: "Editor",
-      requestDate: "Jan 16, 2025",
-    },
-  ]);
-
+  const [requests, setRequests] = useState<RoleRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState<number | null>(null);
 
+  useEffect(() => {
+    const token = getAccessToken();
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    fetch(`${getApiUrl()}/api/role-requests`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load requests");
+        return res.json();
+      })
+      .then((data) => {
+        setRequests(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setError("Could not load role requests."))
+      .finally(() => setLoading(false));
+  }, []);
+
   const handleApprove = async (id: number) => {
+    const token = getAccessToken();
+    if (!token) return;
     setActionLoading(id);
-    // TODO: Call backend API
-    await new Promise((r) => setTimeout(r, 500));
-    setRequests((prev) => prev.filter((req) => req.id !== id));
+    try {
+      const res = await fetch(`${getApiUrl()}/api/role-requests/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: "APPROVED" }),
+      });
+      if (!res.ok) throw new Error("Approve failed");
+      setRequests((prev) => prev.filter((req) => req.id !== id));
+    } catch {
+      setError("Failed to approve.");
+    }
     setActionLoading(null);
   };
 
   const handleDeny = async (id: number) => {
+    const token = getAccessToken();
+    if (!token) return;
     setActionLoading(id);
-    // TODO: Call backend API
-    await new Promise((r) => setTimeout(r, 500));
-    setRequests((prev) => prev.filter((req) => req.id !== id));
+    try {
+      const res = await fetch(`${getApiUrl()}/api/role-requests/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: "DENIED" }),
+      });
+      if (!res.ok) throw new Error("Deny failed");
+      setRequests((prev) => prev.filter((req) => req.id !== id));
+    } catch {
+      setError("Failed to deny.");
+    }
     setActionLoading(null);
   };
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl border border-[#C5BAC4] p-12 text-center shadow-sm">
+        <p className="text-[#6B597F]">Loading role requests...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-2xl border border-[#C5BAC4] p-12 text-center shadow-sm">
+        <p className="text-red-600">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -83,7 +126,7 @@ export default function RoleRequests() {
               >
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#29104A] to-[#522C5D] flex items-center justify-center text-white font-bold">
-                    {req.studentName.charAt(0)}
+                    {(req.studentName || req.email || "?").charAt(0).toUpperCase()}
                   </div>
                   <div>
                     <p className="font-semibold text-[#29104A]">
@@ -97,13 +140,19 @@ export default function RoleRequests() {
                         {req.requestedRole}
                       </span>
                       <span className="text-xs text-[#C5BAC4]">•</span>
-                      <span className="text-xs text-[#6B597F]">{req.organization}</span>
+                      <span className="text-xs text-[#6B597F]">{req.festName || req.organization || "—"}</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <span className="text-xs text-[#6B597F]">{req.requestDate}</span>
+                  <span className="text-xs text-[#6B597F]">
+                    {new Date(req.requestDate).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </span>
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleApprove(req.id)}

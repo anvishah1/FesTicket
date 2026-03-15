@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -25,19 +26,16 @@ export default function HostOnboardingPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isValid) return;
-
     setLoading(true);
-    // TODO: Save to backend API
-    await new Promise((r) => setTimeout(r, 1000));
-    setLoading(false);
 
+    // At this point signup has already created the user.
+    // This page is just for collecting extra profile info locally for now.
     if (form.role === "editor") {
-      // Show pending approval message
       setSubmitted(true);
     } else {
-      // Viewer goes directly to dashboard (read-only)
-      router.push("/host/dashboard");
+      router.push("/signin");
     }
+    setLoading(false);
   }
 
   // Show success/pending screen for Editor requests

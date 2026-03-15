@@ -1,6 +1,7 @@
 // backend/src/routes/events.js
 import { Router } from "express";
 import { PrismaClient, FileType } from "@prisma/client";
+import { optionalAuthenticate } from "../middleware/authMiddleware.js";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -14,21 +15,20 @@ function safeDate(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-// GET /api/events - List events (public + host)
+// GET /api/events - List events (public + host). Optional hostId = only events created by that host.
 router.get("/", async (req, res) => {
   try {
-    const { status, category, festId } = req.query;
+    const { status, category, festId, hostId } = req.query;
 
     const where = {};
     if (status) {
-      // Explicit status filter from caller
       where.status = status;
     } else if (!festId) {
-      // Public listing (no festId) defaults to only published events
       where.status = "PUBLISHED";
     }
     if (category) where.category = category;
     if (festId) where.festId = parseInt(festId);
+    if (hostId) where.hostId = parseInt(hostId);
 
     const events = await prisma.event.findMany({
       where,
@@ -98,10 +98,10 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// POST /api/events - Create a new event
-router.post("/", async (req, res) => {
+// POST /api/events - Create a new event. If authenticated as EDITOR/HOST, hostId is set to current user.
+router.post("/", optionalAuthenticate, async (req, res) => {
   try {
-    const {
+    let {
       festId,
       hostId,
       name,
@@ -136,9 +136,13 @@ router.post("/", async (req, res) => {
       });
     }
 
+    // When editor/host is logged in, set hostId to them so they "own" this event
+    if (req.user && (req.user.role === "EDITOR" || req.user.role === "HOST")) {
+      hostId = req.user.userId;
+    }
+
     // Create event with ticket types in a transaction
     const event = await prisma.$transaction(async (tx) => {
-      // Create the event
       const newEvent = await tx.event.create({
         data: {
           festId: festId ? parseInt(festId) : null,

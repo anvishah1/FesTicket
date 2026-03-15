@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { getApiUrl, getAccessToken } from "@/lib/auth";
 import Sidebar from "@/components/event-create/Sidebar";
 import EventBasics, { EventBasicsData } from "@/components/event-create/EventBasics";
 import DescribeEvent, { DescribeEventData } from "@/components/event-create/DescribeEvent";
@@ -40,7 +41,7 @@ export default function EventCreatePage() {
   useEffect(() => {
     const fetchFest = async () => {
       try {
-        const response = await fetch(`http://localhost:4000/api/fests/${festId}`);
+        const response = await fetch(`${getApiUrl()}/api/fests/${festId}`);
         const data = await response.json();
         if (data.success) {
           setFest(data.data);
@@ -88,9 +89,13 @@ export default function EventCreatePage() {
     };
 
     try {
-      const response = await fetch("http://localhost:4000/api/events", {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const token = getAccessToken();
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const response = await fetch(`${getApiUrl()}/api/events`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           festId: parseInt(festId),
           name: fullEventData.basics?.name,

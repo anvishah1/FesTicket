@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getApiUrl } from "@/lib/auth";
 
 interface UploadedFile {
   name: string;
@@ -37,20 +38,22 @@ const expenseCategories = [
   "Miscellaneous",
 ];
 
-export default function Expenses() {
+interface ExpensesProps {
+  festId: number;
+}
+
+export default function Expenses({ festId }: ExpensesProps) {
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
   const [search, setSearch] = useState("");
   const [filterHost, setFilterHost] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
 
-  const festId = 4;
-
   useEffect(() => {
     const fetchExpenses = async () => {
       try {
         const res = await fetch(
-          `http://localhost:4000/api/events/marketing/fest/${festId}/expenses`
+          `${getApiUrl()}/api/events/marketing/fest/${festId}/expenses`
         );
         const json = await res.json();
         if (!res.ok || !json.success) return;

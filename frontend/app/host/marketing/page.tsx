@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { getApiUrl, getStoredUser, isAuthenticated } from "@/lib/auth";
 
 interface UploadedFile {
   name: string;
@@ -62,11 +63,13 @@ const paymentMethods = [
 
 export default function MarketingPage() {
   const router = useRouter();
+  const user = getStoredUser();
+  const hostId = user?.id ?? 0;
+  const editorFestId = user?.editorFestId ?? null; // same festID as admin and the fest; links sponsors/expenses to that fest
   const [activeTab, setActiveTab] = useState<"sponsors" | "expenses">("sponsors");
   const [sponsors, setSponsors] = useState<SponsorEntry[]>([]);
   const [expenses, setExpenses] = useState<ExpenseEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const hostId = 1; // TODO: replace with logged-in host's id
   
   // Modal states
   const [showSponsorForm, setShowSponsorForm] = useState(false);
@@ -153,11 +156,19 @@ export default function MarketingPage() {
   };
 
   useEffect(() => {
+    if (!isAuthenticated() || !user || (user.role !== "EDITOR" && user.role !== "HOST")) {
+      router.replace("/signin");
+      return;
+    }
+  }, [router, user]);
+
+  useEffect(() => {
+    if (!hostId) return;
     const fetchData = async () => {
       try {
         const [sRes, eRes] = await Promise.all([
-          fetch(`http://localhost:4000/api/events/marketing/host/${hostId}/sponsors`),
-          fetch(`http://localhost:4000/api/events/marketing/host/${hostId}/expenses`),
+          fetch(`${getApiUrl()}/api/events/marketing/host/${hostId}/sponsors`),
+          fetch(`${getApiUrl()}/api/events/marketing/host/${hostId}/expenses`),
         ]);
 
         const sponsorsJson = await sRes.json();
@@ -277,11 +288,12 @@ export default function MarketingPage() {
       receivedAmount: parseFloat(sponsorForm.receivedAmount) || 0,
       status: toBackendSponsorStatus(sponsorForm.status),
       notes: sponsorForm.notes || null,
+      ...(editorFestId != null && { festId: editorFestId }),
     };
 
     try {
       if (editingSponsor) {
-        const res = await fetch(`http://localhost:4000/api/events/marketing/sponsors/${editingSponsor.id}`, {
+        const res = await fetch(`${getApiUrl()}/api/events/marketing/sponsors/${editingSponsor.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -309,7 +321,7 @@ export default function MarketingPage() {
           ));
         }
       } else {
-        const res = await fetch(`http://localhost:4000/api/events/marketing/host/${hostId}/sponsors`, {
+        const res = await fetch(`${getApiUrl()}/api/events/marketing/host/${hostId}/sponsors`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -361,7 +373,7 @@ export default function MarketingPage() {
   const handleDeleteSponsor = async (id: number) => {
     if (confirm("Are you sure you want to delete this sponsor entry?")) {
       try {
-        const res = await fetch(`http://localhost:4000/api/events/marketing/sponsors/${id}`, {
+        const res = await fetch(`${getApiUrl()}/api/events/marketing/sponsors/${id}`, {
           method: "DELETE",
         });
         const data = await res.json();
@@ -404,6 +416,7 @@ export default function MarketingPage() {
       paymentDate: expenseForm.paymentDate || null,
       paymentMethod: expenseForm.paymentMethod || null,
       notes: expenseForm.notes || null,
+      ...(editorFestId != null && { festId: editorFestId }),
       proofFiles: proofFiles.map((f) => ({
         name: f.name,
         size: f.size,
@@ -420,7 +433,7 @@ export default function MarketingPage() {
 
     try {
       if (editingExpense) {
-        const res = await fetch(`http://localhost:4000/api/events/marketing/expenses/${editingExpense.id}`, {
+        const res = await fetch(`${getApiUrl()}/api/events/marketing/expenses/${editingExpense.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -454,7 +467,7 @@ export default function MarketingPage() {
           setExpenses(expenses.map((e) => (e.id === editingExpense.id ? updated : e)));
         }
       } else {
-        const res = await fetch(`http://localhost:4000/api/events/marketing/host/${hostId}/expenses`, {
+        const res = await fetch(`${getApiUrl()}/api/events/marketing/host/${hostId}/expenses`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -516,7 +529,7 @@ export default function MarketingPage() {
   const handleDeleteExpense = async (id: number) => {
     if (confirm("Are you sure you want to delete this expense entry?")) {
       try {
-        const res = await fetch(`http://localhost:4000/api/events/marketing/expenses/${id}`, {
+        const res = await fetch(`${getApiUrl()}/api/events/marketing/expenses/${id}`, {
           method: "DELETE",
         });
         const data = await res.json();

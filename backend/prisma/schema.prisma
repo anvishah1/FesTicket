@@ -16,21 +16,44 @@ model User {
   name              String?
   phone             String?
   organizationName  String?
+  organizationEmail String?
   role              Role      @default(VIEWER)
+  roleStatus        RoleStatus @default(ACTIVE)
   profileCompleted  Boolean   @default(false)
+  emailVerified     Boolean   @default(false)
+  emailVerifyToken  String?
+  resetPasswordToken  String?
+  resetPasswordExpiry DateTime?
+  lastLogin         DateTime?
+  failedLoginAttempts Int     @default(0)
+  lockUntil         DateTime?
+  managedFestId     Int?      @unique // for ADMIN: which fest they manage (key belongs to that fest)
+  editorFestId      Int?      // for EDITOR: which fest they were approved for (from RoleRequest)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
   // Relations
   hostedEvents      Event[]
-  bookings          Booking[]
-  expenses          Expense[]
+  bookings         Booking[]
+  expenses         Expense[]
+  roleRequests     RoleRequest[] @relation("requester")
+  reviewedRequests RoleRequest[] @relation("reviewer")
+  refreshTokens    RefreshToken[]
+  managedFest      Fest?      @relation("festAdmin", fields: [managedFestId], references: [id])
+  editorFest       Fest?      @relation("festEditors", fields: [editorFestId], references: [id])
 }
 
 enum Role {
   VIEWER
+  EDITOR
   HOST
   ADMIN
+}
+
+enum RoleStatus {
+  ACTIVE
+  PENDING
+  DENIED
 }
 
 // ==================== FEST & EVENTS ====================
@@ -43,13 +66,18 @@ model Fest {
   image       String?
   startDate   DateTime?
   endDate     DateTime?
+  adminKey    String?   @unique  // key given to admin; students enter this to request editor for this fest
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   // Relations
-  events      Event[]
-  sponsors    Sponsor[]
-  expenses    Expense[]
+  events         Event[]
+  sponsors       Sponsor[]
+  expenses       Expense[]
+  roleRequests   RoleRequest[]
+  admin          User?           @relation("festAdmin")
+  editors        User[]          @relation("festEditors")
+  adminRequests  AdminRequest[]
 }
 
 model Event {
@@ -295,4 +323,65 @@ enum ExpenseCategory {
 enum FileType {
   PROOF
   BILL
+}
+
+// ==================== AUTH: ROLE REQUESTS & REFRESH TOKENS ====================
+
+model RoleRequest {
+  id             Int              @id @default(autoincrement())
+  userId         Int
+  festId         Int?             // fest this request is for (from fest key)
+  requestedRole  Role
+  organization   String?
+  status         RoleRequestStatus @default(PENDING)
+  requestDate    DateTime         @default(now())
+  reviewedAt     DateTime?
+  reviewedById   Int?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  user           User             @relation("requester", fields: [userId], references: [id])
+  reviewedBy     User?            @relation("reviewer", fields: [reviewedById], references: [id])
+  fest           Fest?            @relation(fields: [festId], references: [id])
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum RoleRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+}
+
+// ==================== ADMIN REQUESTS (professor requests access; dev approves and sets credentials) ====================
+
+model AdminRequest {
+  id            Int                 @id @default(autoincrement())
+  email         String
+  name          String?
+  organization  String?             // college / institution (used as fest college when creating fest)
+  festName      String?             // name of the fest they want to create (used when approving with "new")
+  phone         String?
+  status        AdminRequestStatus  @default(PENDING)
+  // Set when approved (so you can see credentials and fest conclusively)
+  passwordSet   String?             // plaintext password set for this admin
+  adminKeySet   String?             // fest key set for students/editors
+  festId        Int?                // fest they were approved to manage
+  fest          Fest?               @relation(fields: [festId], references: [id])
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+}
+
+enum AdminRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
 }

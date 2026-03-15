@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getApiUrl } from "@/lib/auth";
 
 interface Company {
   id: number;
@@ -14,21 +15,22 @@ interface Company {
   status: "confirmed" | "pending" | "negotiating";
 }
 
-export default function Companies() {
+interface CompaniesProps {
+  festId: number;
+}
+
+export default function Companies({ festId }: CompaniesProps) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selected, setSelected] = useState<Company | null>(null);
   const [search, setSearch] = useState("");
   const [zoom, setZoom] = useState(false);
   const [sortBy, setSortBy] = useState<"name-asc" | "name-desc" | "recent">("recent");
 
-  // Admin is viewing fest 4
-  const festId = 4;
-
   useEffect(() => {
     const fetchSponsors = async () => {
       try {
         const res = await fetch(
-          `http://localhost:4000/api/events/marketing/fest/${festId}/sponsors`
+          `${getApiUrl()}/api/events/marketing/fest/${festId}/sponsors`
         );
         const json = await res.json();
         if (!res.ok || !json.success) return;

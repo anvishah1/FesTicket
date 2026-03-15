@@ -4,6 +4,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import cx from "clsx";
+import { getApiUrl, setAuth } from "@/lib/auth";
 
 function SocialButton({ children, onClick }: { children: React.ReactNode; onClick?: () => void; }) {
   return (
@@ -35,12 +36,24 @@ export default function AuthForm() {
     }
     setLoading(true);
 
-    // TODO: Replace with real auth API call
-    await new Promise((r) => setTimeout(r, 900));
+    try {
+      const res = await fetch(`${getApiUrl()}/api/auth/signin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.message || "Invalid email or password.");
+        setLoading(false);
+        return;
+      }
+      setAuth(data.accessToken, data.refreshToken, data.user);
+      router.push("/host/dashboard");
+    } catch {
+      setError("Could not reach server. Please try again.");
+    }
     setLoading(false);
-
-    // Redirect to host dashboard after successful sign in
-    router.push("/host/dashboard");
   }
 
   return (

@@ -5,6 +5,7 @@ dotenv.config(); // load .env immediately
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import { PrismaClient } from "@prisma/client";
 
 // Import routes
@@ -25,10 +26,11 @@ const prisma = new PrismaClient({
   ],
 });
 
-prisma.$on("query", (e) => {
-  // comment out in prod if noisy
-  console.debug("Prisma query:", e.query);
-});
+if (process.env.NODE_ENV !== "production") {
+  prisma.$on("query", (e) => {
+    console.debug("Prisma query:", e.query);
+  });
+}
 
 prisma.$on("error", (e) => {
   console.error("Prisma client error:", e);
@@ -37,12 +39,17 @@ prisma.$on("error", (e) => {
 const app = express();
 app.set("trust proxy", 1);
 app.use(helmet());
+app.use(cookieParser());
 app.use(cors({
   origin: process.env.FRONTEND_URL || "http://localhost:3000",
   credentials: true
 }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: "5mb" }));
+
+app.use(express.urlencoded({
+  limit: "5mb",
+  extended: true
+}));
 
 // Auth API (login, signup, refresh, sessions, forgot/reset password, verify email)
 app.use("/api/auth", authRoutes);
@@ -99,7 +106,6 @@ app.get("/api/testdb", async (req, res) => {
       ok: false,
       error: "Database query failed",
       message: err?.message,
-      stack: err?.stack?.split("\n").slice(0, 10),
     });
   }
 });
@@ -130,6 +136,20 @@ if (process.env.NODE_ENV !== "production") {
     console.error("❌ Prisma failed to connect at startup:", err?.message || err);
   }
 })();
+
+app.use((err, req, res, next) => {
+
+  console.error("Unhandled Express Error:", err);
+
+  res.status(500).json({
+    success: false,
+    error: {
+      code: "SERVER_ERROR",
+      message: "Internal server error"
+    }
+  });
+
+});
 
 const PORT = process.env.PORT || 4000;
 const server = app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));

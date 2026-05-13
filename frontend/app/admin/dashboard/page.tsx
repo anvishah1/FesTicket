@@ -10,8 +10,9 @@ import RoleRequests from "@/components/admin/RoleRequests";
 import FestEvents from "@/components/admin/FestEvents";
 import Companies from "@/components/admin/Companies";
 import Expenses from "@/components/admin/Expenses";
+import CreateFest from "@/components/admin/CreateFest";
 
-type AdminSection = "events" | "approvals" | "companies" | "expenses";
+type AdminSection = "events" | "approvals" | "companies" | "expenses" | "createFest";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -145,6 +146,27 @@ export default function AdminDashboardPage() {
               active={activeSection === "expenses"}
               onClick={() => setActiveSection("expenses")}
             />
+
+            <SidebarItem
+              label="Create Fest"
+              icon={
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+              }
+              active={activeSection === "createFest"}
+              onClick={() => setActiveSection("createFest")}
+            />
           </nav>
 
           <div className="mt-10 pt-6 border-t border-[#C5BAC4]">
@@ -164,12 +186,14 @@ export default function AdminDashboardPage() {
               {activeSection === "approvals" && "Role Approval Requests"}
               {activeSection === "companies" && "Sponsor Agreements"}
               {activeSection === "expenses" && "Expense Tracking"}
+              {activeSection === "createFest" && "Create New Fest"}
             </h1>
             <p className="text-sm text-[#6B597F] mt-1">
               {activeSection === "events" && "View and manage all fest events"}
               {activeSection === "approvals" && "Review and approve editor role requests"}
               {activeSection === "companies" && "View sponsor documents and agreements"}
               {activeSection === "expenses" && "Track and review expenses submitted by event hosts"}
+              {activeSection === "createFest" && "Create and manage a new fest"}
             </p>
           </div>
 
@@ -187,6 +211,7 @@ export default function AdminDashboardPage() {
                 {activeSection === "approvals" && <RoleRequests />}
                 {activeSection === "companies" && <Companies festId={managedFestId} />}
                 {activeSection === "expenses" && <Expenses festId={managedFestId} />}
+                {activeSection === "createFest" && (<CreateFest />)}
               </>
             )}
           </main>

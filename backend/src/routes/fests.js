@@ -1,6 +1,8 @@
 // backend/src/routes/fests.js
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { authenticateUser, authorizeRoles } from "../middleware/authMiddleware.js";
+import validator from "validator";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -8,13 +10,33 @@ const prisma = new PrismaClient();
 // GET /api/fests - List all fests
 router.get("/", async (req, res) => {
   try {
+    const page = Number(req.query.page) || 1;
+    const limit = Math.min(Number(req.query.limit) || 10, 50);
+
+    const skip = (page - 1) * limit;
+
+    const total = await prisma.fest.count({
+      where: {
+        isDeleted: false
+      }
+    });
+
     const fests = await prisma.fest.findMany({
+      where: {
+        isDeleted: false
+      },
+      skip,
+      take: limit,
       orderBy: { startDate: "desc" },
       include: {
         _count: {
           select: { events: true },
         },
         events: {
+          where: {
+            visibility: "PUBLIC",
+            status: "PUBLISHED"
+          },
           orderBy: { startDate: "asc" },
           select: {
             id: true,
@@ -30,6 +52,10 @@ router.get("/", async (req, res) => {
 
     res.json({
       success: true,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
       data: fests,
     });
   } catch (error) {
@@ -44,10 +70,20 @@ router.get("/", async (req, res) => {
 // GET /api/fests/:id - Get fest by ID with its events
 router.get("/:id", async (req, res) => {
   try {
-    const { id } = req.params;
+    const festId = Number(req.params.id);
 
-    const fest = await prisma.fest.findUnique({
-      where: { id: parseInt(id) },
+    if (isNaN(festId)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "INVALID_ID",
+          message: "Invalid fest ID"
+        }
+      });
+    }
+
+    const fest = await prisma.fest.findFirst({
+      where: { id: festId, isDeleted: false },
       include: {
         events: {
           orderBy: { startDate: "asc" },
@@ -80,7 +116,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // POST /api/fests - Create a new fest
-router.post("/", async (req, res) => {
+router.post("/", authenticateUser, authorizeRoles("ADMIN"), async (req, res) => {
   try {
     const { name, college, description, image, startDate, endDate } = req.body;
 
@@ -89,16 +125,71 @@ router.post("/", async (req, res) => {
         success: false,
         error: { code: "VALIDATION_ERROR", message: "Name and college are required" },
       });
+
+    }
+
+    const cleanStartDate = startDate?.trim() || null;
+    const cleanEndDate = endDate?.trim() || null;
+
+    const sanitizedName = validator.escape(name.trim());
+
+    const sanitizedCollege = validator.escape(college.trim());
+
+    const sanitizedDescription =
+      description
+        ? validator.escape(description.trim())
+        : null;
+
+    const sanitizedImage = image?.trim() || null;
+
+    if (cleanStartDate && cleanEndDate) {
+
+      const start = new Date(cleanStartDate);
+      const end = new Date(cleanEndDate);
+
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "INVALID_DATE",
+            message: "Invalid date format"
+          }
+        });
+      }
+
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+
+      if (start < now) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "INVALID_DATE",
+            message: "Start date cannot be in the past"
+          }
+        });
+      }
+
+      if (end < start) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "INVALID_DATE",
+            message: "End date must be after start date"
+          }
+        });
+      }
+
     }
 
     const fest = await prisma.fest.create({
       data: {
-        name,
-        college,
-        description,
-        image,
-        startDate: startDate ? new Date(startDate) : null,
-        endDate: endDate ? new Date(endDate) : null,
+        name: sanitizedName,
+        college: sanitizedCollege,
+        description: sanitizedDescription,
+        image: sanitizedImage,
+        startDate: startDate ? new Date(cleanStartDate) : null,
+        endDate: endDate ? new Date(cleanEndDate) : null,
       },
     });
 
@@ -117,20 +208,97 @@ router.post("/", async (req, res) => {
 });
 
 // PUT /api/fests/:id - Update a fest
-router.put("/:id", async (req, res) => {
+router.put("/:id", authenticateUser, authorizeRoles("ADMIN"), async (req, res) => {
   try {
     const { id } = req.params;
+
+    const festId = Number(id);
+
+    if (isNaN(festId)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "INVALID_ID",
+          message: "Invalid fest ID"
+        }
+      });
+    }
+
     const { name, college, description, image, startDate, endDate } = req.body;
 
+    if (!name || !college) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Name and college are required"
+        }
+      });
+    }
+
+    const cleanStartDate = startDate?.trim() || null;
+    const cleanEndDate = endDate?.trim() || null;
+
+    const sanitizedName = validator.escape(name.trim());
+
+    const sanitizedCollege = validator.escape(college.trim());
+
+    const sanitizedDescription =
+      description
+        ? validator.escape(description.trim())
+        : null;
+
+    const sanitizedImage =
+      image?.trim() || null;
+
+    if (cleanStartDate && cleanEndDate) {
+
+      const start = new Date(cleanStartDate);
+      const end = new Date(cleanEndDate);
+
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "INVALID_DATE",
+            message: "Invalid date format"
+          }
+        });
+      }
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+
+      if (start < now) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "INVALID_DATE",
+            message: "Start date cannot be in the past"
+          }
+        });
+      }
+
+      if (end < start) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "INVALID_DATE",
+            message: "End date must be after start date"
+          }
+        });
+      }
+
+    }
+
     const fest = await prisma.fest.update({
-      where: { id: parseInt(id) },
+      where: { id: festId },
       data: {
-        name,
-        college,
-        description,
-        image,
-        startDate: startDate ? new Date(startDate) : null,
-        endDate: endDate ? new Date(endDate) : null,
+        name: sanitizedName,
+        college: sanitizedCollege,
+        description: sanitizedDescription,
+        image: sanitizedImage,
+        startDate: startDate ? new Date(cleanStartDate) : null,
+        endDate: endDate ? new Date(cleanEndDate) : null,
       },
     });
 
@@ -155,17 +323,30 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE /api/fests/:id - Delete a fest
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authenticateUser, authorizeRoles("ADMIN"), async (req, res) => {
   try {
-    const { id } = req.params;
+    const festId = Number(req.params.id);
 
-    await prisma.fest.delete({
-      where: { id: parseInt(id) },
+    if (isNaN(festId)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "INVALID_ID",
+          message: "Invalid fest ID"
+        }
+      });
+    }
+
+    await prisma.fest.update({
+      where: { id: festId },
+      data: {
+        isDeleted: true
+      }
     });
 
     res.json({
       success: true,
-      message: "Fest deleted successfully",
+      message: "Fest archived successfully",
     });
   } catch (error) {
     console.error("Error deleting fest:", error);
@@ -185,14 +366,24 @@ router.delete("/:id", async (req, res) => {
 // GET /api/fests/:festId/events - Get all events for a fest
 router.get("/:festId/events", async (req, res) => {
   try {
-    const { festId } = req.params;
+    const festId = Number(req.params.festId);
+
+    if (isNaN(festId)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "INVALID_ID",
+          message: "Invalid fest ID"
+        }
+      });
+    }
 
     const events = await prisma.event.findMany({
       where: {
         // For host and public fest views we want to see
         // all events that belong to this fest, regardless of
         // draft/published status.
-        festId: parseInt(festId),
+        festId: festId,
       },
       orderBy: { startDate: "asc" },
       include: {

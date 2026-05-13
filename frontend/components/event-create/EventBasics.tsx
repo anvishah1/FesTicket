@@ -75,6 +75,63 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
   
   const [showDefaultImages, setShowDefaultImages] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const startDateRef = useRef<HTMLInputElement>(null);
+  const endDateRef = useRef<HTMLInputElement>(null);
+
+  const getMinDateTime = () => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
+  };
+
+  const handleStartDateChange = (value: string) => {
+
+    if (!value) return;
+
+    const year = value.split("-")[0];
+
+    if (year.length !== 4) {
+      alert("Invalid year format. Please enter a valid year.");
+      return;
+    }
+
+    const selected = new Date(value);
+    const now = new Date();
+
+    if (selected < now) {
+      alert("Start date cannot be in the past.");
+      return;
+    }
+
+    setFormData({ ...formData, startDate: value });
+  };
+
+  const handleEndDateChange = (value: string) => {
+
+    if (!value) return;
+
+    const year = value.split("-")[0];
+
+    if (year.length !== 4) {
+      alert("Invalid year format. Please enter a valid year.");
+      return;
+    }
+
+    if (!formData.startDate) {
+      alert("Select start date first");
+      return;
+    }
+
+    const end = new Date(value);
+    const start = new Date(formData.startDate);
+
+    if (end <= start) {
+      alert("End date must be after start date.");
+      return;
+    }
+
+    setFormData({ ...formData, endDate: value });
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -245,29 +302,85 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
 
         {/* Dates */}
         <div className="grid grid-cols-2 gap-4">
+
           <div>
             <label className="block text-sm font-medium text-[#29104A]">
               Event Starts From
             </label>
-            <input
-              type="datetime-local"
-              value={formData.startDate}
-              onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-              className="mt-2 w-full rounded-lg border border-[#C5BAC4] px-4 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
-            />
+
+            <div
+              onClick={() => startDateRef.current?.showPicker()}
+              className="mt-2 flex items-center justify-between w-full rounded-lg border border-[#C5BAC4] px-4 py-3 cursor-pointer
+                        focus-within:border-[#522C5D] focus-within:ring-2 focus-within:ring-[#522C5D]/20
+                        hover:border-[#522C5D] transition"
+            >
+              <span className="text-[#29104A]">
+                {formData.startDate
+                  ? new Date(formData.startDate).toLocaleString()
+                  : "Select date & time"}
+              </span>
+
+              <svg
+                className="w-5 h-5 text-[#6B597F]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M8 7V3m8 4V3m-9 8h10m-11 9h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v11a2 2 0 002 2z"
+                />
+              </svg>
+
+              <input
+                ref={startDateRef}
+                type="datetime-local"
+                value={formData.startDate}
+                min={getMinDateTime()}
+                onChange={(e) => handleStartDateChange(e.target.value)}
+                className="absolute opacity-0 pointer-events-none"
+              />
+            </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-[#29104A]">
               Event Ends On
             </label>
-            <input
-              type="datetime-local"
-              value={formData.endDate}
-              onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-              className="mt-2 w-full rounded-lg border border-[#C5BAC4] px-4 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
-            />
+
+            <div
+              onClick={() => endDateRef.current?.showPicker()}
+              className="mt-2 flex items-center justify-between w-full rounded-lg border border-[#C5BAC4] px-4 py-3 cursor-pointer
+                        focus-within:border-[#522C5D] focus-within:ring-2 focus-within:ring-[#522C5D]/20
+                        hover:border-[#522C5D] transition"
+            >
+              <span className="text-[#29104A]">
+                {formData.endDate
+                  ? new Date(formData.endDate).toLocaleString()
+                  : "Select date & time"}
+              </span>
+
+              <svg
+                className="w-5 h-5 text-[#6B597F]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M8 7V3m8 4V3m-9 8h10m-11 9h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v11a2 2 0 002 2z"
+                />
+              </svg>
+
+              <input
+                ref={endDateRef}
+                type="datetime-local"
+                value={formData.endDate}
+                min={formData.startDate || getMinDateTime()}
+                onChange={(e) => handleEndDateChange(e.target.value)}
+                className="absolute opacity-0 pointer-events-none"
+              />
+            </div>
           </div>
+
         </div>
 
         {/* Visibility */}

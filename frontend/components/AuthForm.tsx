@@ -49,7 +49,19 @@ export default function AuthForm() {
         return;
       }
       setAuth(data.accessToken, data.refreshToken, data.user);
-      router.push("/host/dashboard");
+      
+        if (data.user.role === "ADMIN") {
+          router.push("/admin/dashboard");
+        }
+
+        else if (data.user.role === "EDITOR") {
+          router.push("/host/dashboard");
+        }
+
+        else {
+          router.push("/");
+        }
+
     } catch {
       setError("Could not reach server. Please try again.");
     }

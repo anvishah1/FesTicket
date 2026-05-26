@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ==================== USER & AUTH ====================
@@ -69,7 +69,6 @@ model Fest {
   adminKey    String?   @unique  // key given to admin; students enter this to request editor for this fest
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  isDeleted   Boolean   @default(false)
 
   // Relations
   events         Event[]
@@ -100,7 +99,7 @@ model Event {
   onlineLink       String?
   isOnline         Boolean     @default(false)
   visibility       Visibility  @default(PUBLIC)
-  status           EventStatus @default(DRAFT)
+  status           EventStatus @default(PUBLISHED)
   discount         Float       @default(0)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt

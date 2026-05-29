@@ -3,6 +3,10 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Footer from "@/components/Footer";
+<<<<<<< Updated upstream
+=======
+import { getApiUrl, getStoredUser } from "@/lib/auth";
+>>>>>>> Stashed changes
 
 interface TicketType {
   name: string;
@@ -62,6 +66,8 @@ export default function ManageEventPage() {
   const params = useParams();
   const router = useRouter();
   const eventId = Number(params.eventId);
+  const user = getStoredUser();
+  const isAdmin = user?.role === "ADMIN";
 
   const [event, setEvent] = useState<EventDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -252,14 +258,26 @@ export default function ManageEventPage() {
       <header className="border-b border-[#C5BAC4] bg-gradient-to-r from-[#29104A] via-[#3D1B5C] to-[#1A4B6E] backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.push("/host/dashboard")}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <svg className="w-5 h-5 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
+            {!isAdmin && (
+              <button
+                onClick={() => router.push("/host/dashboard")}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <svg
+                  className="w-5 h-5 text-white/80"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </button>
+            )}
             <div>
               <h1 className="font-bold text-lg text-white">Manage Event</h1>
               <p className="text-xs text-white/70">{event.name}</p>
@@ -280,6 +298,30 @@ export default function ManageEventPage() {
           </div>
         </div>
       </header>
+      {isAdmin && (
+        <div className="max-w-7xl mx-auto px-6 pt-6">
+          <button
+            onClick={() => router.push("/admin/dashboard")}
+            className="flex items-center gap-2 rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm font-medium text-[#29104A] hover:bg-[#F5F1F8] transition"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+
+            Back to Admin Dashboard
+          </button>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Event Header Card */}

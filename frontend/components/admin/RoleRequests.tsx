@@ -56,7 +56,13 @@ export default function RoleRequests() {
         body: JSON.stringify({ status: "APPROVED" }),
       });
       if (!res.ok) throw new Error("Approve failed");
-      setRequests((prev) => prev.filter((req) => req.id !== id));
+      setRequests((prev) =>
+        prev.map((req) =>
+          req.id === id
+            ? { ...req, status: "APPROVED" }
+            : req
+        )
+      );
     } catch {
       setError("Failed to approve.");
     }
@@ -142,6 +148,19 @@ export default function RoleRequests() {
                       <span className="text-xs text-[#C5BAC4]">•</span>
                       <span className="text-xs text-[#6B597F]">{req.festName || req.organization || "—"}</span>
                     </div>
+                    <div className="mt-2">
+                      <span
+                        className={`px-2 py-1 rounded text-xs font-semibold ${
+                          req.status === "APPROVED"
+                            ? "bg-green-100 text-green-700"
+                            : req.status === "DENIED"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-yellow-100 text-yellow-700"
+                        }`}
+                      >
+                        {req.status || "PENDING"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -153,32 +172,56 @@ export default function RoleRequests() {
                       year: "numeric",
                     })}
                   </span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleApprove(req.id)}
-                      disabled={actionLoading === req.id}
-                      className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition disabled:opacity-50 flex items-center gap-2"
+                  {req.status === "PENDING" || !req.status ? (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleApprove(req.id)}
+                        disabled={actionLoading === req.id}
+                        className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {actionLoading === req.id ? (
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            ></path>
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                        Approve
+                      </button>
+
+                      <button
+                        onClick={() => handleDeny(req.id)}
+                        disabled={actionLoading === req.id}
+                        className="px-4 py-2 rounded-lg bg-red-100 text-red-700 text-sm font-medium hover:bg-red-200 transition disabled:opacity-50"
+                      >
+                        Deny
+                      </button>
+                    </div>
+                  ) : (
+                    <p
+                      className={`text-sm font-semibold ${
+                        req.status === "APPROVED"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
                     >
-                      {actionLoading === req.id ? (
-                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                        </svg>
-                      ) : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => handleDeny(req.id)}
-                      disabled={actionLoading === req.id}
-                      className="px-4 py-2 rounded-lg bg-red-100 text-red-700 text-sm font-medium hover:bg-red-200 transition disabled:opacity-50"
-                    >
-                      Deny
-                    </button>
-                  </div>
+                      {req.status}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

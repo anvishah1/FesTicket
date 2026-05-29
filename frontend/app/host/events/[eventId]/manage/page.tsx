@@ -3,10 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Footer from "@/components/Footer";
-<<<<<<< Updated upstream
-=======
 import { getApiUrl, getStoredUser } from "@/lib/auth";
->>>>>>> Stashed changes
 
 interface TicketType {
   name: string;

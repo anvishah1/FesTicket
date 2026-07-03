@@ -15,7 +15,6 @@ export interface EventBasicsData {
   endDate: string;
   visibility: "PRIVATE" | "PUBLIC";
   eventType: "OFFLINE" | "ONLINE";
-  status: "DRAFT" | "PUBLISHED";
 }
 
 const defaultImages = [
@@ -70,7 +69,6 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
     endDate: "",
     visibility: "PRIVATE",
     eventType: "OFFLINE",
-    status: "DRAFT",
   });
   
   const [showDefaultImages, setShowDefaultImages] = useState(false);
@@ -417,25 +415,6 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
               label="Online" 
               active={formData.eventType === "ONLINE"} 
               onClick={() => setFormData({ ...formData, eventType: "ONLINE" })}
-            />
-          </div>
-        </div>
-
-        {/* Status */}
-        <div>
-          <label className="mb-2 block text-sm font-medium text-[#29104A]">
-            Status
-          </label>
-          <div className="flex gap-4">
-            <OptionButton 
-              label="Draft" 
-              active={formData.status === "DRAFT"} 
-              onClick={() => setFormData({ ...formData, status: "DRAFT" })}
-            />
-            <OptionButton 
-              label="Published" 
-              active={formData.status === "PUBLISHED"} 
-              onClick={() => setFormData({ ...formData, status: "PUBLISHED" })}
             />
           </div>
         </div>

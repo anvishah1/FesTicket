@@ -21,11 +21,7 @@ router.get("/", async (req, res) => {
     const { status, category, festId, hostId } = req.query;
 
     const where = {};
-    if (status) {
-      where.status = status;
-    } else if (!festId) {
-      where.status = "PUBLISHED";
-    }
+    if (status) where.status = status;
     if (category) where.category = category;
     if (festId) where.festId = parseInt(festId);
     if (hostId) where.hostId = parseInt(hostId);
@@ -162,7 +158,7 @@ router.post("/", optionalAuthenticate, async (req, res) => {
           onlineLink: onlineLink || meetingLink || null,
           isOnline: isOnline || eventType === "ONLINE" || false,
           visibility: visibility || "PUBLIC",
-          status: status || "DRAFT",
+          status: status || "PUBLISHED",
           discount: discount || 0,
         },
       });
@@ -293,31 +289,6 @@ router.delete("/:id", async (req, res) => {
     res.status(500).json({
       success: false,
       error: { code: "DELETE_ERROR", message: "Failed to delete event" },
-    });
-  }
-});
-
-// PUT /api/events/:id/publish - Publish an event
-router.put("/:id/publish", async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const event = await prisma.event.update({
-      where: { id: parseInt(id) },
-      data: { status: "PUBLISHED" },
-      include: { ticketTypes: true },
-    });
-
-    res.json({
-      success: true,
-      data: event,
-      message: "Event published successfully",
-    });
-  } catch (error) {
-    console.error("Error publishing event:", error);
-    res.status(500).json({
-      success: false,
-      error: { code: "PUBLISH_ERROR", message: "Failed to publish event" },
     });
   }
 });

@@ -108,7 +108,6 @@ export default function EventCreatePage() {
           endDate: fullEventData.basics?.endDate || null,
           visibility: fullEventData.basics?.visibility,
           eventType: fullEventData.basics?.eventType,
-          status: fullEventData.basics?.status,
           venue: fullEventData.location?.venue,
           address: fullEventData.location?.address,
           meetingLink: fullEventData.location?.meetingLink,

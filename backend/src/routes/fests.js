@@ -380,9 +380,8 @@ router.get("/:festId/events", async (req, res) => {
 
     const events = await prisma.event.findMany({
       where: {
-        // For host and public fest views we want to see
-        // all events that belong to this fest, regardless of
-        // draft/published status.
+        // All events for this fest (no status filter) — for host and
+        // public fest views. festId is already a Number (see above).
         festId: festId,
       },
       orderBy: { startDate: "asc" },

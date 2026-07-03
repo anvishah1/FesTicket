@@ -61,10 +61,7 @@ export default function FestEvents({ festId }: FestEventsProps) {
             image:
               ev.image ||
               "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&h=300&fit=crop",
-            status:
-              ev.status?.toLowerCase() === "published"
-                ? "upcoming"
-                : (ev.status || "upcoming").toString().toLowerCase(),
+            status: "upcoming",
             ticketsSold,
             totalTickets: totalTickets || 1,
           };
@@ -168,7 +165,7 @@ export default function FestEvents({ festId }: FestEventsProps) {
                 />
                 <div className="absolute top-3 right-3">
                   <span className="px-2 py-1 bg-green-500 text-white text-xs font-medium rounded-lg">
-                    {event.status}
+                    {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                   </span>
                 </div>
                 {/* Hover overlay */}

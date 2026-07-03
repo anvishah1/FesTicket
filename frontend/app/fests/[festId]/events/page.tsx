@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Card from "@/components/card";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { getApiUrl } from "@/lib/auth";
 
 interface Event {
   id: number;
@@ -36,7 +37,7 @@ export default function EventsPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const festRes = await fetch(`http://localhost:4000/api/fests/${festId}`);
+        const festRes = await fetch(`${getApiUrl()}/api/fests/${festId}`);
         const festJson = await festRes.json();
 
         if (!festJson.success || !festJson.data) {

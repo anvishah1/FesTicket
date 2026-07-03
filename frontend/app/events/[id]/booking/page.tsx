@@ -10,6 +10,7 @@ import BookingSummary from "@/components/BookingSummary";
 import AttendeeForm from "@/components/AttendeeForm";
 import Link from "next/link";
 import Footer from "@/components/Footer";
+import { getApiUrl } from "@/lib/auth";
 
 type TicketType = {
   id: string;
@@ -59,7 +60,7 @@ export default function BookingPage() {
   useEffect(() => {
     const fetchEvent = async () => {
       try {
-        const res = await fetch(`http://localhost:4000/api/events/${eventId}`);
+        const res = await fetch(`${getApiUrl()}/api/events/${eventId}`);
         const data = await res.json();
         if (data.success && data.data) {
           setEvent(data.data);
@@ -162,7 +163,7 @@ export default function BookingPage() {
       }
 
       // Create booking
-      const res = await fetch("http://localhost:4000/api/bookings", {
+      const res = await fetch(`${getApiUrl()}/api/bookings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

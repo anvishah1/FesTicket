@@ -1,9 +1,28 @@
 // backend/src/routes/bookings.js
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import Razorpay from "razorpay";
+import { sendBookingConfirmation } from "../utils/email.js";
 
 const router = Router();
 const prisma = new PrismaClient();
+
+const getRazorpay = () => {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) return null;
+  return new Razorpay({ key_id: keyId, key_secret: keySecret });
+};
+
+const mapRazorpayMethod = (m) => {
+  if (!m) return "UPI";
+  const s = String(m).toUpperCase();
+  if (["UPI", "CARD", "NETBANKING", "WALLET"].includes(s)) return s;
+  if (s.includes("NETBANKING") || s.includes("BANK")) return "NETBANKING";
+  if (s.includes("CARD")) return "CARD";
+  if (s.includes("WALLET")) return "WALLET";
+  return "UPI";
+};
 
 // ==================== CREATE BOOKING ====================
 
@@ -38,7 +57,7 @@ router.post("/", async (req, res) => {
 
     // Create booking in a transaction
     const booking = await prisma.$transaction(async (tx) => {
-      // 1. Verify event exists and is published
+      // 1. Verify event exists
       const event = await tx.event.findUnique({
         where: { id: parseInt(eventId) },
         include: { ticketTypes: true },
@@ -46,10 +65,6 @@ router.post("/", async (req, res) => {
 
       if (!event) {
         throw new Error("Event not found");
-      }
-
-      if (event.status !== "PUBLISHED") {
-        throw new Error("Event is not available for booking");
       }
 
       // 2. Verify ticket availability and calculate totals
@@ -163,43 +178,223 @@ router.post("/", async (req, res) => {
   }
 });
 
+// ==================== RAZORPAY: CREATE ORDER ====================
+
+// POST /api/bookings/:id/create-order - Create Razorpay order for this booking (amount in paise)
+router.post("/:id/create-order", async (req, res) => {
+  try {
+    const razorpay = getRazorpay();
+    if (!razorpay) {
+      return res.status(503).json({
+        success: false,
+        error: { code: "RAZORPAY_DISABLED", message: "Razorpay keys not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET." },
+      });
+    }
+
+    const bookingId = parseInt(req.params.id);
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { event: { select: { name: true } } },
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        error: { code: "NOT_FOUND", message: "Booking not found" },
+      });
+    }
+    if (booking.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        error: { code: "INVALID_STATE", message: "Booking is not pending payment" },
+      });
+    }
+
+    const amountPaise = Math.round(booking.total * 100);
+    if (amountPaise < 100) {
+      return res.status(400).json({
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Amount too small (min ₹1)" },
+      });
+    }
+
+    const order = await razorpay.orders.create({
+      amount: amountPaise,
+      currency: "INR",
+      receipt: `booking-${booking.bookingCode}`,
+      notes: { bookingId: String(bookingId), eventName: booking.event?.name || "" },
+    });
+
+    await prisma.payment.upsert({
+      where: { bookingId },
+      create: {
+        bookingId,
+        amount: booking.total,
+        status: "PENDING",
+        orderId: order.id,
+      },
+      update: {
+        orderId: order.id,
+        status: "PENDING",
+      },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        orderId: order.id,
+        amount: amountPaise,
+        currency: order.currency,
+        keyId: process.env.RAZORPAY_KEY_ID,
+      },
+    });
+  } catch (err) {
+    console.error("Razorpay create order error:", err);
+    res.status(500).json({
+      success: false,
+      error: { code: "ORDER_ERROR", message: err?.message || "Failed to create order" },
+    });
+  }
+});
+
+// ==================== RAZORPAY: VERIFY PAYMENT ====================
+
+// POST /api/bookings/:id/verify-payment - Verify Razorpay payment and complete booking
+router.post("/:id/verify-payment", async (req, res) => {
+  try {
+    const razorpay = getRazorpay();
+    if (!razorpay) {
+      return res.status(503).json({
+        success: false,
+        error: { code: "RAZORPAY_DISABLED", message: "Razorpay not configured" },
+      });
+    }
+
+    const bookingId = parseInt(req.params.id);
+    const { razorpay_order_id, razorpay_payment_id } = req.body || {};
+
+    if (!razorpay_payment_id || !razorpay_order_id) {
+      return res.status(400).json({
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "razorpay_order_id and razorpay_payment_id required" },
+      });
+    }
+
+    const paymentEntity = await razorpay.payments.fetch(razorpay_payment_id);
+    if (!paymentEntity || paymentEntity.order_id !== razorpay_order_id) {
+      return res.status(400).json({
+        success: false,
+        error: { code: "VERIFY_FAILED", message: "Invalid or mismatched payment" },
+      });
+    }
+    if (paymentEntity.status !== "captured") {
+      return res.status(400).json({
+        success: false,
+        error: { code: "VERIFY_FAILED", message: "Payment not captured" },
+      });
+    }
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { event: true, items: { include: { ticketType: true } }, attendees: true },
+    });
+    if (!booking || booking.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        error: { code: "INVALID_STATE", message: "Booking not found or already completed" },
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.booking.update({
+        where: { id: bookingId },
+        data: { status: "COMPLETED", purchaseDate: new Date() },
+      });
+      await tx.payment.updateMany({
+        where: { bookingId },
+        data: {
+          status: "SUCCESS",
+          transactionId: razorpay_payment_id,
+          paymentDate: new Date(),
+          method: mapRazorpayMethod(paymentEntity.method),
+        },
+      });
+    });
+
+    const updated = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        event: true,
+        items: { include: { ticketType: true } },
+        attendees: true,
+        user: { select: { email: true, name: true } },
+      },
+    });
+
+    sendBookingConfirmation(updated).catch((e) => console.error("[email] Booking confirmation failed:", e));
+
+    res.json({
+      success: true,
+      data: updated,
+      message: "Payment verified and booking completed",
+    });
+  } catch (err) {
+    console.error("Razorpay verify error:", err);
+    res.status(500).json({
+      success: false,
+      error: { code: "VERIFY_ERROR", message: err?.message || "Verification failed" },
+    });
+  }
+});
+
 // ==================== COMPLETE BOOKING (After Payment) ====================
 
-// PUT /api/bookings/:id/complete - Mark booking as completed
+// PUT /api/bookings/:id/complete - Mark booking as completed (simulated / fallback when Razorpay not used)
 router.put("/:id/complete", async (req, res) => {
   try {
     const { id } = req.params;
     const { transactionId, paymentMethod } = req.body;
+    const bid = parseInt(id);
 
     const booking = await prisma.$transaction(async (tx) => {
-      // Update booking status
       const updatedBooking = await tx.booking.update({
-        where: { id: parseInt(id) },
-        data: {
-          status: "COMPLETED",
-          purchaseDate: new Date(),
-        },
+        where: { id: bid },
+        data: { status: "COMPLETED", purchaseDate: new Date() },
         include: {
           event: true,
           items: { include: { ticketType: true } },
           attendees: true,
+          user: { select: { email: true, name: true } },
         },
       });
 
-      // Create payment record
-      await tx.payment.create({
-        data: {
-          bookingId: parseInt(id),
-          amount: updatedBooking.total,
-          method: paymentMethod || "CARD",
-          status: "SUCCESS",
-          transactionId: transactionId || null,
-          paymentDate: new Date(),
-        },
-      });
-
+      const existing = await tx.payment.findUnique({ where: { bookingId: bid } });
+      if (existing) {
+        await tx.payment.update({
+          where: { bookingId: bid },
+          data: {
+            status: "SUCCESS",
+            transactionId: transactionId || existing.transactionId,
+            paymentDate: new Date(),
+            method: paymentMethod || existing.method || "CARD",
+          },
+        });
+      } else {
+        await tx.payment.create({
+          data: {
+            bookingId: bid,
+            amount: updatedBooking.total,
+            method: paymentMethod || "CARD",
+            status: "SUCCESS",
+            transactionId: transactionId || null,
+            paymentDate: new Date(),
+          },
+        });
+      }
       return updatedBooking;
     });
+
+    sendBookingConfirmation(booking).catch((e) => console.error("[email] Booking confirmation failed:", e));
 
     res.json({
       success: true,

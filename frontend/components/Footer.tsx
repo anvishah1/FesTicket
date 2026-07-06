@@ -1,4 +1,6 @@
 // frontend/components/Footer.tsx
+import Link from "next/link";
+
 export default function Footer() {
   return (
     <footer className="border-t border-[#6B597F] mt-16 bg-[#C5BAC4]/50 backdrop-blur-sm">
@@ -16,18 +18,18 @@ export default function Footer() {
 
         {/* Links */}
         <div className="flex items-center gap-6 text-sm text-[#6B597F]">
-          <a href="/about" className="hover:text-[#29104A] transition-colors">
+          <Link href="/about" className="hover:text-[#29104A] transition-colors">
             About
-          </a>
-          <a href="/privacy" className="hover:text-[#29104A] transition-colors">
+          </Link>
+          <Link href="/privacy" className="hover:text-[#29104A] transition-colors">
             Privacy
-          </a>
-          <a href="/terms" className="hover:text-[#29104A] transition-colors">
+          </Link>
+          <Link href="/terms" className="hover:text-[#29104A] transition-colors">
             Terms
-          </a>
-          <a href="/contact" className="hover:text-[#29104A] transition-colors">
+          </Link>
+          <Link href="/contact" className="hover:text-[#29104A] transition-colors">
             Contact
-          </a>
+          </Link>
           <a
             href="mailto:support@tiqr.events"
             className="hover:text-[#29104A] transition-colors"

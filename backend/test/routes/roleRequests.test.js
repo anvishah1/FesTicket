@@ -193,7 +193,8 @@ describe("POST /api/role-requests", () => {
     expect(res.status).toBe(401);
   });
 
-  it("creates a HOST request with organization and returns 201", async () => {
+  it("clamps a self-requested HOST to EDITOR and scopes it to the fest key", async () => {
+    prismaMock.fest.findFirst.mockResolvedValue({ id: 7 });
     prismaMock.roleRequest.findFirst.mockResolvedValue(null);
     prismaMock.roleRequest.create.mockResolvedValue({
       id: 100,
@@ -204,7 +205,7 @@ describe("POST /api/role-requests", () => {
     const res = await request(app)
       .post("/api/role-requests")
       .set("Authorization", `Bearer ${viewerToken()}`)
-      .send({ requestedRole: "HOST", organization: "IIT" });
+      .send({ requestedRole: "HOST", organization: "IIT", festKey: "KEY-7" });
 
     expect(res.status).toBe(201);
     expect(res.body).toEqual({
@@ -215,14 +216,28 @@ describe("POST /api/role-requests", () => {
     expect(prismaMock.roleRequest.findFirst).toHaveBeenCalledWith({
       where: { userId: 2, status: "PENDING" },
     });
+    // HOST is never self-assignable — clamped to EDITOR — and the request is
+    // scoped to the fest the key resolves to.
     expect(prismaMock.roleRequest.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { userId: 2, festId: null, requestedRole: "HOST", organization: "IIT" },
+        data: { userId: 2, festId: 7, requestedRole: "EDITOR", organization: "IIT" },
       })
     );
   });
 
-  it("defaults requestedRole to EDITOR and organization to null when omitted", async () => {
+  it("returns 400 when no festKey is provided (a fest key is now required)", async () => {
+    const res = await request(app)
+      .post("/api/role-requests")
+      .set("Authorization", `Bearer ${viewerToken()}`)
+      .send({ requestedRole: "EDITOR" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.errors.festKey).toBeTruthy();
+    expect(prismaMock.roleRequest.create).not.toHaveBeenCalled();
+  });
+
+  it("defaults requestedRole to EDITOR and organization to null when omitted (festKey required)", async () => {
+    prismaMock.fest.findFirst.mockResolvedValue({ id: 7 });
     prismaMock.roleRequest.findFirst.mockResolvedValue(null);
     prismaMock.roleRequest.create.mockResolvedValue({
       id: 101,
@@ -233,12 +248,12 @@ describe("POST /api/role-requests", () => {
     const res = await request(app)
       .post("/api/role-requests")
       .set("Authorization", `Bearer ${viewerToken()}`)
-      .send({});
+      .send({ festKey: "KEY-7" });
 
     expect(res.status).toBe(201);
     expect(prismaMock.roleRequest.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { userId: 2, festId: null, requestedRole: "EDITOR", organization: null },
+        data: { userId: 2, festId: 7, requestedRole: "EDITOR", organization: null },
       })
     );
   });
@@ -274,7 +289,8 @@ describe("POST /api/role-requests", () => {
     expect(res.body.errors.festKey).toBeTruthy();
   });
 
-  it("coerces an invalid requestedRole to EDITOR (never 400 — the guard is dead code)", async () => {
+  it("clamps any requestedRole (even ADMIN) to EDITOR", async () => {
+    prismaMock.fest.findFirst.mockResolvedValue({ id: 7 });
     prismaMock.roleRequest.findFirst.mockResolvedValue(null);
     prismaMock.roleRequest.create.mockResolvedValue({
       id: 102,
@@ -285,7 +301,7 @@ describe("POST /api/role-requests", () => {
     const res = await request(app)
       .post("/api/role-requests")
       .set("Authorization", `Bearer ${viewerToken()}`)
-      .send({ requestedRole: "ADMIN" });
+      .send({ requestedRole: "ADMIN", festKey: "KEY-7" });
 
     expect(res.status).toBe(201);
     expect(prismaMock.roleRequest.create).toHaveBeenCalledWith(
@@ -296,12 +312,13 @@ describe("POST /api/role-requests", () => {
   });
 
   it("returns 409 when the user already has a pending request", async () => {
+    prismaMock.fest.findFirst.mockResolvedValue({ id: 7 });
     prismaMock.roleRequest.findFirst.mockResolvedValue({ id: 55 });
 
     const res = await request(app)
       .post("/api/role-requests")
       .set("Authorization", `Bearer ${viewerToken()}`)
-      .send({ requestedRole: "EDITOR" });
+      .send({ requestedRole: "EDITOR", festKey: "KEY-7" });
 
     expect(res.status).toBe(409);
     expect(res.body).toEqual({
@@ -312,12 +329,13 @@ describe("POST /api/role-requests", () => {
   });
 
   it("returns 500 when the database throws", async () => {
+    prismaMock.fest.findFirst.mockResolvedValue({ id: 7 });
     prismaMock.roleRequest.findFirst.mockRejectedValue(new Error("db down"));
 
     const res = await request(app)
       .post("/api/role-requests")
       .set("Authorization", `Bearer ${viewerToken()}`)
-      .send({ requestedRole: "EDITOR" });
+      .send({ requestedRole: "EDITOR", festKey: "KEY-7" });
 
     expect(res.status).toBe(500);
     expect(res.body.message).toBe("Server error");

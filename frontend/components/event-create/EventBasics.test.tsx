@@ -1,10 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import EventBasics, { type EventBasicsData } from "@/components/event-create/EventBasics";
+import { showToast } from "@/lib/toast";
 
-// EventBasics calls window.alert on validation failures; stub it once.
-const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+// EventBasics surfaces validation failures via showToast; mock it.
+vi.mock("@/lib/toast", () => ({ showToast: vi.fn() }));
+beforeEach(() => vi.mocked(showToast).mockClear());
 
 const filledData: EventBasicsData = {
   name: "KSUM Meet",
@@ -49,7 +51,7 @@ describe("EventBasics", () => {
     const onNext = vi.fn();
     render(<EventBasics onNext={onNext} />);
     await userEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
-    expect(alertSpy).toHaveBeenCalledWith("Please enter an event name");
+    expect(showToast).toHaveBeenCalledWith("Please enter an event name", "error");
     expect(onNext).not.toHaveBeenCalled();
   });
 
@@ -121,7 +123,7 @@ describe("EventBasics", () => {
       'input[type="datetime-local"]'
     );
     fireEvent.change(startInput, { target: { value: "2000-01-01T10:00" } });
-    expect(alertSpy).toHaveBeenCalledWith("Start date cannot be in the past.");
+    expect(showToast).toHaveBeenCalledWith("Start date cannot be in the past.", "error");
   });
 
   it("alerts when picking an end date before a start date is set", () => {
@@ -131,7 +133,7 @@ describe("EventBasics", () => {
     );
     const endInput = inputs[1];
     fireEvent.change(endInput, { target: { value: "2099-12-31T10:00" } });
-    expect(alertSpy).toHaveBeenCalledWith("Select start date first");
+    expect(showToast).toHaveBeenCalledWith("Select start date first", "error");
   });
 
   it("accepts a valid future start date and updates the display", () => {
@@ -146,7 +148,7 @@ describe("EventBasics", () => {
 
     // Only the end field still shows the placeholder now.
     expect(screen.getAllByText("Select date & time")).toHaveLength(1);
-    expect(alertSpy).not.toHaveBeenCalled();
+    expect(showToast).not.toHaveBeenCalled();
   });
 
   it("rejects a non-image upload inline without setting an image", async () => {
@@ -180,11 +182,12 @@ describe("EventBasics", () => {
     // Valid start, then a valid end after it.
     fireEvent.change(startInput, { target: { value: "2099-12-31T10:00" } });
     fireEvent.change(endInput, { target: { value: "2099-12-31T12:00" } });
-    alertSpy.mockClear();
+    vi.mocked(showToast).mockClear();
     // Move the start past the chosen end -> end must be dropped and flagged.
     fireEvent.change(startInput, { target: { value: "2099-12-31T13:00" } });
-    expect(alertSpy).toHaveBeenCalledWith(
-      "End date must be after the start date — please pick it again."
+    expect(showToast).toHaveBeenCalledWith(
+      "End date must be after the start date — please pick it again.",
+      "error"
     );
     // End reverts to the placeholder (was cleared).
     expect(screen.getAllByText("Select date & time")).toHaveLength(1);

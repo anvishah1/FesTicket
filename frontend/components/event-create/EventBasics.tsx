@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { showToast } from "@/lib/toast";
 
 interface EventBasicsProps {
   onNext: (data: EventBasicsData) => void;
@@ -164,7 +165,7 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
     const year = value.split("-")[0];
 
     if (year.length !== 4) {
-      alert("Invalid year format. Please enter a valid year.");
+      showToast("Invalid year format. Please enter a valid year.", "error");
       return;
     }
 
@@ -172,7 +173,7 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
     const now = new Date();
 
     if (selected < now) {
-      alert("Start date cannot be in the past.");
+      showToast("Start date cannot be in the past.", "error");
       return;
     }
 
@@ -182,7 +183,7 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
     if (formData.endDate) {
       const end = new Date(formData.endDate);
       if (end <= selected) {
-        alert("End date must be after the start date — please pick it again.");
+        showToast("End date must be after the start date — please pick it again.", "error");
         setFormData({ ...formData, startDate: value, endDate: "" });
         return;
       }
@@ -198,12 +199,12 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
     const year = value.split("-")[0];
 
     if (year.length !== 4) {
-      alert("Invalid year format. Please enter a valid year.");
+      showToast("Invalid year format. Please enter a valid year.", "error");
       return;
     }
 
     if (!formData.startDate) {
-      alert("Select start date first");
+      showToast("Select start date first", "error");
       return;
     }
 
@@ -211,7 +212,7 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
     const start = new Date(formData.startDate);
 
     if (end <= start) {
-      alert("End date must be after start date.");
+      showToast("End date must be after start date.", "error");
       return;
     }
 
@@ -263,7 +264,7 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
 
   const handleSubmit = () => {
     if (!formData.name.trim()) {
-      alert("Please enter an event name");
+      showToast("Please enter an event name", "error");
       return;
     }
     onNext(formData);

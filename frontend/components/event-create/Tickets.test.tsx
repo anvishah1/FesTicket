@@ -1,10 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Tickets, { type TicketsData } from "@/components/event-create/Tickets";
+import { showToast } from "@/lib/toast";
 
-// Tickets calls window.alert when no valid ticket exists; stub it once.
-const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+// Tickets surfaces validation failures via showToast; mock it.
+vi.mock("@/lib/toast", () => ({ showToast: vi.fn() }));
+beforeEach(() => vi.mocked(showToast).mockClear());
 
 describe("Tickets", () => {
   it("renders the heading and a default paid ticket row", () => {
@@ -52,7 +54,7 @@ describe("Tickets", () => {
     render(<Tickets onNext={onNext} />);
     await userEvent.clear(screen.getByDisplayValue("General Admission"));
     await userEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
-    expect(alertSpy).toHaveBeenCalledWith("Please add at least one ticket type");
+    expect(showToast).toHaveBeenCalledWith("Please add at least one ticket type", "error");
     expect(onNext).not.toHaveBeenCalled();
   });
 
@@ -113,8 +115,9 @@ describe("Tickets", () => {
     // Clear the seeded quantity of 100 -> it must NOT quietly fall back to 100.
     await userEvent.clear(screen.getByPlaceholderText("Quantity"));
     await userEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
-    expect(alertSpy).toHaveBeenCalledWith(
-      'Ticket "General Admission" needs a quantity of at least 1.'
+    expect(showToast).toHaveBeenCalledWith(
+      'Ticket "General Admission" needs a quantity of at least 1.',
+      "error"
     );
     expect(onNext).not.toHaveBeenCalled();
   });
@@ -127,8 +130,9 @@ describe("Tickets", () => {
     };
     render(<Tickets onNext={onNext} initialData={initialData} />);
     await userEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
-    expect(alertSpy).toHaveBeenCalledWith(
-      'Ticket "VIP" has an invalid price. Price cannot be negative.'
+    expect(showToast).toHaveBeenCalledWith(
+      'Ticket "VIP" has an invalid price. Price cannot be negative.',
+      "error"
     );
     expect(onNext).not.toHaveBeenCalled();
   });

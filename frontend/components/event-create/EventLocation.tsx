@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { showToast } from "@/lib/toast";
 
 interface EventLocationProps {
   onNext: (data: EventLocationData) => void;
@@ -31,11 +32,11 @@ export default function EventLocation({ onNext, onChange, initialData }: EventLo
 
   const handleSubmit = () => {
     if (formData.locationType === "OFFLINE" && !formData.venue.trim()) {
-      alert("Please enter a venue name");
+      showToast("Please enter a venue name", "error");
       return;
     }
     if (formData.locationType === "ONLINE" && !formData.meetingLink.trim()) {
-      alert("Please enter a meeting link");
+      showToast("Please enter a meeting link", "error");
       return;
     }
     onNext(formData);

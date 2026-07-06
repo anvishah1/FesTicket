@@ -121,6 +121,37 @@ export default function BookingConfirmationPage() {
 
   const totalTickets = (booking.items || []).reduce((s, i) => s + i.quantity, 0);
 
+  // The confirmation view must reflect the ACTUAL booking status — never show a
+  // green "confirmed / amount paid" banner for a PENDING or CANCELLED booking.
+  const isCompleted = booking.status === "COMPLETED";
+  const isCancelled = booking.status === "CANCELLED";
+  const statusUi = isCompleted
+    ? {
+        title: "Booking confirmed!",
+        sub: "Your tickets are booked. A confirmation has been sent to your email.",
+        ring: "bg-green-100",
+        icon: "text-green-600",
+        iconPath: "M20 6L9 17l-5-5",
+        amountLabel: "Amount paid",
+      }
+    : isCancelled
+    ? {
+        title: "Booking cancelled",
+        sub: "This booking was cancelled. No payment is due.",
+        ring: "bg-red-100",
+        icon: "text-red-600",
+        iconPath: "M6 18L18 6M6 6l12 12",
+        amountLabel: "Amount",
+      }
+    : {
+        title: "Payment pending",
+        sub: "Your booking is reserved but not yet paid. Complete payment to confirm your tickets.",
+        ring: "bg-amber-100",
+        icon: "text-amber-600",
+        iconPath: "M10.3 3.9l-8 14A2 2 0 004 21h16a2 2 0 001.7-3.1l-8-14a2 2 0 00-3.4 0z",
+        amountLabel: "Amount due",
+      };
+
   return (
     <div className="min-h-screen bg-[var(--bg)]">
       <Header />
@@ -129,17 +160,13 @@ export default function BookingConfirmationPage() {
         <div className="max-w-2xl mx-auto space-y-6">
           {/* Success banner */}
           <div className="rounded-lg bg-white border p-6 shadow-sm text-center">
-            <div className="mx-auto w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
-              <svg className="w-7 h-7 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+            <div className={`mx-auto w-14 h-14 rounded-full ${statusUi.ring} flex items-center justify-center`}>
+              <svg className={`w-7 h-7 ${statusUi.icon}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d={statusUi.iconPath} strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <h1 className="text-2xl font-extrabold mt-4">Booking confirmed!</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              {booking.status === "COMPLETED"
-                ? "Your tickets are booked. A confirmation has been sent to your email."
-                : "Your booking has been created."}
-            </p>
+            <h1 className="text-2xl font-extrabold mt-4">{statusUi.title}</h1>
+            <p className="text-sm text-slate-500 mt-1">{statusUi.sub}</p>
           </div>
 
           {/* Booking code */}
@@ -204,7 +231,7 @@ export default function BookingConfirmationPage() {
             )}
 
             <div className="border-t pt-4 flex justify-between items-center">
-              <span className="font-semibold">Amount paid</span>
+              <span className="font-semibold">{statusUi.amountLabel}</span>
               <span className="text-xl font-bold" data-testid="confirmation-total">
                 ₹{booking.total?.toLocaleString()}
               </span>

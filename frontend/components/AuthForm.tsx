@@ -2,6 +2,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import cx from "clsx";
 import { getApiUrl, setAuth } from "@/lib/auth";
@@ -152,13 +153,8 @@ export default function AuthForm() {
         />
       </div>
 
-      <div className="flex items-center justify-between text-sm">
-        <label className="flex items-center gap-2 text-[#6B597F]">
-          <input type="checkbox" className="w-4 h-4 accent-[#522C5D]" />
-          Remember me
-        </label>
-
-        <a className="text-[#29104A] hover:underline" href="/forgot">Forgot password?</a>
+      <div className="flex items-center justify-end text-sm">
+        <Link className="text-[#29104A] hover:underline" href="/forgot">Forgot password?</Link>
       </div>
 
       {captchaSiteKey && (
@@ -193,12 +189,12 @@ export default function AuthForm() {
 
       {/* Big Sign Up Button */}
       <div className="mt-4">
-        <a
+        <Link
           href="/signup"
           className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium transition bg-[#6B597F] hover:bg-[#522C5D] text-[#DEDCDC]"
         >
           Create a New Account
-        </a>
+        </Link>
       </div>
     </form>
   );

@@ -21,7 +21,6 @@ function initialOf(user: NonNullable<StoredUser>): string {
 
 const NAV_LINKS = [
   { href: "/fests", label: "Discover" },
-  { href: "/fests", label: "Fests" },
   { href: "/about", label: "About" },
 ];
 
@@ -108,9 +107,6 @@ export default function Header() {
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
           <Link href="/fests" className="text-white/80 hover:text-white transition-colors">
             Discover
-          </Link>
-          <Link href="/fests" className="text-white/80 hover:text-white transition-colors">
-            Fests
           </Link>
           <Link href="/about" className="text-white/80 hover:text-white transition-colors">
             About

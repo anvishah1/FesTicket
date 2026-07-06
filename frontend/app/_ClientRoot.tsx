@@ -7,6 +7,7 @@ import {
   getApiUrl,
   getAccessToken,
   updateStoredUser,
+  apiFetch,
 } from "@/lib/auth";
 
 type MeUser = {
@@ -38,9 +39,14 @@ export default function ClientRoot({
         return;
       }
       try {
-        const res = await fetch(`${getApiUrl()}/api/user/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        // apiFetch refreshes an expired access token once before giving up.
+        // redirectOnAuthFailure:false keeps a failed refresh from bouncing the
+        // user off the page — a failed /me here is non-fatal.
+        const res = await apiFetch(
+          "/api/user/me",
+          {},
+          { redirectOnAuthFailure: false }
+        );
         if (res.ok) {
           setUser(await res.json());
         }

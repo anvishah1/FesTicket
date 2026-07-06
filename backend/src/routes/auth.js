@@ -623,10 +623,24 @@ router.post("/reset-password", async (req, res) => {
       });
     }
 
-    if (!newPassword || newPassword.length < 8 || newPassword.length > 30) {
+    if (typeof newPassword !== "string" || newPassword.length < 8 || newPassword.length > 30) {
       return res.status(400).json({
         message: "Password must be 8–30 characters"
       });
+    }
+
+    // Enforce the SAME complexity rules as signup — previously reset-password only
+    // checked length, so it accepted weak passwords that signup would reject.
+    const complexity = [
+      [/[A-Z]/, "an uppercase letter"],
+      [/[a-z]/, "a lowercase letter"],
+      [/[0-9]/, "a number"],
+      [/[^A-Za-z0-9]/, "a special character"],
+    ];
+    for (const [re, label] of complexity) {
+      if (!re.test(newPassword)) {
+        return res.status(400).json({ message: `Password must contain ${label}` });
+      }
     }
 
     const user = await prisma.user.findFirst({

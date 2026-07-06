@@ -413,7 +413,7 @@ describe("POST /api/bookings", () => {
     rzp.orders.create.mockResolvedValue({ id: "order_d", currency: "INR" });
     prismaMock.payment.upsert.mockResolvedValue({});
 
-    const res = await request(app).post("/api/bookings/77/create-order").send({});
+    const res = await request(app).post("/api/bookings/77/create-order").send({ bookingCode: "BK77" });
 
     expect(res.status).toBe(200);
     expect(res.body.data.amount).toBe(108324);
@@ -808,7 +808,8 @@ describe("POST /api/bookings/:id/create-order", () => {
     rzp.orders.create.mockResolvedValue({ id: "order_1", currency: "INR" });
     prismaMock.payment.upsert.mockResolvedValue({});
 
-    const res = await request(app).post("/api/bookings/5/create-order").send({});
+    // The booking's own bookingCode authorizes the guest-safe ownership check.
+    const res = await request(app).post("/api/bookings/5/create-order").send({ bookingCode: "BK5" });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -843,9 +844,10 @@ describe("POST /api/bookings/:id/create-order", () => {
       id: 5,
       total: 100,
       status: "COMPLETED",
+      bookingCode: "BK5",
       event: { name: "E" },
     });
-    const res = await request(app).post("/api/bookings/5/create-order").send({});
+    const res = await request(app).post("/api/bookings/5/create-order").send({ bookingCode: "BK5" });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("INVALID_STATE");
   });
@@ -859,7 +861,7 @@ describe("POST /api/bookings/:id/create-order", () => {
       bookingCode: "BK5",
       event: { name: "E" },
     });
-    const res = await request(app).post("/api/bookings/5/create-order").send({});
+    const res = await request(app).post("/api/bookings/5/create-order").send({ bookingCode: "BK5" });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
     expect(res.body.error.message).toMatch(/Amount too small/);
@@ -876,7 +878,7 @@ describe("POST /api/bookings/:id/create-order", () => {
       event: { name: "E" },
     });
     rzp.orders.create.mockRejectedValue(new Error("rzp down"));
-    const res = await request(app).post("/api/bookings/5/create-order").send({});
+    const res = await request(app).post("/api/bookings/5/create-order").send({ bookingCode: "BK5" });
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe("ORDER_ERROR");
     expect(res.body.error.message).toBe("rzp down");
@@ -944,14 +946,14 @@ describe("POST /api/bookings/:id/verify-payment", () => {
       event: {},
     };
     prismaMock.booking.findUnique
-      .mockResolvedValueOnce({ id: 5, status: "PENDING", total: 100, payment: { orderId: "order_1" }, items: [], attendees: [], event: {} })
+      .mockResolvedValueOnce({ id: 5, status: "PENDING", total: 100, bookingCode: "BK5", payment: { orderId: "order_1" }, items: [], attendees: [], event: {} })
       .mockResolvedValueOnce(updated);
     prismaMock.booking.update.mockResolvedValue({});
     prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
 
     const res = await request(app)
       .post("/api/bookings/5/verify-payment")
-      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1" });
+      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1", bookingCode: "BK5" });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -980,10 +982,10 @@ describe("POST /api/bookings/:id/verify-payment", () => {
   it("rejects a captured payment whose order is not the one created for this booking (replay)", async () => {
     enableRazorpay();
     rzp.payments.fetch.mockResolvedValue({ order_id: "order_1", status: "captured", method: "upi", amount: 10000 });
-    prismaMock.booking.findUnique.mockResolvedValueOnce({ id: 5, status: "PENDING", total: 100, payment: { orderId: "SOME_OTHER_ORDER" }, items: [], attendees: [], event: {} });
+    prismaMock.booking.findUnique.mockResolvedValueOnce({ id: 5, status: "PENDING", total: 100, bookingCode: "BK5", payment: { orderId: "SOME_OTHER_ORDER" }, items: [], attendees: [], event: {} });
     const res = await request(app)
       .post("/api/bookings/5/verify-payment")
-      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1" });
+      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1", bookingCode: "BK5" });
     expect(res.status).toBe(400);
     expect(res.body.error.message).toMatch(/does not belong/i);
     expect(prismaMock.booking.update).not.toHaveBeenCalled();
@@ -992,10 +994,10 @@ describe("POST /api/bookings/:id/verify-payment", () => {
   it("rejects when the captured amount does not equal the booking total", async () => {
     enableRazorpay();
     rzp.payments.fetch.mockResolvedValue({ order_id: "order_1", status: "captured", method: "upi", amount: 100 });
-    prismaMock.booking.findUnique.mockResolvedValueOnce({ id: 5, status: "PENDING", total: 5000, payment: { orderId: "order_1" }, items: [], attendees: [], event: {} });
+    prismaMock.booking.findUnique.mockResolvedValueOnce({ id: 5, status: "PENDING", total: 5000, bookingCode: "BK5", payment: { orderId: "order_1" }, items: [], attendees: [], event: {} });
     const res = await request(app)
       .post("/api/bookings/5/verify-payment")
-      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1" });
+      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1", bookingCode: "BK5" });
     expect(res.status).toBe(400);
     expect(res.body.error.message).toMatch(/amount/i);
     expect(prismaMock.booking.update).not.toHaveBeenCalled();
@@ -1030,14 +1032,14 @@ describe("PUT /api/bookings/:id/complete", () => {
   });
 
   it("returns 400 when the booking is not PENDING", async () => {
-    prismaMock.booking.findUnique.mockResolvedValue({ status: "COMPLETED" });
-    const res = await request(app).put("/api/bookings/5/complete").send({});
+    prismaMock.booking.findUnique.mockResolvedValue({ status: "COMPLETED", bookingCode: "BK5" });
+    const res = await request(app).put("/api/bookings/5/complete").send({ bookingCode: "BK5" });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("INVALID_STATE");
   });
 
   it("completes a booking and updates an existing payment", async () => {
-    prismaMock.booking.findUnique.mockResolvedValue({ status: "PENDING" });
+    prismaMock.booking.findUnique.mockResolvedValue({ status: "PENDING", bookingCode: "BK5" });
     prismaMock.booking.update.mockResolvedValue({
       id: 5,
       total: 240.72,
@@ -1055,7 +1057,7 @@ describe("PUT /api/bookings/:id/complete", () => {
 
     const res = await request(app)
       .put("/api/bookings/5/complete")
-      .send({ transactionId: "txn_1", paymentMethod: "UPI" });
+      .send({ transactionId: "txn_1", paymentMethod: "UPI", bookingCode: "BK5" });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -1075,7 +1077,7 @@ describe("PUT /api/bookings/:id/complete", () => {
   });
 
   it("completes a booking and creates a payment when none exists (CARD defaults)", async () => {
-    prismaMock.booking.findUnique.mockResolvedValue({ status: "PENDING" });
+    prismaMock.booking.findUnique.mockResolvedValue({ status: "PENDING", bookingCode: "BK5" });
     prismaMock.booking.update.mockResolvedValue({
       id: 5,
       total: 240.72,
@@ -1087,7 +1089,7 @@ describe("PUT /api/bookings/:id/complete", () => {
     prismaMock.payment.findUnique.mockResolvedValue(null);
     prismaMock.payment.create.mockResolvedValue({});
 
-    const res = await request(app).put("/api/bookings/5/complete").send({});
+    const res = await request(app).put("/api/bookings/5/complete").send({ bookingCode: "BK5" });
 
     expect(res.status).toBe(200);
     expect(prismaMock.payment.create).toHaveBeenCalledWith({
@@ -1103,9 +1105,9 @@ describe("PUT /api/bookings/:id/complete", () => {
   });
 
   it("returns 500 when completion fails", async () => {
-    prismaMock.booking.findUnique.mockResolvedValue({ status: "PENDING" });
+    prismaMock.booking.findUnique.mockResolvedValue({ status: "PENDING", bookingCode: "BK5" });
     prismaMock.booking.update.mockRejectedValue(new Error("db down"));
-    const res = await request(app).put("/api/bookings/5/complete").send({});
+    const res = await request(app).put("/api/bookings/5/complete").send({ bookingCode: "BK5" });
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe("COMPLETE_ERROR");
     expect(res.body.error.message).toBe("Failed to complete booking");
@@ -1342,8 +1344,9 @@ describe("PUT /api/bookings/:id/cancel", () => {
 
   it("cancels a PENDING booking (owner) and restores sold counts", async () => {
     prismaMock.booking.findUnique.mockResolvedValue(pendingBooking());
-    prismaMock.ticketType.update.mockResolvedValue({});
-    prismaMock.booking.update.mockResolvedValue({ id: 5, status: "CANCELLED" });
+    // Atomic flip PENDING -> CANCELLED, then floored restore via updateMany.
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
 
     const res = await request(app)
       .put("/api/bookings/5/cancel")
@@ -1353,26 +1356,24 @@ describe("PUT /api/bookings/:id/cancel", () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.message).toBe("Booking cancelled successfully");
-    expect(prismaMock.ticketType.update).toHaveBeenCalledWith({
-      where: { id: 10 },
+    expect(prismaMock.booking.updateMany).toHaveBeenCalledWith({
+      where: { id: 5, status: "PENDING" },
+      data: { status: "CANCELLED" },
+    });
+    expect(prismaMock.ticketType.updateMany).toHaveBeenCalledWith({
+      where: { id: 10, sold: { gte: 2 } },
       data: { sold: { decrement: 2 } },
     });
-    expect(prismaMock.ticketType.update).toHaveBeenCalledWith({
-      where: { id: 11 },
+    expect(prismaMock.ticketType.updateMany).toHaveBeenCalledWith({
+      where: { id: 11, sold: { gte: 1 } },
       data: { sold: { decrement: 1 } },
     });
-    expect(prismaMock.booking.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 5 },
-        data: { status: "CANCELLED" },
-      })
-    );
   });
 
   it("lets the event's host cancel a PENDING booking they did not buy", async () => {
     prismaMock.booking.findUnique.mockResolvedValue({ ...pendingBooking(), userId: 99 });
-    prismaMock.ticketType.update.mockResolvedValue({});
-    prismaMock.booking.update.mockResolvedValue({ id: 5, status: "CANCELLED" });
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
 
     const res = await request(app)
       .put("/api/bookings/5/cancel")
@@ -1384,8 +1385,8 @@ describe("PUT /api/bookings/:id/cancel", () => {
   it("lets an ADMIN of the event's fest cancel a PENDING booking", async () => {
     prismaMock.booking.findUnique.mockResolvedValue({ ...pendingBooking(), userId: 99 });
     prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 3, editorFestId: null });
-    prismaMock.ticketType.update.mockResolvedValue({});
-    prismaMock.booking.update.mockResolvedValue({ id: 5, status: "CANCELLED" });
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
 
     const res = await request(app)
       .put("/api/bookings/5/cancel")
@@ -1747,8 +1748,9 @@ describe("expireStalePendingBookings", () => {
       { id: 1, items: [{ ticketTypeId: 10, quantity: 2 }, { ticketTypeId: 11, quantity: 1 }] },
       { id: 2, items: [{ ticketTypeId: 12, quantity: 5 }] },
     ]);
-    prismaMock.ticketType.update.mockResolvedValue({});
-    prismaMock.booking.update.mockResolvedValue({});
+    // Atomic flip PENDING -> CANCELLED per booking, then floored restore.
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
 
     const before = Date.now();
     const result = await expireStalePendingBookings(15 * 60 * 1000);
@@ -1762,27 +1764,27 @@ describe("expireStalePendingBookings", () => {
     expect(whereArg.createdAt.lt).toBeInstanceOf(Date);
     expect(whereArg.createdAt.lt.getTime()).toBeLessThanOrEqual(before - 15 * 60 * 1000 + 5);
 
-    // Inventory released for every item across both bookings.
-    expect(prismaMock.ticketType.update).toHaveBeenCalledWith({
-      where: { id: 10 },
+    // Inventory released (floored) for every item across both bookings.
+    expect(prismaMock.ticketType.updateMany).toHaveBeenCalledWith({
+      where: { id: 10, sold: { gte: 2 } },
       data: { sold: { decrement: 2 } },
     });
-    expect(prismaMock.ticketType.update).toHaveBeenCalledWith({
-      where: { id: 11 },
+    expect(prismaMock.ticketType.updateMany).toHaveBeenCalledWith({
+      where: { id: 11, sold: { gte: 1 } },
       data: { sold: { decrement: 1 } },
     });
-    expect(prismaMock.ticketType.update).toHaveBeenCalledWith({
-      where: { id: 12 },
+    expect(prismaMock.ticketType.updateMany).toHaveBeenCalledWith({
+      where: { id: 12, sold: { gte: 5 } },
       data: { sold: { decrement: 5 } },
     });
 
-    // Each booking flipped to CANCELLED.
-    expect(prismaMock.booking.update).toHaveBeenCalledWith({
-      where: { id: 1 },
+    // Each booking atomically flipped to CANCELLED.
+    expect(prismaMock.booking.updateMany).toHaveBeenCalledWith({
+      where: { id: 1, status: "PENDING" },
       data: { status: "CANCELLED" },
     });
-    expect(prismaMock.booking.update).toHaveBeenCalledWith({
-      where: { id: 2 },
+    expect(prismaMock.booking.updateMany).toHaveBeenCalledWith({
+      where: { id: 2, status: "PENDING" },
       data: { status: "CANCELLED" },
     });
   });
@@ -1815,21 +1817,21 @@ describe("expireStalePendingBookings", () => {
     prismaMock.booking.findMany.mockResolvedValue([
       { id: 1, items: [{ ticketTypeId: 10, quantity: 2 }] }, // no in-flight payment
     ]);
-    prismaMock.ticketType.update.mockResolvedValue({});
-    prismaMock.booking.update.mockResolvedValue({});
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
 
     const result = await expireStalePendingBookings();
 
     expect(result).toEqual({ expired: 1 });
     // Only the unpaid booking's inventory is restored and it alone is cancelled.
-    expect(prismaMock.ticketType.update).toHaveBeenCalledTimes(1);
-    expect(prismaMock.ticketType.update).toHaveBeenCalledWith({
-      where: { id: 10 },
+    expect(prismaMock.ticketType.updateMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.ticketType.updateMany).toHaveBeenCalledWith({
+      where: { id: 10, sold: { gte: 2 } },
       data: { sold: { decrement: 2 } },
     });
-    expect(prismaMock.booking.update).toHaveBeenCalledTimes(1);
-    expect(prismaMock.booking.update).toHaveBeenCalledWith({
-      where: { id: 1 },
+    expect(prismaMock.booking.updateMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.booking.updateMany).toHaveBeenCalledWith({
+      where: { id: 1, status: "PENDING" },
       data: { status: "CANCELLED" },
     });
   });

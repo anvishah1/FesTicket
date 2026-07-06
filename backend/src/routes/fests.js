@@ -34,7 +34,12 @@ router.get("/", async (req, res) => {
     // Optional free-text search on the fest name or college (case-insensitive).
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
 
-    const where = { isDeleted: false };
+    // Only surface fests that have at least one publicly bookable event — a fest
+    // with zero public/published events is a dead-end click on Discover.
+    const where = {
+      isDeleted: false,
+      events: { some: { visibility: "PUBLIC", status: "PUBLISHED" } },
+    };
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },

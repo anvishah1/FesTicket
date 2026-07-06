@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { subscribeToToasts, type Toast, type ToastType } from "@/lib/toast";
 
 const AUTO_DISMISS_MS = 4000;
@@ -19,30 +19,63 @@ const TYPE_ICON: Record<ToastType, string> = {
 
 export default function Toaster() {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  // Per-toast auto-dismiss timers, so hover can pause/resume an individual toast.
+  const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
-  const dismiss = useCallback((id: number) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+  const clearTimer = useCallback((id: number) => {
+    const handle = timers.current.get(id);
+    if (handle) {
+      clearTimeout(handle);
+      timers.current.delete(id);
+    }
   }, []);
+
+  const dismiss = useCallback(
+    (id: number) => {
+      clearTimer(id);
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    },
+    [clearTimer]
+  );
+
+  const scheduleDismiss = useCallback(
+    (id: number) => {
+      clearTimer(id);
+      timers.current.set(id, setTimeout(() => dismiss(id), AUTO_DISMISS_MS));
+    },
+    [clearTimer, dismiss]
+  );
 
   useEffect(() => {
     const unsubscribe = subscribeToToasts((toast) => {
       setToasts((prev) => [...prev, toast]);
-      setTimeout(() => dismiss(toast.id), AUTO_DISMISS_MS);
+      scheduleDismiss(toast.id);
     });
     return unsubscribe;
-  }, [dismiss]);
+  }, [scheduleDismiss]);
+
+  // Clear any pending timers on unmount.
+  useEffect(() => {
+    const map = timers.current;
+    return () => {
+      map.forEach((handle) => clearTimeout(handle));
+      map.clear();
+    };
+  }, []);
 
   if (toasts.length === 0) return null;
 
   return (
-    <div
-      className="fixed top-4 right-4 z-[100] flex flex-col gap-3 max-w-[calc(100vw-2rem)] w-full sm:w-auto pointer-events-none"
-      aria-live="polite"
-      role="status"
-    >
+    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-3 max-w-[calc(100vw-2rem)] w-full sm:w-auto pointer-events-none">
       {toasts.map((toast) => (
         <div
           key={toast.id}
+          // Errors interrupt the user (assertive/alert); success & info wait
+          // politely (status).
+          role={toast.type === "error" ? "alert" : "status"}
+          aria-live={toast.type === "error" ? "assertive" : "polite"}
+          onMouseEnter={() => clearTimer(toast.id)}
+          onMouseLeave={() => scheduleDismiss(toast.id)}
           className={`pointer-events-auto flex items-start gap-3 rounded-xl border px-4 py-3 shadow-lg sm:min-w-[18rem] sm:max-w-sm ${TYPE_STYLES[toast.type]}`}
         >
           <svg

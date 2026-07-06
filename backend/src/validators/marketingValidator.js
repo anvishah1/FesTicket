@@ -7,6 +7,13 @@ const intLike = z.union([
 ]);
 const numberLike = z.union([z.number(), z.string()]);
 
+// A non-negative money amount: number >= 0 OR a numeric string like "100"/"99.50".
+// Rejects negatives, which would otherwise corrupt fest sponsorship/expense totals.
+const amountLike = z.union([
+  z.number().nonnegative("amount must be >= 0"),
+  z.string().trim().regex(/^\d+(\.\d+)?$/, "amount must be a non-negative number"),
+]);
+
 // Sponsor create/update body (POST /marketing/host/:hostId/sponsors,
 // PUT /marketing/sponsors/:id). All fields optional/permissive: the route's own
 // "company/contact required" + "cannot be empty" checks stay the authoritative
@@ -17,8 +24,8 @@ export const createSponsorSchema = z
     contactPerson: z.string().max(200, "Contact person is too long").optional().nullable(),
     email: z.string().max(254, "Email is too long").optional().nullable(),
     phone: z.string().max(50, "Phone is too long").optional().nullable(),
-    sponsorshipAmount: numberLike.optional().nullable(),
-    receivedAmount: numberLike.optional().nullable(),
+    sponsorshipAmount: amountLike.optional().nullable(),
+    receivedAmount: amountLike.optional().nullable(),
     status: z.string().max(50, "Status is too long").optional().nullable(),
     notes: z.string().max(5000, "Notes are too long").optional().nullable(),
     festId: intLike.optional().nullable(),
@@ -48,7 +55,7 @@ export const createExpenseSchema = z
     description: z.string().max(2000, "Description is too long").optional().nullable(),
     category: z.string().max(200, "Category is too long").optional().nullable(),
     vendor: z.string().max(300, "Vendor is too long").optional().nullable(),
-    amount: numberLike.optional().nullable(),
+    amount: amountLike.optional().nullable(),
     paymentDate: z.string().max(100, "Invalid payment date").optional().nullable(),
     paymentMethod: z.string().max(100, "Payment method is too long").optional().nullable(),
     notes: z.string().max(5000, "Notes are too long").optional().nullable(),

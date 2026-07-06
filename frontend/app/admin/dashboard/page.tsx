@@ -31,6 +31,7 @@ export default function AdminDashboardPage() {
     bookingsCount: number;
   } | null>(null);
   const [totalSpend, setTotalSpend] = useState<number | null>(null);
+  const [sponsorIncome, setSponsorIncome] = useState<number | null>(null);
 
   const managedFestId = user?.managedFestId ?? null;
 
@@ -111,6 +112,19 @@ export default function AdminDashboardPage() {
         }
       })
       .catch(() => {});
+
+    // Sponsorship income actually received — folded into Net Balance so the
+    // headline number reflects the Sponsors panel shown on the same dashboard.
+    apiFetch(`${getApiUrl()}/api/events/marketing/fest/${managedFestId}/sponsors`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.success && Array.isArray(data.data)) {
+          setSponsorIncome(
+            data.data.reduce((sum: number, s: any) => sum + (s.receivedAmount || 0), 0)
+          );
+        }
+      })
+      .catch(() => {});
     // (The fest key comes from GET /api/user/me's managedFest.adminKey — there is
     // no /api/fests/:id/key endpoint, so no fallback fetch here.)
   }, [managedFestId]);
@@ -127,9 +141,11 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Net Balance = net ticket revenue (already excludes platform fee + GST) +
+  // sponsorship received − total spend.
   const netBalance =
-    analytics != null || totalSpend != null
-      ? (analytics?.revenue ?? 0) - (totalSpend ?? 0)
+    analytics != null || totalSpend != null || sponsorIncome != null
+      ? (analytics?.revenue ?? 0) + (sponsorIncome ?? 0) - (totalSpend ?? 0)
       : null;
 
   if (!mounted || !isAuthenticated()) {

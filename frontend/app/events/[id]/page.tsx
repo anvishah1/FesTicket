@@ -94,13 +94,25 @@ export default function EventDetailsPage() {
 
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
+  // Distinguish a transient failure (network / 5xx) from a genuine not-found so
+  // an error never masquerades as "event not found".
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geocoding, setGeocoding] = useState(false);
 
   useEffect(() => {
     const fetchEvent = async () => {
+      setLoading(true);
+      setError(false);
       try {
         const res = await fetch(`${getApiUrl()}/api/events/${eventId}`);
+        // A 404 is a genuine not-found; other non-ok statuses are real errors.
+        if (res.status === 404) {
+          setEvent(null);
+          return;
+        }
+        if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
         const data = await res.json();
         if (data.success && data.data) {
           setEvent(data.data);
@@ -135,16 +147,20 @@ export default function EventDetailsPage() {
                 .finally(() => setGeocoding(false));
             }
           }
+        } else {
+          // Successful HTTP but no event payload — treat as not found.
+          setEvent(null);
         }
       } catch (err) {
         console.error("Failed to fetch event details:", err);
+        setError(true);
       } finally {
         setLoading(false);
       }
     };
 
     fetchEvent();
-  }, [eventId]);
+  }, [eventId, reloadKey]);
 
   const formatDateRange = (start?: string | null, end?: string | null) => {
     if (!start) return "Date TBA";
@@ -176,6 +192,37 @@ export default function EventDetailsPage() {
             <div className="h-8 bg-[#C5BAC4]/40 rounded w-1/3" />
             <div className="h-64 bg-[#C5BAC4]/40 rounded" />
             <div className="h-32 bg-[#C5BAC4]/30 rounded" />
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#fdfdff]">
+        <Header />
+        <main className="max-w-6xl mx-auto px-4 py-10 text-center" role="alert">
+          <h1 className="text-2xl font-bold text-[#29104A]">
+            Couldn&apos;t load this event
+          </h1>
+          <p className="mt-2 text-sm text-[#6B597F]">
+            Something went wrong. Please check your connection and try again.
+          </p>
+          <div className="mt-4 flex items-center justify-center gap-4">
+            <button
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="rounded-lg bg-[#522C5D] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#29104A]"
+            >
+              Try again
+            </button>
+            <button
+              onClick={() => router.push("/fests")}
+              className="text-[#522C5D] hover:underline"
+            >
+              ← Back to events
+            </button>
           </div>
         </main>
         <Footer />

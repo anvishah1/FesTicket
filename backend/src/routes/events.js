@@ -40,13 +40,34 @@ async function callerCanManageEvent(event, req) {
   return false;
 }
 
+// READ access to an event's operational data (buyers, stats): the event's host,
+// OR any ADMIN/EDITOR/HOST scoped to the event's fest. Mirrors the fest-wide read
+// model so a fest editor can drill into a co-fest event instead of a dead 403.
+// Distinct from callerCanManageEvent (which governs WRITES and stays host / fest-
+// ADMIN only). `event` must carry { hostId, festId }.
+async function callerCanViewEvent(event, req) {
+  if (!event) return false;
+  if (event.hostId === req.user.userId) return true;
+  const { managedFestId, editorFestId } = await callerFests(req);
+  return event.festId != null && (event.festId === managedFestId || event.festId === editorFestId);
+}
+
+// Lifecycle state machine for the stored EventStatus. Only these transitions are
+// legal; derived statuses (UPCOMING/LIVE/PAST) are never stored. Shared by both
+// PUT /:id (when a status is supplied) and PATCH /:id/status.
+const STATUS_TRANSITIONS = {
+  DRAFT: ["PUBLISHED", "CANCELLED"],
+  PUBLISHED: ["DRAFT", "CANCELLED"],
+  CANCELLED: ["DRAFT"],
+};
+
 // Load an event's hostId/festId and verify the caller may manage it (its host,
 // or an ADMIN of that event's fest). Returns { ok:true, event } or
 // { ok:false, status, body } for the caller to return.
 async function checkEventOwnership(eventId, req) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { hostId: true, festId: true },
+    select: { hostId: true, festId: true, status: true },
   });
   if (!event) {
     return { ok: false, status: 404, body: { success: false, error: { code: "NOT_FOUND", message: "Event not found" } } };
@@ -337,14 +358,18 @@ router.get("/analytics/fest/:festId", authenticateUser, async (req, res) => {
 
     const agg = await prisma.booking.aggregate({
       where: { eventId: { in: eventIds }, status: "COMPLETED" },
-      _sum: { total: true },
+      _sum: { subtotal: true, discount: true },
       _count: true,
     });
 
     res.json({
       success: true,
       data: {
-        revenue: agg._sum.total || 0,
+        // Net ticket revenue the fest actually earns = sale value after the event
+        // discount. The 2% platform fee and 18% GST are collected ON TOP and are
+        // NOT the organiser's income, so they are excluded (previously this summed
+        // booking.total and overstated income by ~20%).
+        revenue: Math.round(((agg._sum.subtotal || 0) - (agg._sum.discount || 0)) * 100) / 100,
         ticketsSold,
         eventsCount,
         bookingsCount: agg._count || 0,
@@ -387,17 +412,25 @@ router.get("/:id", optionalAuthenticate, async (req, res) => {
       });
     }
 
+    const canManage = req.user ? await callerCanManageEvent(event, req) : false;
+
     // Hide DRAFT/PRIVATE events, and events whose fest is soft-deleted, from
     // anyone who isn't the event's host or an ADMIN of its fest. Return 404 (not
     // 403) so we don't leak existence.
     const festDeleted = event.fest?.isDeleted === true;
     const isPublic =
       event.status === "PUBLISHED" && event.visibility === "PUBLIC" && !festDeleted;
-    if (!isPublic && !(req.user && (await callerCanManageEvent(event, req)))) {
+    if (!isPublic && !canManage) {
       return res.status(404).json({
         success: false,
         error: { code: "NOT_FOUND", message: "Event not found" },
       });
+    }
+
+    // Don't leak the host's email address to public (non-managing) callers — only
+    // the event's host or a fest ADMIN may see it.
+    if (!canManage && event.host) {
+      event.host = { id: event.host.id, name: event.host.name };
     }
 
     res.json({
@@ -569,6 +602,51 @@ router.put("/:id", authenticateUser, async (req, res) => {
     const owner = await checkEventOwnership(parseInt(id), req);
     if (!owner.ok) return res.status(owner.status).json(owner.body);
 
+    // STATUS is governed by the state machine (see PATCH /:id/status). If one is
+    // supplied here, validate it the same way rather than writing it blindly —
+    // this blocks re-publishing a CANCELLED event and storing derived-only values
+    // (UPCOMING/LIVE/PAST). Absent/unchanged status leaves it untouched.
+    let nextStatus; // undefined => leave unchanged
+    if (status !== undefined && status !== null && status !== owner.event.status) {
+      if (!["PUBLISHED", "DRAFT", "CANCELLED"].includes(status)) {
+        return res.status(400).json({
+          success: false,
+          error: { code: "VALIDATION_ERROR", message: "status must be one of PUBLISHED, DRAFT, CANCELLED" },
+        });
+      }
+      const allowedNext = STATUS_TRANSITIONS[owner.event.status] || [];
+      if (!allowedNext.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          error: { code: "INVALID_TRANSITION", message: `Cannot change status from ${owner.event.status} to ${status}` },
+        });
+      }
+      nextStatus = status;
+    }
+
+    // VISIBILITY enum guard — reject anything but PUBLIC/PRIVATE with a 400 instead
+    // of letting an invalid enum surface as an opaque Prisma 500.
+    if (visibility !== undefined && visibility !== null && !["PUBLIC", "PRIVATE"].includes(visibility)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "visibility must be PUBLIC or PRIVATE" },
+      });
+    }
+
+    // DISCOUNT is a percentage; clamp to [0,100] so a negative (overcharge) or
+    // >100 (negative total) value can never be stored. (PUT has no zod validator.)
+    let nextDiscount; // undefined => leave unchanged
+    if (discount !== undefined && discount !== null) {
+      const d = Number(discount);
+      if (Number.isNaN(d)) {
+        return res.status(400).json({
+          success: false,
+          error: { code: "VALIDATION_ERROR", message: "discount must be a number between 0 and 100" },
+        });
+      }
+      nextDiscount = Math.min(100, Math.max(0, d));
+    }
+
     const event = await prisma.event.update({
       where: { id: parseInt(id) },
       data: {
@@ -577,8 +655,11 @@ router.put("/:id", authenticateUser, async (req, res) => {
         aboutEvent,
         image,
         category,
-        startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined,
+        // Distinguish "clear this date" (explicit null in the body) from "leave
+        // unchanged" (key absent -> undefined). Previously a null could never
+        // clear a date because it collapsed to undefined.
+        startDate: startDate === undefined ? undefined : startDate ? new Date(startDate) : null,
+        endDate: endDate === undefined ? undefined : endDate ? new Date(endDate) : null,
         startTime,
         endTime,
         venue,
@@ -586,8 +667,8 @@ router.put("/:id", authenticateUser, async (req, res) => {
         onlineLink,
         isOnline,
         visibility,
-        status,
-        discount,
+        status: nextStatus,
+        discount: nextDiscount,
       },
       include: {
         ticketTypes: true,
@@ -616,12 +697,7 @@ router.put("/:id", authenticateUser, async (req, res) => {
 
 // PATCH /api/events/:id/status - Publish / unpublish / cancel an event. Owner
 // (host) or ADMIN of the event's fest only. Validates the transition against the
-// current stored status.
-const STATUS_TRANSITIONS = {
-  DRAFT: ["PUBLISHED", "CANCELLED"],
-  PUBLISHED: ["DRAFT", "CANCELLED"],
-  CANCELLED: ["DRAFT"],
-};
+// current stored status (STATUS_TRANSITIONS, defined near the top).
 router.patch("/:id/status", authenticateUser, async (req, res) => {
   try {
     const eventId = parseInt(req.params.id);
@@ -986,9 +1062,18 @@ router.get("/:id/buyers", authenticateUser, async (req, res) => {
   try {
     const eventId = parseInt(req.params.id);
 
-    // Only the event's host (or an ADMIN of its fest) may see the buyer list.
-    const owner = await checkEventOwnership(eventId, req);
-    if (!owner.ok) return res.status(owner.status).json(owner.body);
+    // The event's host, or any ADMIN/EDITOR/HOST of its fest, may see the buyer
+    // list (read access mirrors the fest-wide model).
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { hostId: true, festId: true },
+    });
+    if (!event) {
+      return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Event not found" } });
+    }
+    if (!(await callerCanViewEvent(event, req))) {
+      return res.status(403).json({ success: false, error: { code: "FORBIDDEN", message: "You do not have permission to view this event's buyers" } });
+    }
 
     const bookings = await prisma.booking.findMany({
       where: {
@@ -1008,6 +1093,9 @@ router.get("/:id/buyers", authenticateUser, async (req, res) => {
           },
         },
         attendees: true,
+        // Surface the custom registration-question answers to the organiser —
+        // previously collected/required at booking but never returned anywhere.
+        answers: { include: { question: { select: { label: true } } } },
       },
     });
 
@@ -1023,6 +1111,10 @@ router.get("/:id/buyers", authenticateUser, async (req, res) => {
       amountPaid: booking.total,
       purchaseDate: booking.purchaseDate,
       attendees: booking.attendees,
+      answers: (booking.answers || []).map((a) => ({
+        question: a.question?.label || "",
+        value: a.value,
+      })),
     }));
 
     res.json({
@@ -1057,8 +1149,8 @@ router.get("/:id/stats", authenticateUser, async (req, res) => {
       });
     }
 
-    // Only the event's host (or an ADMIN of its fest) may see event stats.
-    if (!(await callerCanManageEvent(event, req))) {
+    // The event's host, or any ADMIN/EDITOR/HOST of its fest, may see event stats.
+    if (!(await callerCanViewEvent(event, req))) {
       return res.status(403).json({
         success: false,
         error: { code: "FORBIDDEN", message: "You do not have permission to view this event's stats" },

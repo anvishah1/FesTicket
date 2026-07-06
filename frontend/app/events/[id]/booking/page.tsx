@@ -10,7 +10,7 @@ import BookingSummary from "@/components/BookingSummary";
 import AttendeeForm from "@/components/AttendeeForm";
 import Link from "next/link";
 import Footer from "@/components/Footer";
-import { getApiUrl } from "@/lib/auth";
+import { apiFetch, getApiUrl } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
 
 type TicketType = {
@@ -209,20 +209,27 @@ export default function BookingPage() {
         .map((q) => ({ questionId: q.id, value: (answers[q.id] ?? "").trim() }))
         .filter((a) => a.value.length > 0);
 
-      // Create booking
-      const res = await fetch(`${getApiUrl()}/api/bookings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventId: parseInt(eventId),
-          guestEmail: guestInfo.email,
-          guestName: guestInfo.name || attendees[0]?.name,
-          guestPhone: guestInfo.phone,
-          tickets: ticketsPayload,
-          attendees: attendeesPayload,
-          answers: answersPayload,
-        }),
-      });
+      // Create booking. Use apiFetch (not raw fetch) so a signed-in buyer's access
+      // token is attached and the booking is linked to their account (userId) —
+      // otherwise "My bookings" is permanently empty. redirectOnAuthFailure:false
+      // keeps the guest checkout path working (no bounce to /signin).
+      const res = await apiFetch(
+        "/api/bookings",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eventId: parseInt(eventId),
+            guestEmail: guestInfo.email,
+            guestName: guestInfo.name || attendees[0]?.name,
+            guestPhone: guestInfo.phone,
+            tickets: ticketsPayload,
+            attendees: attendeesPayload,
+            answers: answersPayload,
+          }),
+        },
+        { redirectOnAuthFailure: false }
+      );
 
       const data = await res.json();
 
@@ -345,8 +352,9 @@ export default function BookingPage() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                <label htmlFor="guest-name" className="block text-sm font-medium text-slate-700 mb-1">Name</label>
                 <input
+                  id="guest-name"
                   type="text"
                   value={guestInfo.name}
                   onChange={(e) => setGuestInfo({ ...guestInfo, name: e.target.value })}
@@ -355,10 +363,11 @@ export default function BookingPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label htmlFor="guest-email" className="block text-sm font-medium text-slate-700 mb-1">
                   Email <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="guest-email"
                   type="email"
                   value={guestInfo.email}
                   onChange={(e) => setGuestInfo({ ...guestInfo, email: e.target.value })}
@@ -368,8 +377,9 @@ export default function BookingPage() {
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Phone (optional)</label>
+                <label htmlFor="guest-phone" className="block text-sm font-medium text-slate-700 mb-1">Phone (optional)</label>
                 <input
+                  id="guest-phone"
                   type="tel"
                   value={guestInfo.phone}
                   onChange={(e) => setGuestInfo({ ...guestInfo, phone: e.target.value })}

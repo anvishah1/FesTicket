@@ -89,6 +89,7 @@ export default function ManageEventPage() {
   const isAdmin = user?.role === "ADMIN";
 
   const [event, setEvent] = useState<EventDetails | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "buyers">("overview");
   const [isEditing, setIsEditing] = useState(false);
@@ -121,6 +122,22 @@ export default function ManageEventPage() {
         }
 
         const ev = eventData.data;
+
+        // Ownership guard: only the event's own host, or an ADMIN/EDITOR/HOST
+        // scoped to the event's fest, may manage it. Otherwise every write on
+        // this page 403s, so show an access-denied state instead of the UI.
+        const scopedFestId =
+          user?.role === "ADMIN" ? user?.managedFestId : user?.editorFestId;
+        const canManage =
+          (user?.id != null && ev.hostId === user.id) ||
+          (ev.festId != null && scopedFestId != null && scopedFestId === ev.festId);
+        if (!canManage) {
+          setAccessDenied(true);
+          setEvent(null);
+          setLoading(false);
+          return;
+        }
+
         const bookings = bookingsData.success && bookingsData.data?.bookings ? bookingsData.data.bookings : [];
         const stats = bookingsData.success && bookingsData.data?.stats ? bookingsData.data.stats : { totalRevenue: 0, totalTicketsSold: 0 };
 
@@ -442,6 +459,25 @@ export default function ManageEventPage() {
             <div className="h-64 bg-[#C5BAC4] rounded-xl"></div>
             <div className="h-96 bg-[#C5BAC4] rounded-xl"></div>
           </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <main className="min-h-screen bg-[#fdfdff] text-[#29104A] flex items-center justify-center">
+        <div className="text-center max-w-md px-6">
+          <h2 className="text-xl font-bold text-[#29104A] mb-2">Access denied</h2>
+          <p className="text-[#6B597F]">
+            You don&apos;t have permission to manage this event. Only the event&apos;s host can.
+          </p>
+          <button
+            onClick={() => router.push(isAdmin ? "/admin/dashboard" : "/host/dashboard")}
+            className="mt-4 text-[#522C5D] hover:text-[#29104A]"
+          >
+            ← Back to Dashboard
+          </button>
         </div>
       </main>
     );
@@ -941,6 +977,15 @@ export default function ManageEventPage() {
               </button>
             </div>
             
+            {event.buyers.length === 0 ? (
+              <div className="px-6 py-16 text-center">
+                <svg aria-hidden="true" className="w-12 h-12 text-[#C5BAC4] mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4z" />
+                </svg>
+                <p className="text-[#6B597F]">No ticket buyers yet.</p>
+                <p className="text-sm text-[#6B597F] mt-1">Completed bookings will appear here.</p>
+              </div>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -988,6 +1033,7 @@ export default function ManageEventPage() {
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         )}
       </div>

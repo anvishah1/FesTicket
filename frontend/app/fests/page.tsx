@@ -32,6 +32,10 @@ export default function FestsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<Pagination | null>(null);
+  // Track a genuine fetch failure (network error / non-ok / unsuccessful body)
+  // separately from an empty-but-successful result so the two don't look alike.
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Debounce the search input so typing doesn't fire a request per keystroke.
   useEffect(() => {
@@ -44,25 +48,26 @@ export default function FestsPage() {
 
   useEffect(() => {
     setLoading(true);
+    setError(false);
     const params = new URLSearchParams();
     if (debouncedSearch) params.set("search", debouncedSearch);
     params.set("page", String(page));
 
     fetch(`${getApiUrl()}/api/fests?${params.toString()}`)
-      .then((res) => res.json())
-      .then((response) => {
-        if (response.success) {
-          setFests(Array.isArray(response.data) ? response.data : []);
-          // New API shape includes `pagination`; fall back gracefully if absent.
-          setPagination(response.pagination ?? null);
-        }
-        setLoading(false);
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
+        const response = await res.json();
+        if (!response.success) throw new Error("Request was not successful");
+        setFests(Array.isArray(response.data) ? response.data : []);
+        // New API shape includes `pagination`; fall back gracefully if absent.
+        setPagination(response.pagination ?? null);
       })
       .catch((err) => {
         console.error("Failed to fetch fests:", err);
-        setLoading(false);
-      });
-  }, [debouncedSearch, page]);
+        setError(true);
+      })
+      .finally(() => setLoading(false));
+  }, [debouncedSearch, page, reloadKey]);
 
   const formatDate = (startDate: string | null, endDate: string | null) => {
     if (!startDate) return "Date TBA";
@@ -104,7 +109,7 @@ export default function FestsPage() {
             aria-label="Search fests"
             className="w-full sm:max-w-md rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm text-[#29104A] placeholder-[#6B597F] focus:border-[#522C5D] focus:outline-none"
           />
-          {!loading && typeof total === "number" && (
+          {!loading && !error && typeof total === "number" && (
             <p className="mt-2 text-sm text-[#6B597F]" role="status" aria-live="polite">
               {total} {total === 1 ? "fest" : "fests"} found
               {debouncedSearch ? ` for “${debouncedSearch}”` : ""}
@@ -116,6 +121,16 @@ export default function FestsPage() {
         <div className="max-w-6xl mx-auto">
           {loading ? (
             <p className="text-[#6B597F]">Loading fests...</p>
+          ) : error ? (
+            <div role="alert" className="text-[#6B597F]">
+              <p>Something went wrong while loading fests. Please check your connection and try again.</p>
+              <button
+                onClick={() => setReloadKey((k) => k + 1)}
+                className="mt-3 rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm font-medium text-[#522C5D] transition-colors hover:bg-[#C5BAC4]"
+              >
+                Try again
+              </button>
+            </div>
           ) : fests.length === 0 ? (
             <p className="text-[#6B597F]">
               {debouncedSearch ? `No fests match “${debouncedSearch}”.` : "No fests found"}
@@ -137,7 +152,7 @@ export default function FestsPage() {
         </div>
 
         {/* Pagination */}
-        {!loading && pagination && totalPages > 1 && (
+        {!loading && !error && pagination && totalPages > 1 && (
           <nav
             aria-label="Fests pagination"
             className="max-w-6xl mx-auto mt-8 flex items-center justify-center gap-4"

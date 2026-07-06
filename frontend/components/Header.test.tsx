@@ -31,11 +31,12 @@ describe("Header", () => {
     expect(screen.getByText("tiqr").closest("a")).toHaveAttribute("href", "/");
   });
 
-  it("renders the Discover, Fests and About nav links", () => {
+  it("renders the Discover and About nav links (no duplicate Fests)", () => {
     render(<Header />);
     expect(screen.getAllByRole("link", { name: "Discover" })[0]).toHaveAttribute("href", "/fests");
-    expect(screen.getAllByRole("link", { name: "Fests" })[0]).toHaveAttribute("href", "/fests");
     expect(screen.getAllByRole("link", { name: "About" })[0]).toHaveAttribute("href", "/about");
+    // The duplicate "Fests" link (also -> /fests) was removed.
+    expect(screen.queryByRole("link", { name: "Fests" })).not.toBeInTheDocument();
   });
 
   it("wires the Support control to the contact route", () => {

@@ -81,6 +81,12 @@ app.use(cors({
   },
 }));
 
+// Request-id + structured access logging. Mounted BEFORE the body parsers so a
+// parse failure (malformed JSON -> 400, oversized body -> 413) is already tagged
+// with a request id by the time the error handler logs/returns it, and before
+// routes so every handler and the error handler can read `req.id`.
+app.use(requestLogger);
+
 // Body size limit. Event creation accepts base64 image data URLs, so allow up to
 // 1mb; anything larger is rejected with 413 before hitting route handlers.
 app.use(express.json({ limit: "1mb" }));
@@ -89,11 +95,6 @@ app.use(express.urlencoded({
   limit: "1mb",
   extended: true
 }));
-
-// Request-id + structured access logging. Mounted after body parsers so parse
-// failures (413/400) are still logged with a request id, and before routes so
-// every handler and the error handler can read `req.id`.
-app.use(requestLogger);
 
 // Uploaded files (expense proofs/bills, sponsor agreements) are NO LONGER served
 // via a public static mount — that made any leaked /uploads/<uuid> URL world-
@@ -148,7 +149,44 @@ app.get("/api/ready", async (req, res) => {
   }
 })();
 
+// Catch-all 404: any request that matched no route above returns the standard
+// JSON error shape instead of Express's default HTML error page.
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    requestId: req.id,
+    error: {
+      code: "NOT_FOUND",
+      message: `Route ${req.method} ${req.originalUrl} not found`
+    }
+  });
+});
+
 app.use((err, req, res, next) => {
+  // Body-parser failures are CLIENT errors, not server faults. Map an oversized
+  // body to 413 and malformed/unsupported JSON to 400 (previously both surfaced
+  // as a generic 500).
+  const status = err && (err.status || err.statusCode);
+  if (err && (err.type === "entity.too.large" || status === 413)) {
+    return res.status(413).json({
+      success: false,
+      requestId: req.id,
+      error: { code: "PAYLOAD_TOO_LARGE", message: "Request body is too large (max 1mb)" }
+    });
+  }
+  if (
+    err &&
+    (err.type === "entity.parse.failed" ||
+      err.type === "encoding.unsupported" ||
+      err.type === "charset.unsupported" ||
+      (status === 400 && "body" in err))
+  ) {
+    return res.status(400).json({
+      success: false,
+      requestId: req.id,
+      error: { code: "INVALID_REQUEST_BODY", message: "Malformed request body" }
+    });
+  }
 
   console.error(`[${req.id}] Unhandled Express Error:`, err);
 

@@ -44,7 +44,7 @@ export const authenticateUser = async (req, res, next) => {
 };
 
 /* Optional auth: set req.user if valid token, never fail */
-export const optionalAuthenticate = (req, res, next) => {
+export const optionalAuthenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -54,7 +54,24 @@ export const optionalAuthenticate = (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET, {
       algorithms: ["HS256"],
     });
-    req.user = decoded;
+    // Enforce User.tokenVersion the same way authenticateUser does, but NEVER
+    // fail: a token invalidated by a password reset / role change is simply
+    // ignored (caller stays anonymous) instead of being honored on the public /
+    // booking-create endpoints. Only a genuine mismatch drops auth; a missing
+    // user or DB blip falls back to the JWT's own validity.
+    try {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: { tokenVersion: true },
+      });
+      if (dbUser && (dbUser.tokenVersion ?? 0) !== (decoded.tokenVersion ?? 0)) {
+        // stale token -> remain anonymous (do not set req.user)
+      } else {
+        req.user = decoded;
+      }
+    } catch {
+      req.user = decoded;
+    }
   } catch {
     // ignore invalid/expired token
   }

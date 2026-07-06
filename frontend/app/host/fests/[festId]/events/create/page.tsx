@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getApiUrl, getAccessToken, getStoredUser } from "@/lib/auth";
+import { apiFetch, getApiUrl, getAccessToken, getStoredUser } from "@/lib/auth";
 import Sidebar from "@/components/event-create/Sidebar";
 import EventBasics, { EventBasicsData } from "@/components/event-create/EventBasics";
 import DescribeEvent, { DescribeEventData } from "@/components/event-create/DescribeEvent";
@@ -40,8 +40,9 @@ export default function EventCreatePage() {
     form?: RegistrationFormData;
   }>({});
 
-  // AUTH GUARD: block the whole wizard for non-hosts up front, instead of
-  // letting them fill every step and only failing at submit.
+  // AUTH GUARD: block the whole wizard up front — not just for non-organizer
+  // roles, but also for an organizer who does not belong to THIS fest — instead
+  // of letting them fill every step and only failing at final submit.
   useEffect(() => {
     const token = getAccessToken();
     const user = getStoredUser();
@@ -51,8 +52,37 @@ export default function EventCreatePage() {
       router.replace("/signin");
       return;
     }
-    setAuthorized(true);
-  }, [router]);
+    let cancelled = false;
+    (async () => {
+      // Fest OWNERSHIP: the caller must be scoped to this fest (editorFestId for
+      // editors/hosts, managedFestId for admins). Verify against the authoritative
+      // /me so a stale localStorage can't wrongly allow or deny.
+      try {
+        const res = await apiFetch("/api/user/me", {}, { redirectOnAuthFailure: false });
+        const me = res.ok ? await res.json() : null;
+        // Prefer the authoritative /me fest scope; fall back to the stored user
+        // if /me didn't carry one (the server still enforces ownership on submit).
+        const meScoped = me ? (me.role === "ADMIN" ? me.managedFestId : me.editorFestId) : null;
+        const userScoped = user.role === "ADMIN" ? user.managedFestId : user.editorFestId;
+        const scopedFestId = meScoped != null ? meScoped : userScoped;
+        if (cancelled) return;
+        if (scopedFestId != null && String(scopedFestId) === String(festId)) {
+          setAuthorized(true);
+        } else {
+          setAuthorized(false);
+          router.replace("/host/dashboard");
+        }
+      } catch {
+        if (!cancelled) {
+          setAuthorized(false);
+          router.replace("/host/dashboard");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router, festId]);
 
   useEffect(() => {
     const fetchFest = async () => {

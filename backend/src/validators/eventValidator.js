@@ -7,6 +7,22 @@ const intLike = z.union([
 ]);
 const numberLike = z.union([z.number(), z.string()]);
 
+// Event discount is a PERCENTAGE and must stay in [0, 100]. A negative value would
+// OVERCHARGE every buyer; a value > 100 would produce a NEGATIVE booking total.
+// Accept a number or numeric string but reject out-of-range values.
+const discountLike = z.union([
+  z.number().min(0, "discount must be >= 0").max(100, "discount must be <= 100"),
+  z
+    .string()
+    .trim()
+    .regex(/^\d+(\.\d+)?$/, "discount must be a number between 0 and 100")
+    .refine((s) => Number(s) >= 0 && Number(s) <= 100, "discount must be between 0 and 100"),
+]);
+
+// Only these statuses may be STORED on an event. UPCOMING/LIVE/PAST are derived at
+// read time (deriveEffectiveStatus) and must never be persisted.
+const storableEventStatus = z.enum(["DRAFT", "PUBLISHED", "CANCELLED"]);
+
 // A non-negative money amount: JS number >= 0 OR a numeric string like "100" /
 // "99.50". Rejects negatives and non-numeric strings (the route parseFloat's it).
 const priceLike = z.union([
@@ -82,8 +98,8 @@ export const createEventSchema = z
     meetingLink: z.string().max(2000).optional().nullable(),
     eventType: z.string().max(50).optional().nullable(),
     festId: intLike.optional().nullable(),
-    discount: numberLike.optional().nullable(),
-    status: eventStatus.optional(),
+    discount: discountLike.optional().nullable(),
+    status: storableEventStatus.optional(),
     visibility: visibility.optional(),
     ticketTypes: z.array(inlineTicketTypeSchema).optional().nullable(),
     questions: z.array(eventQuestionSchema).optional().nullable(),

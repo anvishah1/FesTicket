@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { getApiUrl, getStoredUser, isAuthenticated, logout, apiFetch } from '@/lib/auth';
 
@@ -25,6 +26,7 @@ interface Fest {
 
 interface HostEvent {
   id: number;
+  hostId: number | null;
   name: string;
   date: string;
   time: string;
@@ -51,6 +53,7 @@ function mapApiEventToHostEvent(e: any): HostEvent {
     e.ticketTypes?.reduce((sum: number, t: any) => sum + (t.sold || 0) * (t.price || 0), 0) ?? 0;
   return {
     id: e.id,
+    hostId: e.hostId ?? null,
     name: e.name,
     date: e.startDate
       ? new Date(e.startDate).toLocaleDateString("en-US", {
@@ -85,22 +88,6 @@ export default function HostDashboard() {
   const [loading, setLoading] = useState(true);
   const [expandedFest, setExpandedFest] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | "upcoming" | "past">("all");
-
-  // Fest creation modal state
-  const [showCreateFest, setShowCreateFest] = useState(false);
-  const [festForm, setFestForm] = useState({
-    name: "",
-    college: "",
-    description: "",
-    image: "",
-    startDate: "",
-    endDate: "",
-  });
-  const [festImagePreview, setFestImagePreview] = useState<string | null>(null);
-  const [creatingFest, setCreatingFest] = useState(false);
-  const [festError, setFestError] = useState("");
-  const [festSuccess, setFestSuccess] = useState(false);
-  const [editingFestId, setEditingFestId] = useState<number | null>(null);
 
   const user = getStoredUser();
   // Editor's linked fest (same festID as admin and the fest); no fallback so we only create events for their fest
@@ -179,53 +166,6 @@ export default function HostDashboard() {
     router.replace("/signin");
   };
 
-  const handleCreateFest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCreatingFest(true);
-    setFestError("");
-
-    try {
-      const isEdit = editingFestId !== null;
-      const url = isEdit
-        ? `${getApiUrl()}/api/fests/${editingFestId}`
-        : `${getApiUrl()}/api/fests`;
-      const method = isEdit ? "PUT" : "POST";
-
-      const response = await apiFetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: festForm.name,
-          college: festForm.college,
-          description: festForm.description || null,
-          image: festForm.image || null,
-          startDate: festForm.startDate || null,
-          endDate: festForm.endDate || null,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setFestSuccess(true);
-        setTimeout(() => {
-          setShowCreateFest(false);
-          setFestForm({ name: "", college: "", description: "", image: "", startDate: "", endDate: "" });
-          setFestImagePreview(null);
-          setFestSuccess(false);
-          setEditingFestId(null);
-          fetchFests();
-        }, 1500);
-      } else {
-        setFestError(data.error || "Failed to save fest");
-      }
-    } catch {
-      setFestError("Failed to connect to server. Make sure backend is running.");
-    } finally {
-      setCreatingFest(false);
-    }
-  };
-
   const formatDate = (startDate: string | null, endDate: string | null) => {
     if (!startDate) return "Dates TBA";
     const start = new Date(startDate);
@@ -259,6 +199,7 @@ export default function HostDashboard() {
   if (loading) {
     return (
       <main className="min-h-screen bg-[#fdfdff]">
+        <Header />
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="animate-pulse space-y-6">
             <div className="h-8 bg-[#C5BAC4] rounded w-48"></div>
@@ -276,7 +217,8 @@ export default function HostDashboard() {
 
   return (
     <main className="min-h-screen bg-[#fdfdff] text-[#29104A]">
-      {/* Header */}
+      <Header />
+      {/* Host action bar */}
       <header className="border-b border-[#C5BAC4] bg-[#6B597F] backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -604,19 +546,31 @@ export default function HostDashboard() {
                                     </span>
                                   </td>
                                   <td className="px-6 py-4">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        router.push(`/host/events/${event.id}/manage`);
-                                      }}
-                                      className="px-4 py-2 bg-[#522C5D]/10 hover:bg-[#522C5D] text-[#522C5D] hover:text-white rounded-lg transition-all font-medium text-sm flex items-center gap-2"
-                                    >
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                      </svg>
-                                      Manage
-                                    </button>
+                                    {/* Only the event's own host can open the manage
+                                        page (the backend 403s otherwise), so hide the
+                                        Manage action for events hosted by someone else. */}
+                                    {user?.id != null && event.hostId === user.id ? (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          router.push(`/host/events/${event.id}/manage`);
+                                        }}
+                                        className="px-4 py-2 bg-[#522C5D]/10 hover:bg-[#522C5D] text-[#522C5D] hover:text-white rounded-lg transition-all font-medium text-sm flex items-center gap-2"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                        Manage
+                                      </button>
+                                    ) : (
+                                      <span
+                                        className="text-sm text-[#6B597F]"
+                                        title="Only the event's host can manage it"
+                                      >
+                                        Not yours
+                                      </span>
+                                    )}
                                   </td>
                                 </tr>
                               ))}
@@ -639,196 +593,6 @@ export default function HostDashboard() {
         </div>
       </div>
       <Footer />
-
-      {/* Create Fest Modal */}
-      {showCreateFest && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-[#29104A]">{editingFestId !== null ? "Edit Fest" : "Create New Fest"}</h2>
-              <button
-                onClick={() => {
-                  setShowCreateFest(false);
-                  setFestError("");
-                  setFestSuccess(false);
-                  setEditingFestId(null);
-                }}
-                className="w-10 h-10 rounded-full bg-[#C5BAC4]/30 hover:bg-[#C5BAC4] transition-colors flex items-center justify-center"
-              >
-                <svg className="w-5 h-5 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {festSuccess ? (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold text-[#29104A] mb-2">{editingFestId !== null ? "Fest Updated!" : "Fest Created!"}</h3>
-                <p className="text-[#6B597F]">You can now add events to your fest.</p>
-              </div>
-            ) : (
-              <form onSubmit={handleCreateFest} className="space-y-4">
-                {festError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-                    {festError}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-[#29104A] mb-1">
-                    Fest Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={festForm.name}
-                    onChange={(e) => setFestForm({ ...festForm, name: e.target.value })}
-                    placeholder="e.g., Tathva 2025"
-                    className="w-full px-4 py-3 rounded-lg border border-[#C5BAC4] focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 outline-none transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[#29104A] mb-1">
-                    College/Organization <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={festForm.college}
-                    onChange={(e) => setFestForm({ ...festForm, college: e.target.value })}
-                    placeholder="e.g., NIT Calicut"
-                    className="w-full px-4 py-3 rounded-lg border border-[#C5BAC4] focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 outline-none transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[#29104A] mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    value={festForm.description}
-                    onChange={(e) => setFestForm({ ...festForm, description: e.target.value })}
-                    placeholder="Brief description of your fest..."
-                    rows={3}
-                    className="w-full px-4 py-3 rounded-lg border border-[#C5BAC4] focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 outline-none transition-all resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[#29104A] mb-1">
-                    Fest Image
-                  </label>
-                  {festImagePreview && (
-                    <div className="mb-3">
-                      <img
-                        src={festImagePreview}
-                        alt="Fest preview"
-                        className="w-full h-40 object-cover rounded-lg border border-[#C5BAC4]"
-                      />
-                    </div>
-                  )}
-                  <div className="flex flex-col gap-2">
-                    <label className="inline-flex items-center justify-center px-4 py-3 rounded-lg border border-dashed border-[#C5BAC4] text-sm text-[#6B597F] hover:border-[#522C5D] hover:text-[#522C5D] cursor-pointer transition-colors">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            const result = reader.result as string;
-                            setFestForm({ ...festForm, image: result });
-                            setFestImagePreview(result);
-                          };
-                          reader.readAsDataURL(file);
-                        }}
-                      />
-                      <span>Upload from device</span>
-                    </label>
-                    <input
-                      type="url"
-                      value={festForm.image && festForm.image.startsWith("http") ? festForm.image : ""}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setFestForm({ ...festForm, image: value });
-                        setFestImagePreview(value || null);
-                      }}
-                      placeholder="Or paste an image URL (optional)"
-                      className="w-full px-4 py-3 rounded-lg border border-[#C5BAC4] focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 outline-none transition-all text-sm"
-                    />
-                  </div>
-                  <p className="mt-1 text-xs text-[#6B597F]">
-                    This image will appear on the public fests page.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-[#29104A] mb-1">
-                      Start Date
-                    </label>
-                    <input
-                      type="date"
-                      value={festForm.startDate}
-                      onChange={(e) => setFestForm({ ...festForm, startDate: e.target.value })}
-                      className="w-full px-4 py-3 rounded-lg border border-[#C5BAC4] focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 outline-none transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[#29104A] mb-1">
-                      End Date
-                    </label>
-                    <input
-                      type="date"
-                      value={festForm.endDate}
-                      onChange={(e) => setFestForm({ ...festForm, endDate: e.target.value })}
-                      className="w-full px-4 py-3 rounded-lg border border-[#C5BAC4] focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 outline-none transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCreateFest(false);
-                      setFestError("");
-                    }}
-                    className="flex-1 px-4 py-3 bg-[#C5BAC4]/30 hover:bg-[#C5BAC4] text-[#6B597F] font-semibold rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={creatingFest}
-                    className="flex-1 px-4 py-3 bg-[#522C5D] hover:bg-[#29104A] text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {creatingFest ? (
-                      <>
-                        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Creating...
-                      </>
-                    ) : (
-                      "Create Fest"
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
     </main>
   );
 }

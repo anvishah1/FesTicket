@@ -16,6 +16,8 @@ vi.mock("@/components/Footer", () => ({ default: () => <footer /> }));
 const baseEvent = {
   id: 5,
   name: "Test Event",
+  hostId: 3,
+  festId: 9,
   status: "DRAFT",
   effectiveStatus: "DRAFT",
   startDate: "2099-05-01",
@@ -52,7 +54,26 @@ function installFetch() {
       return resp(deleteBody, deleteStatus);
     }
     if (u.includes("/api/bookings/event/5")) {
-      return resp({ success: true, data: { bookings: [], stats: { totalRevenue: 0, totalTicketsSold: 0 } } });
+      return resp({
+        success: true,
+        data: {
+          bookings: [
+            {
+              id: 1,
+              bookingCode: "BK-1",
+              status: "COMPLETED",
+              buyerName: "Alice",
+              buyerEmail: "alice@x.com",
+              buyerPhone: "111",
+              tickets: [{ type: "GA", quantity: 2 }],
+              totalTickets: 2,
+              total: 200,
+              purchaseDate: "2099-05-01T10:00:00.000Z",
+            },
+          ],
+          stats: { totalRevenue: 0, totalTicketsSold: 0 },
+        },
+      });
     }
     if (u.includes("/api/events/5")) {
       return resp({ success: true, data: baseEvent });
@@ -69,7 +90,7 @@ describe("ManageEventPage", () => {
     deleteBody = { success: false, error: { code: "HAS_BOOKINGS" } };
     window.localStorage.setItem(
       "auth_user",
-      JSON.stringify({ id: 3, email: "h@x.edu", role: "EDITOR", profileCompleted: true })
+      JSON.stringify({ id: 3, email: "h@x.edu", role: "EDITOR", profileCompleted: true, editorFestId: 9 })
     );
     window.localStorage.setItem("auth_accessToken", "tok");
     installFetch();

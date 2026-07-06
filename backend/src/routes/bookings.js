@@ -24,6 +24,26 @@ async function callerFests(req) {
 const forbid = (res, message = "You do not have access to this booking") =>
   res.status(403).json({ success: false, error: { code: "FORBIDDEN", message } });
 
+// Guest-safe booking access for the payment-flow endpoints (complete /
+// create-order / verify-payment). These must work for a logged-out guest but
+// must NOT be callable against an arbitrary numeric booking id. Access is granted
+// to: the authenticated buyer, the event's host, an ADMIN of the event's fest,
+// OR anyone who presents THIS booking's unguessable `bookingCode` (proving they
+// created it). `booking` must include bookingCode + event { hostId, festId }.
+async function callerOwnsBooking(req, booking) {
+  if (!booking) return false;
+  const providedCode = req.body?.bookingCode;
+  if (providedCode && booking.bookingCode && providedCode === booking.bookingCode) return true;
+  if (!req.user) return false;
+  if (booking.userId != null && booking.userId === req.user.userId) return true;
+  if (booking.event?.hostId != null && booking.event.hostId === req.user.userId) return true;
+  if (req.user.role === "ADMIN") {
+    const { managedFestId } = await callerFests(req);
+    if (booking.event?.festId != null && booking.event.festId === managedFestId) return true;
+  }
+  return false;
+}
+
 // Tag a business/client error with an explicit HTTP status + stable code + a
 // safe, user-facing message. The POST catch maps these to their status and
 // exposes the message; ANY untagged error is treated as an unexpected fault and
@@ -147,12 +167,18 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
       // 1. Verify event exists (+ its ticket types and question set)
       const event = await tx.event.findUnique({
         where: { id: parseInt(eventId) },
-        include: { ticketTypes: true, questions: true },
+        include: { ticketTypes: true, questions: true, fest: { select: { isDeleted: true } } },
       });
 
       // A missing event is a client error (bad id), not a server fault -> 404.
       if (!event) {
         throw bookingError(404, "NOT_FOUND", "Event not found");
+      }
+
+      // A soft-deleted (archived) fest is not bookable — its events are hidden
+      // from the public listing/detail, so accept no new bookings for them either.
+      if (event.fest?.isDeleted) {
+        throw bookingError(409, "EVENT_NOT_BOOKABLE", "This event is not available for booking");
       }
 
       // BOOK-STATUS: only a PUBLISHED + PUBLIC event that has not already ended
@@ -205,6 +231,33 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
       for (const item of tickets) {
         const ttId = parseInt(item.ticketTypeId);
         requestedByType.set(ttId, (requestedByType.get(ttId) || 0) + item.quantity);
+      }
+
+      // ATTENDEE-DISTRIBUTION: when a fully-typed attendee list is supplied (every
+      // attendee carries a ticketTypeId), the number of attendees for each type
+      // must equal the quantity purchased for that type — otherwise the per-type
+      // attendee assignment is meaningless. Only enforced when all attendees are
+      // typed, so the "no attendees" / untyped-capture flows stay allowed.
+      if (Array.isArray(attendees) && attendees.length > 0 && attendees.every((a) => a && a.ticketTypeId != null)) {
+        const attByType = new Map();
+        for (const att of attendees) {
+          const ttId = parseInt(att.ticketTypeId);
+          attByType.set(ttId, (attByType.get(ttId) || 0) + 1);
+        }
+        for (const [ttId, qty] of requestedByType) {
+          if ((attByType.get(ttId) || 0) !== qty) {
+            throw bookingError(
+              400,
+              "VALIDATION_ERROR",
+              "The number of attendees for each ticket type must match the quantity purchased"
+            );
+          }
+        }
+        for (const ttId of attByType.keys()) {
+          if (!requestedByType.has(ttId)) {
+            throw bookingError(400, "VALIDATION_ERROR", "An attendee is assigned to a ticket type not in this booking");
+          }
+        }
       }
 
       // 2. Verify ticket availability and calculate totals
@@ -260,6 +313,13 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
       // zero-amount SUCCESS payment below. Paid bookings (total > 0) are
       // unaffected and still go through PENDING -> pay -> complete.
       const isFree = total === 0;
+
+      // A paid total below ₹1 can never be charged (Razorpay's minimum is ₹1 /
+      // 100 paise) and would otherwise sit PENDING forever, holding inventory
+      // until the sweep. Reject it up front instead of creating a dead booking.
+      if (!isFree && Math.round(total * 100) < 100) {
+        throw bookingError(400, "VALIDATION_ERROR", "Order total is below the ₹1 minimum for a paid booking");
+      }
 
       // 4. Create the booking. `subtotal` is the ORIGINAL (pre-discount) amount
       // and `discount` the rupee amount applied, so that
@@ -397,7 +457,7 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
 // ==================== RAZORPAY: CREATE ORDER ====================
 
 // POST /api/bookings/:id/create-order - Create Razorpay order for this booking (amount in paise)
-router.post("/:id/create-order", writeLimiter, async (req, res) => {
+router.post("/:id/create-order", writeLimiter, optionalAuthenticate, async (req, res) => {
   try {
     const razorpay = getRazorpay();
     if (!razorpay) {
@@ -410,7 +470,7 @@ router.post("/:id/create-order", writeLimiter, async (req, res) => {
     const bookingId = parseInt(req.params.id);
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
-      include: { event: { select: { name: true } } },
+      include: { event: { select: { name: true, hostId: true, festId: true } } },
     });
 
     if (!booking) {
@@ -418,6 +478,12 @@ router.post("/:id/create-order", writeLimiter, async (req, res) => {
         success: false,
         error: { code: "NOT_FOUND", message: "Booking not found" },
       });
+    }
+    // Guest-safe ownership: the buyer/host/admin or the booking's bookingCode.
+    // Without this, an anonymous caller could enumerate booking ids and disclose
+    // any booking's total / hijack a victim's Razorpay order.
+    if (!(await callerOwnsBooking(req, booking))) {
+      return forbid(res);
     }
     if (booking.status !== "PENDING") {
       return res.status(400).json({
@@ -476,7 +542,7 @@ router.post("/:id/create-order", writeLimiter, async (req, res) => {
 // ==================== RAZORPAY: VERIFY PAYMENT ====================
 
 // POST /api/bookings/:id/verify-payment - Verify Razorpay payment and complete booking
-router.post("/:id/verify-payment", writeLimiter, async (req, res) => {
+router.post("/:id/verify-payment", writeLimiter, optionalAuthenticate, async (req, res) => {
   try {
     const razorpay = getRazorpay();
     if (!razorpay) {
@@ -519,6 +585,12 @@ router.post("/:id/verify-payment", writeLimiter, async (req, res) => {
         success: false,
         error: { code: "INVALID_STATE", message: "Booking not found or already completed" },
       });
+    }
+    // Defense-in-depth: only the buyer/host/admin or the booking-code holder may
+    // settle this booking (the Razorpay order-binding + amount check below is the
+    // primary guard; this stops cross-booking calls).
+    if (!(await callerOwnsBooking(req, booking))) {
+      return forbid(res);
     }
 
     // Bind the payment to THIS booking: the order must be the one we created for
@@ -583,7 +655,7 @@ router.post("/:id/verify-payment", writeLimiter, async (req, res) => {
 // ==================== COMPLETE BOOKING (After Payment) ====================
 
 // PUT /api/bookings/:id/complete - Mark booking as completed (simulated / fallback when Razorpay not used)
-router.put("/:id/complete", async (req, res) => {
+router.put("/:id/complete", writeLimiter, optionalAuthenticate, async (req, res) => {
   try {
     // DEMO/FALLBACK ONLY. When Razorpay is configured, this no-payment completion
     // path is disabled — completion must go through verify-payment (real captured
@@ -601,12 +673,26 @@ router.put("/:id/complete", async (req, res) => {
     const bid = parseInt(id);
 
     // Only a PENDING booking may be completed (blocks re-completing / tampering).
-    const current = await prisma.booking.findUnique({ where: { id: bid }, select: { status: true } });
+    const current = await prisma.booking.findUnique({
+      where: { id: bid },
+      select: {
+        status: true,
+        userId: true,
+        bookingCode: true,
+        event: { select: { hostId: true, festId: true } },
+      },
+    });
     if (!current) {
       return res.status(404).json({
         success: false,
         error: { code: "NOT_FOUND", message: "Booking not found" },
       });
+    }
+    // Guest-safe ownership: even in demo mode, a caller must be the buyer/host/
+    // admin OR present this booking's unguessable bookingCode. Closes the
+    // live-exploitable hole where anyone could mark ANY pending booking paid.
+    if (!(await callerOwnsBooking(req, current))) {
+      return forbid(res);
     }
     if (current.status !== "PENDING") {
       return res.status(400).json({
@@ -904,20 +990,29 @@ router.put("/:id/cancel", authenticateUser, async (req, res) => {
     }
 
     const booking = await prisma.$transaction(async (tx) => {
-      // Restore ticket quantities held by this PENDING booking.
+      // Atomically claim the PENDING -> CANCELLED transition. The status-guarded
+      // updateMany means only ONE concurrent cancel can win (count === 1); a racing
+      // second cancel sees count 0 and restores nothing. This closes the
+      // double-decrement that could drive `sold` NEGATIVE (oversell).
+      const flip = await tx.booking.updateMany({
+        where: { id: parseInt(id), status: "PENDING" },
+        data: { status: "CANCELLED" },
+      });
+      if (flip.count === 0) {
+        throw bookingError(409, "INVALID_STATE", "Booking is no longer pending and cannot be cancelled");
+      }
+
+      // Restore ticket quantities held by this booking. The `sold >= quantity`
+      // guard floors the counter so it can never go below zero even if data drifted.
       for (const item of existingBooking.items) {
-        await tx.ticketType.update({
-          where: { id: item.ticketTypeId },
-          data: {
-            sold: { decrement: item.quantity },
-          },
+        await tx.ticketType.updateMany({
+          where: { id: item.ticketTypeId, sold: { gte: item.quantity } },
+          data: { sold: { decrement: item.quantity } },
         });
       }
 
-      // Update booking status
-      return tx.booking.update({
+      return tx.booking.findUnique({
         where: { id: parseInt(id) },
-        data: { status: "CANCELLED" },
         include: {
           event: { select: { name: true } },
           items: { include: { ticketType: true } },
@@ -932,9 +1027,17 @@ router.put("/:id/cancel", authenticateUser, async (req, res) => {
     });
   } catch (error) {
     console.error("Error cancelling booking:", error);
+    // Map tagged business errors (e.g. the lost-race 409) to their status/code;
+    // anything else is an unexpected fault -> generic 500.
+    if (error.expose && error.status && error.code) {
+      return res.status(error.status).json({
+        success: false,
+        error: { code: error.code, message: error.message },
+      });
+    }
     res.status(500).json({
       success: false,
-      error: { code: "CANCEL_ERROR", message: error.message || "Failed to cancel booking" },
+      error: { code: "CANCEL_ERROR", message: "Failed to cancel booking" },
     });
   }
 });
@@ -958,10 +1061,13 @@ router.get("/event/:eventId", authenticateUser, async (req, res) => {
         error: { code: "NOT_FOUND", message: "Event not found" },
       });
     }
+    // The event's host, OR any ADMIN/EDITOR/HOST scoped to the event's fest, may
+    // read its bookings — mirrors the fest-wide access model so a fest editor can
+    // drill into a co-fest event instead of hitting a dead 403.
     let allowed = event.hostId != null && event.hostId === req.user.userId;
-    if (!allowed && req.user.role === "ADMIN") {
-      const { managedFestId } = await callerFests(req);
-      allowed = event.festId != null && event.festId === managedFestId;
+    if (!allowed) {
+      const { managedFestId, editorFestId } = await callerFests(req);
+      allowed = event.festId != null && (event.festId === managedFestId || event.festId === editorFestId);
     }
     if (!allowed) return forbid(res);
 
@@ -1150,22 +1256,28 @@ export async function expireStalePendingBookings(olderThanMs = 15 * 60 * 1000) {
     include: { items: true },
   });
 
+  let expired = 0;
   for (const booking of stale) {
     await prisma.$transaction(async (tx) => {
+      // Atomically claim the PENDING -> CANCELLED transition so a concurrent
+      // manual cancel (or a second sweep) cannot also restore this booking's
+      // inventory. Only the winner (count === 1) decrements.
+      const flip = await tx.booking.updateMany({
+        where: { id: booking.id, status: "PENDING" },
+        data: { status: "CANCELLED" },
+      });
+      if (flip.count === 0) return; // already handled elsewhere
       for (const item of booking.items) {
-        await tx.ticketType.update({
-          where: { id: item.ticketTypeId },
+        await tx.ticketType.updateMany({
+          where: { id: item.ticketTypeId, sold: { gte: item.quantity } },
           data: { sold: { decrement: item.quantity } },
         });
       }
-      await tx.booking.update({
-        where: { id: booking.id },
-        data: { status: "CANCELLED" },
-      });
+      expired += 1;
     });
   }
 
-  return { expired: stale.length };
+  return { expired };
 }
 
 export default router;

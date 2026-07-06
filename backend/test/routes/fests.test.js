@@ -41,11 +41,11 @@ describe("GET /api/fests", () => {
     expect(res.body.data).toEqual(fests);
 
     expect(prismaMock.fest.count).toHaveBeenCalledWith({
-      where: { isDeleted: false },
+      where: { isDeleted: false, events: { some: { visibility: "PUBLIC", status: "PUBLISHED" } } },
     });
     expect(prismaMock.fest.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { isDeleted: false },
+        where: { isDeleted: false, events: { some: { visibility: "PUBLIC", status: "PUBLISHED" } } },
         skip: 0,
         take: 10,
         orderBy: { startDate: "desc" },
@@ -104,6 +104,7 @@ describe("GET /api/fests", () => {
     expect(res.status).toBe(200);
     const expectedWhere = {
       isDeleted: false,
+      events: { some: { visibility: "PUBLIC", status: "PUBLISHED" } },
       OR: [
         { name: { contains: "tech", mode: "insensitive" } },
         { college: { contains: "tech", mode: "insensitive" } },
@@ -122,9 +123,10 @@ describe("GET /api/fests", () => {
     await request(app).get("/api/fests?search=%20%20");
 
     // Whitespace-only search trims to empty, so no OR clause is added.
-    expect(prismaMock.fest.count).toHaveBeenCalledWith({ where: { isDeleted: false } });
+    const noSearchWhere = { isDeleted: false, events: { some: { visibility: "PUBLIC", status: "PUBLISHED" } } };
+    expect(prismaMock.fest.count).toHaveBeenCalledWith({ where: noSearchWhere });
     expect(prismaMock.fest.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { isDeleted: false } })
+      expect.objectContaining({ where: noSearchWhere })
     );
   });
 

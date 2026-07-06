@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -138,7 +139,7 @@ export default function SignUpPage() {
               </h2>
               <p className="text-[#6B597F] mb-6">
                 {wantsEditor
-                  ? "Your request to become an editor for this fest has been sent to the admin for approval. You can sign in once you're approved."
+                  ? "Your account has been created and you can sign in now as a viewer. Your request for organizer access is pending admin approval — your role will be upgraded automatically once it's approved."
                   : "You can now sign in with your email and password."}
               </p>
               <div className="flex flex-col gap-3">
@@ -420,9 +421,9 @@ export default function SignUpPage() {
               </form>
 
               <div className="mt-4 text-center text-sm text-white/70">
-                <a href="/forgot" className="text-white hover:underline">Forgot Password?</a>
+                <Link href="/forgot" className="text-white hover:underline">Forgot Password?</Link>
                 <div className="mt-2">
-                  Already have an account? <a href="/signin" className="text-white hover:underline font-medium">Go to Login</a>
+                  Already have an account? <Link href="/signin" className="text-white hover:underline font-medium">Go to Login</Link>
                 </div>
               </div>
             </div>

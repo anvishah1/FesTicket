@@ -79,6 +79,65 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+  integration:
+    name: Backend integration (real Postgres)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tiqr
+          POSTGRES_PASSWORD: tiqr
+          POSTGRES_DB: tiqr_it
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tiqr"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://tiqr:tiqr@localhost:5432/tiqr_it
+      JWT_SECRET: ci-it-secret-at-least-32-characters-long
+      # Un-gate the integration suite (it self-skips unless this is "1"). This job
+      # runs against a REAL Postgres and IS blocking, so a broken invariant fails CI.
+      INTEGRATION_DB: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          for attempt in 1 2 3; do
+            if npm ci; then exit 0; fi
+            echo "npm ci attempt $attempt failed; retrying in 15s..."
+            sleep 15
+          done
+          echo "npm ci failed after 3 attempts"; exit 1
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Push schema
+        run: npx prisma db push --skip-generate
+
+      - name: Apply DB CHECK constraints
+        run: psql "$DATABASE_URL" -f prisma/constraints.sql
+
+      - name: Run integration tests (real Postgres)
+        run: npm run test:integration
+
   e2e:
     name: E2E (Playwright, optional)
     runs-on: ubuntu-latest
@@ -142,6 +201,12 @@ jobs:
       - name: Push schema to the throwaway Postgres
         working-directory: backend
         run: npx prisma db push --skip-generate
+
+      # db push does not manage raw CHECK constraints; apply them explicitly so the
+      # e2e stack exercises the same inventory invariant production should have.
+      - name: Apply DB CHECK constraints
+        working-directory: backend
+        run: psql "$DATABASE_URL" -f prisma/constraints.sql
 
       - name: Install frontend deps
         working-directory: frontend

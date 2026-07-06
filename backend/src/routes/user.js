@@ -1,6 +1,8 @@
 import express from "express";
 import prisma from "../prisma.js";
 import { authenticateUser } from "../middleware/authMiddleware.js";
+import { validate } from "../middleware/validate.js";
+import { completeProfileSchema } from "../validators/userValidator.js";
 
 const router = express.Router();
 
@@ -63,7 +65,7 @@ COMPLETE PROFILE
 Called by the root-layout "Basic Profile" modal. Persists the basic details and
 flips profileCompleted so the modal stops showing.
 */
-router.post("/complete-profile", authenticateUser, async (req, res) => {
+router.post("/complete-profile", authenticateUser, validate(completeProfileSchema), async (req, res) => {
   try {
     const { firstName, lastName, organiserName, phone } = req.body || {};
 

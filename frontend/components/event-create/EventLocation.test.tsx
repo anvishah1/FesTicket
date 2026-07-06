@@ -1,12 +1,14 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import EventLocation, {
   type EventLocationData,
 } from "@/components/event-create/EventLocation";
+import { showToast } from "@/lib/toast";
 
-// EventLocation calls window.alert on validation failures; stub it once.
-const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+// EventLocation surfaces validation failures via showToast; mock it.
+vi.mock("@/lib/toast", () => ({ showToast: vi.fn() }));
+beforeEach(() => vi.mocked(showToast).mockClear());
 
 describe("EventLocation", () => {
   it("renders offline fields by default", () => {
@@ -41,7 +43,7 @@ describe("EventLocation", () => {
     const onNext = vi.fn();
     render(<EventLocation onNext={onNext} />);
     await userEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
-    expect(alertSpy).toHaveBeenCalledWith("Please enter a venue name");
+    expect(showToast).toHaveBeenCalledWith("Please enter a venue name", "error");
     expect(onNext).not.toHaveBeenCalled();
   });
 
@@ -70,7 +72,7 @@ describe("EventLocation", () => {
     render(<EventLocation onNext={onNext} />);
     await userEvent.click(screen.getByRole("button", { name: "Online" }));
     await userEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
-    expect(alertSpy).toHaveBeenCalledWith("Please enter a meeting link");
+    expect(showToast).toHaveBeenCalledWith("Please enter a meeting link", "error");
     expect(onNext).not.toHaveBeenCalled();
   });
 

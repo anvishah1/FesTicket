@@ -45,7 +45,7 @@ export default function ForgotPasswordPage() {
 
           {status === "sent" && (
             <div className="mb-4 text-sm text-green-700 bg-green-100 px-4 py-2 rounded-lg text-center">
-              If an account exists for that email, a reset link was sent. Check your inbox.
+              If an account exists for that email, a password reset link has been sent.
             </div>
           )}
 

@@ -1022,6 +1022,7 @@ describe("GET /api/events/:id/buyers", () => {
           amountPaid: 250,
           purchaseDate: "2024-01-01T00:00:00.000Z",
           attendees: [{ id: 1 }],
+          answers: [],
         },
         {
           id: 11,
@@ -1034,6 +1035,7 @@ describe("GET /api/events/:id/buyers", () => {
           amountPaid: 150,
           purchaseDate: "2024-02-01T00:00:00.000Z",
           attendees: [],
+          answers: [],
         },
       ],
     });
@@ -1839,7 +1841,8 @@ describe("GET /api/events/analytics/fest/:festId", () => {
       { id: 1, ticketTypes: [{ sold: 20 }, { sold: 5 }] },
       { id: 2, ticketTypes: [{ sold: 10 }] },
     ]);
-    prismaMock.booking.aggregate.mockResolvedValue({ _sum: { total: 12500 }, _count: 8 });
+    // revenue = net ticket income = subtotal - discount (excludes platform fee + GST).
+    prismaMock.booking.aggregate.mockResolvedValue({ _sum: { subtotal: 13000, discount: 500 }, _count: 8 });
 
     const res = await request(app).get("/api/events/analytics/fest/7").set(...auth);
 
@@ -1858,7 +1861,7 @@ describe("GET /api/events/analytics/fest/:festId", () => {
   it("defaults revenue to 0 when there are no completed bookings", async () => {
     prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
     prismaMock.event.findMany.mockResolvedValue([]);
-    prismaMock.booking.aggregate.mockResolvedValue({ _sum: { total: null }, _count: 0 });
+    prismaMock.booking.aggregate.mockResolvedValue({ _sum: { subtotal: null, discount: null }, _count: 0 });
     const res = await request(app).get("/api/events/analytics/fest/7").set(...auth);
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ revenue: 0, ticketsSold: 0, eventsCount: 0, bookingsCount: 0 });

@@ -93,6 +93,9 @@ export default function PaymentPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // Proves ownership of this booking to the backend (guest-safe): the
+          // unguessable bookingCode authorizes completing THIS booking only.
+          bookingCode: booking.bookingCode,
           transactionId: `TXN-${Date.now()}`,
           paymentMethod: paymentMethod.toUpperCase(),
         }),
@@ -112,18 +115,23 @@ export default function PaymentPage() {
     if (!booking || processing) return;
     setProcessing(true);
     try {
-      const orderRes = await fetch(`${getApiUrl()}/api/bookings/${booking.id}/create-order`, { method: "POST" });
+      const orderRes = await fetch(`${getApiUrl()}/api/bookings/${booking.id}/create-order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingCode: booking.bookingCode }),
+      });
       const orderData = await orderRes.json();
 
       if (!orderRes.ok || !orderData.success) {
         if (orderData?.error?.code === "RAZORPAY_DISABLED") {
-          if (confirm("Razorpay is not configured. Use demo payment instead?")) {
-            await handlePaymentComplete("CARD");
-          }
+          // Razorpay isn't configured (demo deployment) — settle via the demo
+          // completion path directly. No raw dev-internals dialog is shown; the
+          // user already chose to pay.
+          await handlePaymentComplete("CARD");
         } else {
           showToast(orderData?.error?.message || "Could not create order.", "error");
+          setProcessing(false);
         }
-        setProcessing(false);
         return;
       }
 
@@ -158,6 +166,7 @@ export default function PaymentPage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
+                  bookingCode: booking.bookingCode,
                   razorpay_payment_id: response.razorpay_payment_id,
                   razorpay_order_id: response.razorpay_order_id,
                 }),

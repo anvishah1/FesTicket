@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { showToast } from "@/lib/toast";
 
 interface TicketsProps {
   onNext: (data: TicketsData) => void;
@@ -56,16 +57,16 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
   const handleSubmit = () => {
     const validTickets = tickets.filter((t) => t.name.trim());
     if (validTickets.length === 0) {
-      alert("Please add at least one ticket type");
+      showToast("Please add at least one ticket type", "error");
       return;
     }
     for (const t of validTickets) {
       if (isPaid && (!Number.isFinite(t.price) || t.price < 0)) {
-        alert(`Ticket "${t.name}" has an invalid price. Price cannot be negative.`);
+        showToast(`Ticket "${t.name}" has an invalid price. Price cannot be negative.`, "error");
         return;
       }
       if (!Number.isFinite(t.quantity) || t.quantity <= 0) {
-        alert(`Ticket "${t.name}" needs a quantity of at least 1.`);
+        showToast(`Ticket "${t.name}" needs a quantity of at least 1.`, "error");
         return;
       }
     }

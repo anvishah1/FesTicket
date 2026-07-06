@@ -128,6 +128,9 @@ export default function MarketingPage() {
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [editingSponsor, setEditingSponsor] = useState<SponsorEntry | null>(null);
   const [editingExpense, setEditingExpense] = useState<ExpenseEntry | null>(null);
+  // Guards against double-submit (duplicate rows) while a save is in flight.
+  const [sponsorSubmitting, setSponsorSubmitting] = useState(false);
+  const [expenseSubmitting, setExpenseSubmitting] = useState(false);
 
   // Sponsor form state
   const [sponsorForm, setSponsorForm] = useState({
@@ -340,6 +343,7 @@ export default function MarketingPage() {
 
   const handleSponsorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (sponsorSubmitting) return;
 
     const payload = {
       companyName: sponsorForm.companyName,
@@ -358,6 +362,8 @@ export default function MarketingPage() {
         : {}),
     };
 
+    setSponsorSubmitting(true);
+    let success = false;
     try {
       if (editingSponsor) {
         const res = await apiFetch(`${getApiUrl()}/api/events/marketing/sponsors/${editingSponsor.id}`, {
@@ -387,6 +393,7 @@ export default function MarketingPage() {
                 }
               : s
           ));
+          success = true;
         }
       } else {
         const res = await apiFetch(`${getApiUrl()}/api/events/marketing/host/${hostId}/sponsors`, {
@@ -413,15 +420,22 @@ export default function MarketingPage() {
             createdAt: s.createdAt,
           };
           setSponsors([newSponsor, ...sponsors]);
+          success = true;
         }
       }
     } catch (err) {
       console.error("Failed to save sponsor:", err);
       showToast("Failed to save sponsor. Please try again.", "error");
+    } finally {
+      setSponsorSubmitting(false);
     }
 
-    setShowSponsorForm(false);
-    resetSponsorForm();
+    // Only close + reset on success; on failure keep the modal open with the
+    // user's input so they can fix the error and retry.
+    if (success) {
+      setShowSponsorForm(false);
+      resetSponsorForm();
+    }
   };
 
   const handleEditSponsor = (sponsor: SponsorEntry) => {
@@ -478,6 +492,7 @@ export default function MarketingPage() {
 
   const handleExpenseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (expenseSubmitting) return;
 
     const payload = {
       description: expenseForm.description,
@@ -494,6 +509,8 @@ export default function MarketingPage() {
       billFiles: billFiles.map(toFilePayload),
     };
 
+    setExpenseSubmitting(true);
+    let success = false;
     try {
       if (editingExpense) {
         const res = await apiFetch(`${getApiUrl()}/api/events/marketing/expenses/${editingExpense.id}`, {
@@ -530,6 +547,7 @@ export default function MarketingPage() {
             createdAt: ex.createdAt,
           };
           setExpenses(expenses.map((e) => (e.id === editingExpense.id ? updated : e)));
+          success = true;
         }
       } else {
         const res = await apiFetch(`${getApiUrl()}/api/events/marketing/host/${hostId}/expenses`, {
@@ -566,15 +584,22 @@ export default function MarketingPage() {
             createdAt: ex.createdAt,
           };
           setExpenses([newExpense, ...expenses]);
+          success = true;
         }
       }
     } catch (err) {
       console.error("Failed to save expense:", err);
       showToast("Failed to save expense. Please try again.", "error");
+    } finally {
+      setExpenseSubmitting(false);
     }
 
-    setShowExpenseForm(false);
-    resetExpenseForm();
+    // Only close + reset on success; on failure keep the modal open with the
+    // user's input so they can fix the error and retry.
+    if (success) {
+      setShowExpenseForm(false);
+      resetExpenseForm();
+    }
   };
 
   const handleEditExpense = (expense: ExpenseEntry) => {
@@ -1097,9 +1122,10 @@ export default function MarketingPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#29104A] to-[#522C5D] text-white rounded-lg hover:opacity-90"
+                  disabled={sponsorSubmitting}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#29104A] to-[#522C5D] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {editingSponsor ? "Update" : "Add"} Sponsor
+                  {sponsorSubmitting ? "Saving…" : `${editingSponsor ? "Update" : "Add"} Sponsor`}
                 </button>
               </div>
             </form>
@@ -1303,9 +1329,10 @@ export default function MarketingPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#29104A] to-[#522C5D] text-white rounded-lg hover:opacity-90"
+                  disabled={expenseSubmitting}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#29104A] to-[#522C5D] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {editingExpense ? "Update" : "Add"} Expense
+                  {expenseSubmitting ? "Saving…" : `${editingExpense ? "Update" : "Add"} Expense`}
                 </button>
               </div>
             </form>

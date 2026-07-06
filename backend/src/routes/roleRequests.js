@@ -62,30 +62,62 @@ router.get(
   }
 );
 
+/* ================= MY REQUESTS (self status) ================= */
+// Lets a signed-in user see their own role-request history/status (pending,
+// approved, denied) — the LIST route above is ADMIN-only.
+router.get("/mine", authenticateUser, async (req, res) => {
+  try {
+    const requests = await prisma.roleRequest.findMany({
+      where: { userId: req.user.userId },
+      orderBy: [{ requestDate: "desc" }, { id: "desc" }],
+      include: { fest: { select: { id: true, name: true } } },
+    });
+    res.json(
+      requests.map((r) => ({
+        id: r.id,
+        festId: r.festId,
+        festName: r.fest?.name ?? r.organization,
+        requestedRole: r.requestedRole,
+        status: r.status,
+        requestDate: r.requestDate,
+      }))
+    );
+  } catch (err) {
+    console.error("My role requests error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 /* ================= CREATE (authenticated user) ================= */
 router.post("/", writeLimiter, authenticateUser, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { organization, requestedRole, festKey } = req.body || {};
-    const role = requestedRole === "EDITOR" || requestedRole === "HOST"
-      ? requestedRole
-      : "EDITOR";
+    const { organization, festKey } = req.body || {};
+    // Students may self-request EDITOR only. HOST/ADMIN are elevated grants made
+    // by an admin, never self-assigned (previously a VIEWER could POST
+    // requestedRole:"HOST" and self-request it).
+    const role = "EDITOR";
 
-    // Optional fest key: if provided, resolve it so the request is scoped to a
-    // fest (mirrors the signup flow); approval then sets the user's editorFestId.
-    let festId = null;
-    if (festKey && String(festKey).trim()) {
-      const fest = await prisma.fest.findFirst({
-        where: { adminKey: String(festKey).trim() },
+    // A fest key is REQUIRED so every request is scoped to a fest. Without it the
+    // request had festId=null and became an un-actionable dead-end: no admin could
+    // approve/deny it (approval needs festId===managedFestId) yet the
+    // one-pending-per-user rule permanently blocked the user from re-requesting.
+    if (!festKey || !String(festKey).trim()) {
+      return res.status(400).json({
+        message: "A fest key is required to request organizer access",
+        errors: { festKey: "Enter the fest key provided by your fest's organizer." },
       });
-      if (!fest) {
-        return res.status(400).json({
-          message: "Invalid fest key",
-          errors: { festKey: "No fest found for this key." },
-        });
-      }
-      festId = fest.id;
     }
+    const fest = await prisma.fest.findFirst({
+      where: { adminKey: String(festKey).trim() },
+    });
+    if (!fest) {
+      return res.status(400).json({
+        message: "Invalid fest key",
+        errors: { festKey: "No fest found for this key." },
+      });
+    }
+    const festId = fest.id;
 
     const existing = await prisma.roleRequest.findFirst({
       where: { userId, status: "PENDING" },

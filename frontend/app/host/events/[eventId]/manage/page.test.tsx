@@ -26,7 +26,8 @@ const baseEvent = {
   category: "Music",
   description: "desc",
   discount: 0,
-  ticketTypes: [{ id: 1, name: "GA", price: 100, quantity: 50, sold: 0 }],
+  // price is INTEGER PAISE (PAY-03): 25000 paise = ₹250.00.
+  ticketTypes: [{ id: 1, name: "GA", price: 25000, quantity: 50, sold: 0 }],
 };
 
 const resp = (body: unknown, status = 200) =>
@@ -148,18 +149,29 @@ describe("ManageEventPage", () => {
     headers.forEach((h) => expect(h).toHaveAttribute("scope", "col"));
   });
 
-  it("edits a ticket type via the PUT endpoint", async () => {
+  it("edits a ticket type: pre-fills rupees, posts paise, shows the new price", async () => {
     render(<ManageEventPage />);
     await screen.findByRole("button", { name: "Publish" });
     // Enter ticket edit mode (pencil button titled "Edit ticket type").
     await userEvent.click(screen.getByRole("button", { name: /edit ticket type/i }));
     const priceInput = screen.getByLabelText("Ticket price");
+    // Stored price is 25000 paise → the input pre-fills as ₹250 (rupees).
+    expect(priceInput).toHaveValue(250);
     await userEvent.clear(priceInput);
-    await userEvent.type(priceInput, "250");
+    await userEvent.type(priceInput, "300");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(showToastMock).toHaveBeenCalledWith("Ticket type updated", "success");
+    // The PUT body carries integer paise (₹300 → 30000).
+    const putCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) =>
+        String(c[0]).includes("/api/events/5/ticket-types/1") &&
+        (c[1] as RequestInit | undefined)?.method === "PUT"
+    );
+    expect(putCall).toBeTruthy();
+    const putBody = JSON.parse((putCall![1] as RequestInit).body as string);
+    expect(putBody.price).toBe(30000);
     // The breakdown card reflects the new price.
     const breakdown = screen.getByText("Ticket Types Breakdown").closest("div")!;
-    expect(within(breakdown).getByText("₹250.00")).toBeInTheDocument();
+    expect(within(breakdown).getByText("₹300.00")).toBeInTheDocument();
   });
 });

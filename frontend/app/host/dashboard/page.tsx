@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { formatPaise } from "@/lib/format";
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -286,7 +287,7 @@ export default function HostDashboard() {
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-[#29104A]">₹{totalRevenue.toLocaleString()}</p>
+            <p className="text-3xl font-bold text-[#29104A]">{formatPaise(totalRevenue)}</p>
             <p className="text-xs text-[#6B597F] mt-1">incl. pending holds</p>
           </div>
 
@@ -529,7 +530,7 @@ export default function HostDashboard() {
                                   </td>
                                   <td className="px-6 py-4">
                                     <p className="text-[#29104A] font-bold">
-                                      ₹{event.totalRevenue.toLocaleString()}
+                                      {formatPaise(event.totalRevenue)}
                                     </p>
                                   </td>
                                   <td className="px-6 py-4">

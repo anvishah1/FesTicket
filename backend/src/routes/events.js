@@ -529,7 +529,7 @@ router.post("/", authenticateUser, authorizeRoles("EDITOR", "HOST", "ADMIN"), va
           data: ticketTypes.map((ticket) => ({
             eventId: newEvent.id,
             name: ticket.name,
-            price: parseFloat(ticket.price) || 0,
+            price: Math.round(Number(ticket.price)) || 0,
             quantity: parseInt(ticket.quantity) || 100,
             description: ticket.description || null,
           })),
@@ -874,7 +874,7 @@ router.post("/:id/ticket-types", authenticateUser, validate(ticketTypeSchema), a
         error: { code: "VALIDATION_ERROR", message: "Name, price, and quantity are required" },
       });
     }
-    const priceNum = parseFloat(price);
+    const priceNum = Math.round(Number(price));
     const qtyNum = parseInt(quantity);
     if (Number.isNaN(priceNum) || priceNum < 0 || Number.isNaN(qtyNum) || qtyNum < 0) {
       return res.status(400).json({
@@ -931,7 +931,7 @@ router.put("/:eventId/ticket-types/:ticketId", authenticateUser, validate(ticket
     }
 
     if (price !== undefined) {
-      const p = parseFloat(price);
+      const p = Math.round(Number(price));
       if (Number.isNaN(p) || p < 0) {
         return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "price must be >= 0" } });
       }
@@ -947,7 +947,7 @@ router.put("/:eventId/ticket-types/:ticketId", authenticateUser, validate(ticket
       where: { id: parseInt(ticketId) },
       data: {
         name,
-        price: price !== undefined ? parseFloat(price) : undefined,
+        price: price !== undefined ? Math.round(Number(price)) : undefined,
         quantity: quantity !== undefined ? parseInt(quantity) : undefined,
         description,
       },
@@ -1314,8 +1314,8 @@ router.post("/marketing/host/:hostId/sponsors", validate(createSponsorSchema), a
         contactPerson,
         email: email || null,
         phone: phone || null,
-        sponsorshipAmount: parseFloat(sponsorshipAmount) || 0,
-        receivedAmount: parseFloat(receivedAmount) || 0,
+        sponsorshipAmount: Math.round(Number(sponsorshipAmount)) || 0,
+        receivedAmount: Math.round(Number(receivedAmount)) || 0,
         status: status || "NEGOTIATING",
         notes: notes || null,
         agreementUrl: agreementUrl ?? null,
@@ -1396,8 +1396,8 @@ router.put("/marketing/sponsors/:id", validate(updateSponsorSchema), async (req,
         contactPerson,
         email,
         phone,
-        sponsorshipAmount: sponsorshipAmount !== undefined ? parseFloat(sponsorshipAmount) : undefined,
-        receivedAmount: receivedAmount !== undefined ? parseFloat(receivedAmount) : undefined,
+        sponsorshipAmount: sponsorshipAmount !== undefined ? Math.round(Number(sponsorshipAmount)) : undefined,
+        receivedAmount: receivedAmount !== undefined ? Math.round(Number(receivedAmount)) : undefined,
         status,
         notes,
         festId: festId !== undefined ? (festId ? parseInt(festId) : null) : undefined,
@@ -1550,7 +1550,7 @@ router.post("/marketing/host/:hostId/expenses", validate(createExpenseSchema), a
         description,
         category,
         vendor,
-        amount: parseFloat(amount) || 0,
+        amount: Math.round(Number(amount)) || 0,
         paymentDate: safeDate(paymentDate),
         paymentMethod: paymentMethod || null,
         notes: notes || null,
@@ -1635,7 +1635,7 @@ router.put("/marketing/expenses/:id", validate(updateExpenseSchema), async (req,
         description,
         category,
         vendor,
-        amount: amount !== undefined ? parseFloat(amount) : undefined,
+        amount: amount !== undefined ? Math.round(Number(amount)) : undefined,
         paymentDate: paymentDate !== undefined ? safeDate(paymentDate) : undefined,
         paymentMethod,
         notes,

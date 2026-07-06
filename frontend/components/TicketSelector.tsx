@@ -1,6 +1,6 @@
 // frontend/components/TicketSelector.tsx
 
-import { formatCurrency } from "@/lib/format";
+import { formatPaise } from "@/lib/format";
 
 export default function TicketSelector({
   ticket,
@@ -19,7 +19,7 @@ export default function TicketSelector({
           <div className="text-xs text-slate-500">({ticket.available} available)</div>
         </div>
         <div className="text-sm text-slate-500 mt-1">{ticket.description}</div>
-        <div className="text-sm font-medium mt-2">{formatCurrency(ticket.price)}</div>
+        <div className="text-sm font-medium mt-2">{formatPaise(ticket.price)}</div>
       </div>
 
       <div className="flex items-center gap-2">

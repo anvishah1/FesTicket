@@ -22,10 +22,11 @@ function installFetch() {
     const u = String(url);
     if (u.includes("/api/user/me"))
       return resp({ success: true, data: { managedFestId: 7, editorFestId: null, managedFest: { adminKey: "TIQR-KEY" } } });
+    // Money is INTEGER PAISE (PAY-03): 500000 paise = ₹5,000.00.
     if (u.includes("/api/events/analytics/fest/7"))
-      return resp({ success: true, data: { revenue: 5000, ticketsSold: 12, eventsCount: 3, bookingsCount: 4 } });
+      return resp({ success: true, data: { revenue: 500000, ticketsSold: 12, eventsCount: 3, bookingsCount: 4 } });
     if (u.includes("/api/events/marketing/fest/7/expenses"))
-      return resp({ success: true, data: [{ amount: 2000 }] });
+      return resp({ success: true, data: [{ amount: 200000 }] });
     if (u.includes("/api/fests/7/key"))
       return resp({ success: true, data: { adminKey: "TIQR-KEY" } });
     if (u.includes("/api/fests/7"))
@@ -48,12 +49,12 @@ describe("AdminDashboardPage", () => {
     render(<AdminDashboardPage />);
     // Fest key from /api/user/me is displayed for sharing.
     expect(await screen.findByText("TIQR-KEY")).toBeInTheDocument();
-    // Income from analytics.
-    expect(await screen.findByText("₹5,000")).toBeInTheDocument();
-    // Spend from fest expenses.
-    expect(await screen.findByText("₹2,000")).toBeInTheDocument();
-    // Net = income - spend = 3000.
-    expect(await screen.findByText("+₹3,000")).toBeInTheDocument();
+    // Income from analytics (paise → ₹5,000.00).
+    expect(await screen.findByText("₹5,000.00")).toBeInTheDocument();
+    // Spend from fest expenses (paise → ₹2,000.00).
+    expect(await screen.findByText("₹2,000.00")).toBeInTheDocument();
+    // Net = income - spend = 500000 - 200000 = 300000 paise = +₹3,000.00.
+    expect(await screen.findByText("+₹3,000.00")).toBeInTheDocument();
   });
 
   it("copies the fest key to the clipboard", async () => {

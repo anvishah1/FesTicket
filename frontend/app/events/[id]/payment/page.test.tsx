@@ -20,17 +20,18 @@ function bookingResponse({ discount }: { discount: number }) {
     ok: true,
     json: async () => ({
       success: true,
+      // All money is INTEGER PAISE (PAY-03): 100000 paise = ₹1000.00.
       data: {
         id: 1,
         bookingCode: "BK-DISC",
         status: "PENDING",
-        subtotal: 1000,
+        subtotal: 100000,
         discount,
-        platformFee: 18,
-        tax: 165.24,
-        total: 1083.24,
+        platformFee: 1800,
+        tax: 16524,
+        total: 108324,
         event: { name: "Fest Night", venue: "Hall", startDate: "2026-08-01" },
-        items: [{ quantity: 1, ticketType: { name: "General", price: 1000 } }],
+        items: [{ quantity: 1, ticketType: { name: "General", price: 100000 } }],
       },
     }),
   };
@@ -44,13 +45,13 @@ beforeEach(() => {
 describe("PaymentPage discount line", () => {
   it("renders a discount line in the order summary when the booking has a discount", async () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      bookingResponse({ discount: 100 })
+      bookingResponse({ discount: 10000 })
     );
 
     render(<PaymentPage />);
 
     const line = await screen.findByTestId("payment-discount-line");
-    // 100 / 1000 = 10%
+    // 10000 / 100000 = 10%
     expect(within(line).getByText(/Discount \(10%\)/)).toBeInTheDocument();
     expect(within(line).getByText("-₹100.00")).toBeInTheDocument();
   });

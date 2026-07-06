@@ -25,9 +25,11 @@ const storableEventStatus = z.enum(["DRAFT", "PUBLISHED", "CANCELLED"]);
 
 // A non-negative money amount: JS number >= 0 OR a numeric string like "100" /
 // "99.50". Rejects negatives and non-numeric strings (the route parseFloat's it).
+// PAY-03: ticket price is INTEGER PAISE (the frontend converts its rupee input
+// to paise before POST). Whole paise only, non-negative.
 const priceLike = z.union([
-  z.number().nonnegative("price must be >= 0"),
-  z.string().trim().regex(/^\d+(\.\d+)?$/, "price must be a non-negative number"),
+  z.number().int("price must be an integer number of paise").nonnegative("price must be >= 0"),
+  z.string().trim().regex(/^\d+$/, "price must be a non-negative integer (paise)"),
 ]);
 
 // A non-negative integer count: JS integer >= 0 OR a digit string like "5".

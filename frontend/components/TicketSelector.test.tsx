@@ -3,10 +3,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import TicketSelector from "@/components/TicketSelector";
 
+// price is INTEGER PAISE (PAY-03): 50000 paise = ₹500.00.
 const ticket = {
   id: "1",
   name: "General",
-  price: 500,
+  price: 50000,
   description: "Standard entry",
   available: 5,
 };

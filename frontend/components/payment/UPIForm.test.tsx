@@ -5,7 +5,7 @@ import UPIForm from "@/components/payment/UPIForm";
 
 describe("UPIForm", () => {
   it("renders the intro, the UPI id input and both entry points", () => {
-    render(<UPIForm amount={1500} orderId="order_1" />);
+    render(<UPIForm amount={150000} orderId="order_1" />);
     expect(screen.getByText("Pay by any UPI app")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Generate QR Code" })).toBeInTheDocument();
     expect(screen.getByLabelText("UPI ID")).toBeInTheDocument();
@@ -14,11 +14,11 @@ describe("UPIForm", () => {
 
   it("shows the QR panel after clicking Generate QR Code", async () => {
     const user = userEvent.setup();
-    render(<UPIForm amount={1500} orderId="order_1" />);
+    render(<UPIForm amount={150000} orderId="order_1" />);
     await user.click(screen.getByRole("button", { name: "Generate QR Code" }));
 
     expect(screen.getByText("Scan this QR code using your UPI app")).toBeInTheDocument();
-    expect(screen.getByText("Amount: ₹1,500")).toBeInTheDocument();
+    expect(screen.getByText("Amount: ₹1,500.00")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "I have paid" })).toBeInTheDocument();
     // The entry inputs are replaced by the QR panel.
     expect(screen.queryByLabelText("UPI ID")).not.toBeInTheDocument();
@@ -29,7 +29,7 @@ describe("UPIForm", () => {
     const user = userEvent.setup();
     const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
     const onPaymentComplete = vi.fn();
-    render(<UPIForm amount={1500} orderId="order_1" onPaymentComplete={onPaymentComplete} />);
+    render(<UPIForm amount={150000} orderId="order_1" onPaymentComplete={onPaymentComplete} />);
 
     await user.click(screen.getByRole("button", { name: /Pay ₹1,500/ }));
     expect(alertSpy).toHaveBeenCalledWith("Please enter a valid UPI ID or use QR code.");
@@ -39,7 +39,7 @@ describe("UPIForm", () => {
   it("calls onPaymentComplete after verifying a filled UPI id", async () => {
     const user = userEvent.setup();
     const onPaymentComplete = vi.fn();
-    render(<UPIForm amount={1500} orderId="order_1" onPaymentComplete={onPaymentComplete} />);
+    render(<UPIForm amount={150000} orderId="order_1" onPaymentComplete={onPaymentComplete} />);
 
     await user.type(screen.getByLabelText("UPI ID"), "alice@okbank");
     await user.click(screen.getByRole("button", { name: /Pay ₹1,500/ }));
@@ -49,7 +49,7 @@ describe("UPIForm", () => {
   it("calls onPaymentComplete from the QR 'I have paid' flow", async () => {
     const user = userEvent.setup();
     const onPaymentComplete = vi.fn();
-    render(<UPIForm amount={1500} orderId="order_1" onPaymentComplete={onPaymentComplete} />);
+    render(<UPIForm amount={150000} orderId="order_1" onPaymentComplete={onPaymentComplete} />);
 
     await user.click(screen.getByRole("button", { name: "Generate QR Code" }));
     await user.click(screen.getByRole("button", { name: "I have paid" }));
@@ -59,7 +59,7 @@ describe("UPIForm", () => {
   it("falls back to a demo alert on QR payment when no callback is given", async () => {
     const user = userEvent.setup();
     const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
-    render(<UPIForm amount={1500} orderId="order_1" />);
+    render(<UPIForm amount={150000} orderId="order_1" />);
 
     await user.click(screen.getByRole("button", { name: "Generate QR Code" }));
     await user.click(screen.getByRole("button", { name: "I have paid" }));
@@ -70,7 +70,7 @@ describe("UPIForm", () => {
   });
 
   it("reflects the processing prop on the pay button", () => {
-    render(<UPIForm amount={1500} orderId="order_1" processing />);
+    render(<UPIForm amount={150000} orderId="order_1" processing />);
     const button = screen.getByRole("button", { name: "Verifying…" });
     expect(button).toBeDisabled();
   });

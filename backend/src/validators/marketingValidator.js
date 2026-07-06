@@ -7,11 +7,12 @@ const intLike = z.union([
 ]);
 const numberLike = z.union([z.number(), z.string()]);
 
-// A non-negative money amount: number >= 0 OR a numeric string like "100"/"99.50".
-// Rejects negatives, which would otherwise corrupt fest sponsorship/expense totals.
+// PAY-03: money amounts are INTEGER PAISE (the frontend converts its rupee input
+// to paise before POST). Whole paise only, non-negative — rejects negatives that
+// would corrupt fest sponsorship/expense totals.
 const amountLike = z.union([
-  z.number().nonnegative("amount must be >= 0"),
-  z.string().trim().regex(/^\d+(\.\d+)?$/, "amount must be a non-negative number"),
+  z.number().int("amount must be an integer number of paise").nonnegative("amount must be >= 0"),
+  z.string().trim().regex(/^\d+$/, "amount must be a non-negative integer (paise)"),
 ]);
 
 // Sponsor create/update body (POST /marketing/host/:hostId/sponsors,

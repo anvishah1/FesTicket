@@ -53,7 +53,8 @@ function eventResponse(discount: number, questions?: any[]) {
         discount,
         ...(questions ? { questions } : {}),
         ticketTypes: [
-          { id: 1, name: "General", price: 1000, quantity: 5, sold: 0 },
+          // price is INTEGER PAISE (PAY-03): 100000 paise = ₹1000.00.
+          { id: 1, name: "General", price: 100000, quantity: 5, sold: 0 },
         ],
       },
     }),

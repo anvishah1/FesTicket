@@ -278,7 +278,8 @@ export default function EventCreatePage() {
           meetingLink: isOnline ? loc.meetingLink || null : null,
           ticketTypes: validTickets.map((t) => ({
             name: t.name,
-            price: isPaid ? t.price : 0,
+            // Tickets.tsx keeps price in RUPEES; the API stores integer paise.
+            price: isPaid ? Math.round(Number(t.price) * 100) : 0,
             quantity: t.quantity,
             description: t.description,
           })),

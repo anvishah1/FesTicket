@@ -28,10 +28,10 @@ function bookingResponse() {
         id: 42,
         bookingCode: "BK-ABC123",
         status: "COMPLETED",
-        subtotal: 1000,
-        total: 1083.24,
+        subtotal: 100000,
+        total: 108324,
         event: { name: "Fest Night", venue: "Main Hall", startDate: "2026-08-01" },
-        items: [{ quantity: 2, ticketType: { name: "General", price: 500 } }],
+        items: [{ quantity: 2, ticketType: { name: "General", price: 50000 } }],
         attendees: [
           { name: "Alice", email: "alice@example.com" },
           { name: "Bob", email: "bob@example.com" },

@@ -23,6 +23,21 @@ export function formatCurrency(amount: number, currency: string = "INR"): string
 }
 
 /**
+ * Format an INTEGER PAISE amount (PAY-03) as localized rupees, always 2 decimals
+ * (e.g. 12036 -> ₹120.36). This is the canonical money renderer now that the API
+ * returns paise everywhere. NaN / null / undefined are treated as 0.
+ */
+export function formatPaise(paise: number, currency: string = "INR"): string {
+  const safe = Number.isFinite(paise) ? paise : 0;
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(safe / 100);
+}
+
+/**
  * Format a plain number with Indian digit grouping (e.g. 1,23,456).
  * NaN / null / undefined are treated as 0.
  */

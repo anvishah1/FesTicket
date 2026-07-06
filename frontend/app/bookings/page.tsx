@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatPaise } from "@/lib/format";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -70,7 +71,7 @@ function BookingCard({ booking }: { booking: BookingListItem }) {
         </div>
         <div className="text-right shrink-0">
           <StatusBadge status={booking.status} />
-          <div className="font-bold mt-2">₹{booking.total?.toLocaleString()}</div>
+          <div className="font-bold mt-2">{formatPaise(booking.total ?? 0)}</div>
           {totalTickets > 0 && (
             <div className="text-xs text-slate-500">
               {totalTickets} ticket{totalTickets === 1 ? "" : "s"}

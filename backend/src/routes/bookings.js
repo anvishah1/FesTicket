@@ -71,19 +71,18 @@ const mapRazorpayMethod = (m) => {
 // Sum of ticket quantities across a booking's items
 const sumTicketQuantity = (items) => items.reduce((s, i) => s + i.quantity, 0);
 
-// L9: CANONICAL fee/tax rounding. Round every currency amount to 2 decimals
-// (paise) so the total we store/charge is byte-for-byte reproducible by the
-// frontend from the same subtotal. Both frontend pages mirror this exact rule,
-// and the Razorpay amount is Math.round(total * 100) paise.
-const round2 = (n) => Math.round(n * 100) / 100;
-
-// Compute { platformFee, tax, total } from a subtotal using the canonical rule:
-// platformFee = round2(2% of subtotal); tax = round2(18% GST of subtotal+fee);
+// PAY-03: all money is INTEGER PAISE. Fees are computed with integer arithmetic
+// (Math.round yields whole paise), so there is no binary-float drift and the
+// stored total is exactly reproducible by the frontend from the same subtotal.
+// The Razorpay amount IS booking.total (already paise) — no *100.
+//
+// Compute { platformFee, tax, total } (all paise) from a subtotal (paise):
+// platformFee = round(2% of subtotal); tax = round(18% GST of subtotal+fee);
 // total = subtotal + platformFee + tax.
 const computeFees = (subtotal) => {
-  const platformFee = round2(subtotal * 0.02); // 2% platform fee
-  const tax = round2((subtotal + platformFee) * 0.18); // 18% GST on (subtotal + fee)
-  const total = round2(subtotal + platformFee + tax);
+  const platformFee = Math.round(subtotal * 0.02); // 2% platform fee (paise)
+  const tax = Math.round((subtotal + platformFee) * 0.18); // 18% GST on (subtotal + fee)
+  const total = subtotal + platformFee + tax; // integers -> exact
   return { platformFee, tax, total };
 };
 
@@ -297,14 +296,14 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
 
       // 3. Apply the EVENT-level discount (a percentage, never taken from the
       // client body — see CONTRACT DISCOUNT / M8), then compute fees on the
-      // discounted base with the canonical round2 rule. With no discount (pct
-      // 0) discountedBase === subtotal, so behaviour is identical to before.
+      // discounted base with INTEGER PAISE math (PAY-03). subtotal is already
+      // paise; with no discount (pct 0) discountedBase === subtotal.
       const pct = event.discount || 0; // percentage 0..100 from the event
-      const discount = round2(subtotal * (pct / 100));
-      const discountedBase = round2(subtotal - discount);
-      const platformFee = round2(discountedBase * 0.02); // 2% platform fee
-      const tax = round2((discountedBase + platformFee) * 0.18); // 18% GST
-      const total = round2(discountedBase + platformFee + tax);
+      const discount = Math.round(subtotal * (pct / 100)); // paise
+      const discountedBase = subtotal - discount; // paise (integers)
+      const platformFee = Math.round(discountedBase * 0.02); // 2% platform fee (paise)
+      const tax = Math.round((discountedBase + platformFee) * 0.18); // 18% GST (paise)
+      const total = discountedBase + platformFee + tax; // paise (exact)
 
       // FREE / ZERO-TOTAL: a booking whose total is 0 (all-free tickets, or a
       // 100% discount) has NO payment step — create-order rejects amounts below
@@ -317,7 +316,7 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
       // A paid total below ₹1 can never be charged (Razorpay's minimum is ₹1 /
       // 100 paise) and would otherwise sit PENDING forever, holding inventory
       // until the sweep. Reject it up front instead of creating a dead booking.
-      if (!isFree && Math.round(total * 100) < 100) {
+      if (!isFree && total < 100) {
         throw bookingError(400, "VALIDATION_ERROR", "Order total is below the ₹1 minimum for a paid booking");
       }
 
@@ -492,7 +491,7 @@ router.post("/:id/create-order", writeLimiter, optionalAuthenticate, async (req,
       });
     }
 
-    const amountPaise = Math.round(booking.total * 100);
+    const amountPaise = booking.total; // total is already integer paise (PAY-03)
     if (amountPaise < 100) {
       return res.status(400).json({
         success: false,
@@ -603,7 +602,7 @@ router.post("/:id/verify-payment", writeLimiter, optionalAuthenticate, async (re
         error: { code: "VERIFY_FAILED", message: "Order does not belong to this booking" },
       });
     }
-    if (paymentEntity.amount !== Math.round(booking.total * 100)) {
+    if (paymentEntity.amount !== booking.total) { // both integer paise (PAY-03)
       return res.status(400).json({
         success: false,
         error: { code: "VERIFY_FAILED", message: "Paid amount does not match the booking total" },

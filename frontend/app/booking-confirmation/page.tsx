@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatPaise } from "@/lib/format";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/Header";
@@ -210,7 +211,7 @@ export default function BookingConfirmationPage() {
                 {(booking.items || []).map((item, idx) => (
                   <div key={idx} className="flex justify-between">
                     <span>{item.ticketType.name} × {item.quantity}</span>
-                    <span>₹{(item.ticketType.price * item.quantity).toLocaleString()}</span>
+                    <span>{formatPaise(item.ticketType.price * item.quantity)}</span>
                   </div>
                 ))}
               </div>
@@ -233,7 +234,7 @@ export default function BookingConfirmationPage() {
             <div className="border-t pt-4 flex justify-between items-center">
               <span className="font-semibold">{statusUi.amountLabel}</span>
               <span className="text-xl font-bold" data-testid="confirmation-total">
-                ₹{booking.total?.toLocaleString()}
+                {formatPaise(booking.total ?? 0)}
               </span>
             </div>
           </div>

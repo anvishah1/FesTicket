@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { formatPaise } from "@/lib/format";
 
 type Props = {
   amount: number;
@@ -84,7 +85,7 @@ export default function CardForm({ amount, onPaymentComplete, processing: extern
                   : "bg-slate-300 cursor-not-allowed"
               }`}
             >
-              {isProcessing ? "Processing…" : `Pay ₹${amount.toLocaleString()}`}
+              {isProcessing ? "Processing…" : `Pay ${formatPaise(amount)}`}
             </button>
           </div>
         </div>

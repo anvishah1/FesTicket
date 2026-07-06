@@ -13,7 +13,7 @@ function formatDate(dateStr: string) {
 
 describe("PaymentSidebar", () => {
   it("renders the summary heading, title, order id and formatted amount", () => {
-    render(<PaymentSidebar title="Neon Night" amount={2500} orderId="order_123" />);
+    render(<PaymentSidebar title="Neon Night" amount={250000} orderId="order_123" />);
     expect(screen.getByText("Payment Summary")).toBeInTheDocument();
     expect(screen.getByText("Neon Night")).toBeInTheDocument();
     expect(screen.getByText("Order ID")).toBeInTheDocument();
@@ -23,7 +23,7 @@ describe("PaymentSidebar", () => {
   });
 
   it("renders the secure-payment reassurance copy", () => {
-    render(<PaymentSidebar title="Neon Night" amount={2500} orderId="order_123" />);
+    render(<PaymentSidebar title="Neon Night" amount={250000} orderId="order_123" />);
     expect(
       screen.getByText(/Payments are processed securely/i)
     ).toBeInTheDocument();
@@ -33,7 +33,7 @@ describe("PaymentSidebar", () => {
   it("shows venue and formatted date separated by a dot when both are given", () => {
     const date = "2026-07-04T12:00:00";
     render(
-      <PaymentSidebar title="Neon Night" amount={2500} orderId="order_123" venue="Main Arena" date={date} />
+      <PaymentSidebar title="Neon Night" amount={250000} orderId="order_123" venue="Main Arena" date={date} />
     );
     expect(screen.getByText("Main Arena")).toBeInTheDocument();
     expect(screen.getByText(formatDate(date))).toBeInTheDocument();
@@ -42,7 +42,7 @@ describe("PaymentSidebar", () => {
 
   it("shows only the venue without a separator when date is absent", () => {
     render(
-      <PaymentSidebar title="Neon Night" amount={2500} orderId="order_123" venue="Main Arena" />
+      <PaymentSidebar title="Neon Night" amount={250000} orderId="order_123" venue="Main Arena" />
     );
     expect(screen.getByText("Main Arena")).toBeInTheDocument();
     expect(screen.queryByText("·")).not.toBeInTheDocument();
@@ -51,14 +51,14 @@ describe("PaymentSidebar", () => {
   it("shows only the formatted date without a separator when venue is absent", () => {
     const date = "2026-07-04T12:00:00";
     render(
-      <PaymentSidebar title="Neon Night" amount={2500} orderId="order_123" date={date} />
+      <PaymentSidebar title="Neon Night" amount={250000} orderId="order_123" date={date} />
     );
     expect(screen.getByText(formatDate(date))).toBeInTheDocument();
     expect(screen.queryByText("·")).not.toBeInTheDocument();
   });
 
   it("omits the venue/date line entirely when neither is given", () => {
-    render(<PaymentSidebar title="Neon Night" amount={2500} orderId="order_123" />);
+    render(<PaymentSidebar title="Neon Night" amount={250000} orderId="order_123" />);
     expect(screen.queryByText("·")).not.toBeInTheDocument();
     expect(screen.queryByText("Main Arena")).not.toBeInTheDocument();
   });

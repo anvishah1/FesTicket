@@ -10,7 +10,7 @@ const expenses = [
     description: "Stage lights",
     category: "INFRASTRUCTURE",
     vendor: "LightCo",
-    amount: 20000,
+    amount: 2000000,
     paymentDate: "2026-02-01T00:00:00Z",
     paymentMethod: "UPI",
     notes: "urgent",
@@ -27,7 +27,7 @@ const expenses = [
     description: "Posters",
     category: "MARKETING",
     vendor: "PrintHub",
-    amount: 5000,
+    amount: 500000,
     paymentDate: "2026-02-03T00:00:00Z",
     paymentMethod: "Cash",
     notes: "",
@@ -98,7 +98,7 @@ describe("Expenses", () => {
   it("computes the summary stats from filtered data", async () => {
     render(<Expenses festId={9} />);
     await screen.findByText("Stage lights");
-    // Total Expenses = 20000 + 5000
+    // Total Expenses (paise) = 2000000 + 500000 = 2500000 = ₹25,000.00
     expect(screen.getByText("₹25,000.00")).toBeInTheDocument();
     expect(screen.getByText("Total Entries").nextElementSibling).toHaveTextContent("2");
     expect(screen.getByText("Hosts Reporting").nextElementSibling).toHaveTextContent("2");

@@ -146,7 +146,7 @@ model TicketType {
   id          Int       @id @default(autoincrement())
   eventId     Int
   name        String
-  price       Float
+  price       Int // paise (PAY-03)
   quantity    Int
   sold        Int       @default(0)
   description String?
@@ -171,11 +171,11 @@ model Booking {
   guestEmail   String?
   guestName    String?
   guestPhone   String?
-  subtotal     Float
-  discount     Float         @default(0)
-  platformFee  Float         @default(0)
-  tax          Float         @default(0)
-  total        Float
+  subtotal     Int // paise (PAY-03)
+  discount     Int           @default(0) // paise
+  platformFee  Int           @default(0) // paise
+  tax          Int           @default(0) // paise
+  total        Int // paise
   status       BookingStatus @default(PENDING)
   purchaseDate DateTime?
   createdAt    DateTime      @default(now())
@@ -206,8 +206,8 @@ model BookingItem {
   bookingId    Int
   ticketTypeId Int
   quantity     Int
-  unitPrice    Float
-  totalPrice   Float
+  unitPrice    Int // paise (PAY-03)
+  totalPrice   Int // paise (PAY-03)
   createdAt    DateTime  @default(now())
 
   // Relations
@@ -246,7 +246,7 @@ model Payment {
   id            Int           @id @default(autoincrement())
   bookingId     Int           @unique
   orderId       String?
-  amount        Float
+  amount        Int // paise (PAY-03)
   method        PaymentMethod?
   status        PaymentStatus @default(PENDING)
   transactionId String?
@@ -284,8 +284,8 @@ model Sponsor {
   contactPerson     String
   email             String?
   phone             String?
-  sponsorshipAmount Float
-  receivedAmount    Float         @default(0)
+  sponsorshipAmount Int // paise (PAY-03)
+  receivedAmount    Int           @default(0) // paise
   status            SponsorStatus @default(NEGOTIATING)
   notes             String?
   agreementUrl      String?
@@ -317,7 +317,7 @@ model Expense {
   description   String
   category      ExpenseCategory
   vendor        String
-  amount        Float
+  amount        Int // paise (PAY-03)
   paymentDate   DateTime?
   paymentMethod String?
   notes         String?

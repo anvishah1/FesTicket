@@ -129,14 +129,12 @@ describe("POST /api/bookings", () => {
     expect(res.body.message).toBe("Booking created successfully");
     expect(res.body.data.id).toBe(99);
 
-    // Fee math (L9 canonical): platformFee = round2(2% of subtotal),
-    // tax = round2(18% GST on subtotal + fee), total = round2(sum). round2
-    // rounds to 2 decimals (paise) — identical to the frontend and computeFees.
-    const round2 = (n) => Math.round(n * 100) / 100;
-    const subtotal = 200;
-    const platformFee = round2(subtotal * 0.02); // 4
-    const tax = round2((subtotal + platformFee) * 0.18); // 36.72
-    const total = round2(subtotal + platformFee + tax); // 240.72
+    // Fee math (PAY-03 integer paise): platformFee = round(2% of subtotal),
+    // tax = round(18% GST on subtotal + fee), total = sum. All whole paise.
+    const subtotal = 200; // paise
+    const platformFee = Math.round(subtotal * 0.02); // 4
+    const tax = Math.round((subtotal + platformFee) * 0.18); // round(36.72) = 37
+    const total = subtotal + platformFee + tax; // 241
     expect(prismaMock.booking.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -205,16 +203,17 @@ describe("POST /api/bookings", () => {
 
     expect(res.status).toBe(201);
 
-    // platformFee = round2(111 * 0.02) = 2.22
-    // tax        = round2(113.22 * 0.18) = round2(20.3796) = 20.38
-    // total      = round2(111 + 2.22 + 20.38) = 133.60
+    // PAY-03 integer paise:
+    // platformFee = round(111 * 0.02)  = round(2.22)   = 2
+    // tax         = round(113 * 0.18)  = round(20.34)  = 20
+    // total       = 111 + 2 + 20       = 133
     expect(prismaMock.booking.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           subtotal: 111,
-          platformFee: 2.22,
-          tax: 20.38,
-          total: 133.6,
+          platformFee: 2,
+          tax: 20,
+          total: 133,
         }),
       })
     );
@@ -373,7 +372,7 @@ describe("POST /api/bookings", () => {
     });
     prismaMock.booking.create.mockResolvedValue({ id: 77, items: [] });
     prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
-    prismaMock.booking.findUnique.mockResolvedValue({ id: 77, total: 1083.24 });
+    prismaMock.booking.findUnique.mockResolvedValue({ id: 77, total: 1083 });
 
     const res = await request(app)
       .post("/api/bookings")
@@ -381,32 +380,32 @@ describe("POST /api/bookings", () => {
 
     expect(res.status).toBe(201);
 
-    // subtotal      = 1000 (ORIGINAL, pre-discount)
-    // discount      = round2(1000 * 10/100)      = 100
-    // discountedBase= round2(1000 - 100)         = 900
-    // platformFee   = round2(900 * 0.02)         = 18
-    // tax           = round2((900 + 18) * 0.18)  = round2(165.24) = 165.24
-    // total         = round2(900 + 18 + 165.24)  = 1083.24
+    // PAY-03 integer paise (subtotal 1000 paise, event 10% off):
+    // discount      = round(1000 * 10/100)     = 100
+    // discountedBase= 1000 - 100               = 900
+    // platformFee   = round(900 * 0.02)        = 18
+    // tax           = round((900 + 18) * 0.18) = round(165.24) = 165
+    // total         = 900 + 18 + 165           = 1083
     expect(prismaMock.booking.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           subtotal: 1000,
           discount: 100,
           platformFee: 18,
-          tax: 165.24,
-          total: 1083.24,
+          tax: 165,
+          total: 1083,
         }),
       })
     );
     // subtotal - discount + platformFee + tax === total
-    expect(1000 - 100 + 18 + 165.24).toBe(1083.24);
+    expect(1000 - 100 + 18 + 165).toBe(1083);
   });
 
-  it("charges the DISCOUNTED total in paise via create-order (1083.24 -> 108324)", async () => {
+  it("charges booking.total paise directly via create-order (108324 paise)", async () => {
     enableRazorpay();
     prismaMock.booking.findUnique.mockResolvedValue({
       id: 77,
-      total: 1083.24, // discounted total from the booking above
+      total: 108324, // discounted total in PAISE (PAY-03) — sent to Razorpay as-is
       status: "PENDING",
       bookingCode: "BK77",
       event: { name: "Fest Night" },
@@ -801,7 +800,7 @@ describe("POST /api/bookings/:id/create-order", () => {
     enableRazorpay();
     prismaMock.booking.findUnique.mockResolvedValue({
       id: 5,
-      total: 240.72,
+      total: 24072, // paise (PAY-03)
       status: "PENDING",
       bookingCode: "BK5",
       event: { name: "Fest Night" },
@@ -816,7 +815,7 @@ describe("POST /api/bookings/:id/create-order", () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data).toEqual({
       orderId: "order_1",
-      amount: 24072,
+      amount: 24072, // booking.total paise, sent to Razorpay as-is
       currency: "INR",
       keyId: "rzp_test_key",
     });
@@ -825,7 +824,7 @@ describe("POST /api/bookings/:id/create-order", () => {
     );
     expect(prismaMock.payment.upsert).toHaveBeenCalledWith({
       where: { bookingId: 5 },
-      create: { bookingId: 5, amount: 240.72, status: "PENDING", orderId: "order_1" },
+      create: { bookingId: 5, amount: 24072, status: "PENDING", orderId: "order_1" },
       update: { orderId: "order_1", status: "PENDING" },
     });
   });
@@ -947,7 +946,7 @@ describe("POST /api/bookings/:id/verify-payment", () => {
       event: {},
     };
     prismaMock.booking.findUnique
-      .mockResolvedValueOnce({ id: 5, status: "PENDING", total: 100, bookingCode: "BK5", payment: { orderId: "order_1" }, items: [], attendees: [], event: {} })
+      .mockResolvedValueOnce({ id: 5, status: "PENDING", total: 10000, bookingCode: "BK5", payment: { orderId: "order_1" }, items: [], attendees: [], event: {} })
       .mockResolvedValueOnce(updated);
     prismaMock.booking.update.mockResolvedValue({});
     prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });

@@ -5,7 +5,7 @@ import NetbankingList from "@/components/payment/NetbankingList";
 
 describe("NetbankingList", () => {
   it("renders the heading and the full bank list", () => {
-    render(<NetbankingList amount={800} />);
+    render(<NetbankingList amount={80000} />);
     expect(screen.getByText("Net Banking")).toBeInTheDocument();
     for (const bank of [
       "State Bank of India",
@@ -24,7 +24,7 @@ describe("NetbankingList", () => {
 
   it("disables the pay button until a bank is selected", async () => {
     const user = userEvent.setup();
-    render(<NetbankingList amount={800} />);
+    render(<NetbankingList amount={80000} />);
     const payButton = screen.getByRole("button", { name: /Pay ₹800/ });
     expect(payButton).toBeDisabled();
 
@@ -34,7 +34,7 @@ describe("NetbankingList", () => {
 
   it("marks the chosen bank as Selected", async () => {
     const user = userEvent.setup();
-    render(<NetbankingList amount={800} />);
+    render(<NetbankingList amount={80000} />);
     expect(screen.queryByText("Selected")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Axis Bank/ }));
@@ -44,7 +44,7 @@ describe("NetbankingList", () => {
   it("calls onPaymentComplete after proceeding with a selected bank", async () => {
     const user = userEvent.setup();
     const onPaymentComplete = vi.fn();
-    render(<NetbankingList amount={800} onPaymentComplete={onPaymentComplete} />);
+    render(<NetbankingList amount={80000} onPaymentComplete={onPaymentComplete} />);
 
     await user.click(screen.getByRole("button", { name: /Canara Bank/ }));
     await user.click(screen.getByRole("button", { name: /Pay ₹800/ }));
@@ -54,7 +54,7 @@ describe("NetbankingList", () => {
   it("falls back to a demo alert naming the bank when no callback is given", async () => {
     const user = userEvent.setup();
     const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
-    render(<NetbankingList amount={800} />);
+    render(<NetbankingList amount={80000} />);
 
     await user.click(screen.getByRole("button", { name: /HDFC Bank/ }));
     await user.click(screen.getByRole("button", { name: /Pay ₹800/ }));
@@ -65,7 +65,7 @@ describe("NetbankingList", () => {
   });
 
   it("reflects the processing prop by disabling banks and the pay button", () => {
-    render(<NetbankingList amount={800} processing />);
+    render(<NetbankingList amount={80000} processing />);
     const payButton = screen.getByRole("button", { name: "Processing…" });
     expect(payButton).toBeDisabled();
     expect(screen.getByRole("button", { name: /HDFC Bank/ })).toBeDisabled();

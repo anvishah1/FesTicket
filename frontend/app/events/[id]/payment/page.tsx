@@ -7,7 +7,7 @@ import Footer from "@/components/Footer";
 import PaymentSidebar from "@/components/payment/PaymentSidebar";
 import { getApiUrl } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
-import { formatCurrency } from "@/lib/format";
+import { formatPaise } from "@/lib/format";
 
 interface BookingData {
   id: number;
@@ -253,7 +253,7 @@ export default function PaymentPage() {
                 disabled={processing}
                 className="w-full py-3 px-4 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold"
               >
-                {processing ? "Opening…" : `Pay ${formatCurrency(amount)}`}
+                {processing ? "Opening…" : `Pay ${formatPaise(amount)}`}
               </button>
               <p className="text-xs text-slate-500 mt-3 text-center">You’ll be redirected to a secure payment page.</p>
             </div>
@@ -266,13 +266,13 @@ export default function PaymentPage() {
               {booking.items?.map((item, idx) => (
                 <div key={idx} className="flex justify-between">
                   <span>{item.ticketType.name} × {item.quantity}</span>
-                  <span>{formatCurrency(item.ticketType.price * item.quantity)}</span>
+                  <span>{formatPaise(item.ticketType.price * item.quantity)}</span>
                 </div>
               ))}
               <hr className="my-2" />
               <div className="flex justify-between text-slate-600">
                 <span>Subtotal</span>
-                <span>{formatCurrency(booking.subtotal)}</span>
+                <span>{formatPaise(booking.subtotal)}</span>
               </div>
               {booking.discount != null && booking.discount > 0 && (
                 <div className="flex justify-between text-green-700" data-testid="payment-discount-line">
@@ -282,21 +282,21 @@ export default function PaymentPage() {
                       ? ` (${Math.round((booking.discount / booking.subtotal) * 100)}%)`
                       : ""}
                   </span>
-                  <span>-{formatCurrency(booking.discount)}</span>
+                  <span>-{formatPaise(booking.discount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-slate-600">
                 <span>Platform Fee (2%)</span>
-                <span>{formatCurrency(booking.platformFee)}</span>
+                <span>{formatPaise(booking.platformFee)}</span>
               </div>
               <div className="flex justify-between text-slate-600">
                 <span>Tax (18% GST)</span>
-                <span>{formatCurrency(booking.tax)}</span>
+                <span>{formatPaise(booking.tax)}</span>
               </div>
               <hr className="my-2" />
               <div className="flex justify-between font-bold text-lg">
                 <span>Total</span>
-                <span>{formatCurrency(booking.total)}</span>
+                <span>{formatPaise(booking.total)}</span>
               </div>
             </div>
           </div>

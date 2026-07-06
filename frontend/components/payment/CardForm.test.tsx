@@ -15,17 +15,17 @@ async function fillCard(
 
 describe("CardForm", () => {
   it("renders the heading, field labels and the pay button with the amount", () => {
-    render(<CardForm amount={2500} />);
+    render(<CardForm amount={250000} />);
     expect(screen.getByText("Enter Card Details")).toBeInTheDocument();
     expect(screen.getByText("Card number")).toBeInTheDocument();
     expect(screen.getByText("Expiry (MM/YY)")).toBeInTheDocument();
     expect(screen.getByText("CVV")).toBeInTheDocument();
-    expect(screen.getByRole("button")).toHaveTextContent("Pay ₹2,500");
+    expect(screen.getByRole("button")).toHaveTextContent("Pay ₹2,500.00");
   });
 
   it("disables the pay button until card details are valid", async () => {
     const user = userEvent.setup();
-    render(<CardForm amount={100} />);
+    render(<CardForm amount={10000} />);
     const button = screen.getByRole("button");
     expect(button).toBeDisabled();
 
@@ -36,7 +36,7 @@ describe("CardForm", () => {
 
   it("keeps the button disabled when the card number is too short", async () => {
     const user = userEvent.setup();
-    render(<CardForm amount={100} />);
+    render(<CardForm amount={10000} />);
     // only 11 digits (needs >= 12)
     await fillCard(user, { number: "41111111111", expiry: "12/29", cvv: "123" });
     expect(screen.getByRole("button")).toBeDisabled();
@@ -44,14 +44,14 @@ describe("CardForm", () => {
 
   it("keeps the button disabled when the cvv is shorter than 3 chars", async () => {
     const user = userEvent.setup();
-    render(<CardForm amount={100} />);
+    render(<CardForm amount={10000} />);
     await fillCard(user, { number: "411111111111", expiry: "12/29", cvv: "12" });
     expect(screen.getByRole("button")).toBeDisabled();
   });
 
   it("ignores spaces in the card number when validating length", async () => {
     const user = userEvent.setup();
-    render(<CardForm amount={100} />);
+    render(<CardForm amount={10000} />);
     // "4111 1111 1111" strips to 12 digits => valid
     await fillCard(user, { number: "4111 1111 1111", expiry: "12/29", cvv: "123" });
     expect(screen.getByRole("button")).toBeEnabled();
@@ -60,7 +60,7 @@ describe("CardForm", () => {
   it("calls onPaymentComplete after a successful pay", async () => {
     const user = userEvent.setup();
     const onPaymentComplete = vi.fn();
-    render(<CardForm amount={100} onPaymentComplete={onPaymentComplete} />);
+    render(<CardForm amount={10000} onPaymentComplete={onPaymentComplete} />);
     await fillCard(user, { number: "411111111111", expiry: "12/29", cvv: "123" });
     await user.click(screen.getByRole("button"));
     await waitFor(() => expect(onPaymentComplete).toHaveBeenCalledTimes(1), { timeout: 2500 });
@@ -69,7 +69,7 @@ describe("CardForm", () => {
   it("falls back to a demo alert when no onPaymentComplete is provided", async () => {
     const user = userEvent.setup();
     const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
-    render(<CardForm amount={100} />);
+    render(<CardForm amount={10000} />);
     await fillCard(user, { number: "411111111111", expiry: "12/29", cvv: "123" });
     await user.click(screen.getByRole("button"));
     await waitFor(
@@ -79,7 +79,7 @@ describe("CardForm", () => {
   });
 
   it("shows a processing state and disables the button when the processing prop is set", () => {
-    render(<CardForm amount={100} processing />);
+    render(<CardForm amount={10000} processing />);
     const button = screen.getByRole("button");
     expect(button).toHaveTextContent("Processing…");
     expect(button).toBeDisabled();

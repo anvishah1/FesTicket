@@ -7,7 +7,7 @@ import Footer from "@/components/Footer";
 import { getApiUrl, getStoredUser, isAuthenticated, apiFetch } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
 import { downloadMarketingFile } from "@/lib/files";
-import { formatCurrency } from "@/lib/format";
+import { formatPaise } from "@/lib/format";
 
 interface UploadedFile {
   name: string;
@@ -351,8 +351,9 @@ export default function MarketingPage() {
       contactPerson: sponsorForm.contactPerson,
       email: sponsorForm.email || null,
       phone: sponsorForm.phone || null,
-      sponsorshipAmount: parseFloat(sponsorForm.sponsorshipAmount) || 0,
-      receivedAmount: parseFloat(sponsorForm.receivedAmount) || 0,
+      // Inputs hold RUPEES; the API stores integer paise.
+      sponsorshipAmount: Math.round((parseFloat(sponsorForm.sponsorshipAmount) || 0) * 100),
+      receivedAmount: Math.round((parseFloat(sponsorForm.receivedAmount) || 0) * 100),
       status: toBackendSponsorStatus(sponsorForm.status),
       notes: sponsorForm.notes || null,
       ...(editorFestId != null && { festId: editorFestId }),
@@ -445,8 +446,9 @@ export default function MarketingPage() {
       contactPerson: sponsor.contactPerson,
       email: sponsor.email,
       phone: sponsor.phone,
-      sponsorshipAmount: sponsor.sponsorshipAmount.toString(),
-      receivedAmount: sponsor.receivedAmount.toString(),
+      // Stored values are integer paise; the form edits RUPEES.
+      sponsorshipAmount: (sponsor.sponsorshipAmount / 100).toString(),
+      receivedAmount: (sponsor.receivedAmount / 100).toString(),
       status: sponsor.status,
       notes: sponsor.notes,
     });
@@ -499,7 +501,8 @@ export default function MarketingPage() {
       description: expenseForm.description,
       category: toBackendExpenseCategory(expenseForm.category),
       vendor: expenseForm.vendor,
-      amount: parseFloat(expenseForm.amount) || 0,
+      // Input holds RUPEES; the API stores integer paise.
+      amount: Math.round((parseFloat(expenseForm.amount) || 0) * 100),
       paymentDate: expenseForm.paymentDate || null,
       paymentMethod: expenseForm.paymentMethod || null,
       notes: expenseForm.notes || null,
@@ -608,7 +611,8 @@ export default function MarketingPage() {
       description: expense.description,
       category: expense.category,
       vendor: expense.vendor,
-      amount: expense.amount.toString(),
+      // Stored value is integer paise; the form edits RUPEES.
+      amount: (expense.amount / 100).toString(),
       paymentDate: expense.paymentDate,
       paymentMethod: expense.paymentMethod,
       notes: expense.notes,
@@ -712,7 +716,7 @@ export default function MarketingPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-[#29104A]">{formatCurrency(totalSponsorshipAmount)}</p>
+            <p className="text-3xl font-bold text-[#29104A]">{formatPaise(totalSponsorshipAmount)}</p>
             <p className="text-xs text-[#6B597F] mt-1">Committed amount</p>
           </div>
 
@@ -725,7 +729,7 @@ export default function MarketingPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-green-600">{formatCurrency(totalReceivedAmount)}</p>
+            <p className="text-3xl font-bold text-green-600">{formatPaise(totalReceivedAmount)}</p>
             <p className="text-xs text-[#6B597F] mt-1">From sponsors</p>
           </div>
 
@@ -738,7 +742,7 @@ export default function MarketingPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-red-500">{formatCurrency(totalExpenses)}</p>
+            <p className="text-3xl font-bold text-red-500">{formatPaise(totalExpenses)}</p>
             <p className="text-xs text-[#6B597F] mt-1">Out of pocket</p>
           </div>
 
@@ -752,7 +756,7 @@ export default function MarketingPage() {
               </div>
             </div>
             <p className={`text-3xl font-bold ${netBalance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-              {netBalance >= 0 ? '+' : ''}{formatCurrency(netBalance)}
+              {netBalance >= 0 ? '+' : ''}{formatPaise(netBalance)}
             </p>
             <p className="text-xs text-[#6B597F] mt-1">Received - Expenses</p>
           </div>
@@ -828,13 +832,13 @@ export default function MarketingPage() {
                         <p className="text-xs text-[#6B597F]">{sponsor.email}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="font-bold text-[#29104A]">{formatCurrency(sponsor.sponsorshipAmount)}</p>
+                        <p className="font-bold text-[#29104A]">{formatPaise(sponsor.sponsorshipAmount)}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="font-bold text-green-600">{formatCurrency(sponsor.receivedAmount)}</p>
+                        <p className="font-bold text-green-600">{formatPaise(sponsor.receivedAmount)}</p>
                         {sponsor.receivedAmount < sponsor.sponsorshipAmount && (
                           <p className="text-xs text-yellow-600">
-                            Pending: {formatCurrency(sponsor.sponsorshipAmount - sponsor.receivedAmount)}
+                            Pending: {formatPaise(sponsor.sponsorshipAmount - sponsor.receivedAmount)}
                           </p>
                         )}
                       </td>
@@ -909,7 +913,7 @@ export default function MarketingPage() {
                         <p className="text-xs text-[#6B597F]">{expense.paymentMethod}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="font-bold text-red-500">{formatCurrency(expense.amount)}</p>
+                        <p className="font-bold text-red-500">{formatPaise(expense.amount)}</p>
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-[#29104A]">{expense.paymentDate}</p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatPaise } from "@/lib/format";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -391,7 +392,7 @@ export default function EventDetailsPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-base font-bold text-[#29104A]">
-                          <span className="sr-only">Price: </span>₹{t.price}
+                          <span className="sr-only">Price: </span>{formatPaise(t.price)}
                         </p>
                       </div>
                     </li>

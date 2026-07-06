@@ -9,7 +9,7 @@ const sponsors = [
     companyName: "Acme Corp",
     contactPerson: "Alice",
     email: "alice@acme.com",
-    sponsorshipAmount: 50000,
+    sponsorshipAmount: 5000000,
     agreementUrl: "http://x/a.png",
     createdAt: "2026-01-02T00:00:00Z",
     agreementType: "IMAGE",
@@ -20,7 +20,7 @@ const sponsors = [
     companyName: "Beta LLC",
     contactPerson: "Bob",
     email: "bob@beta.com",
-    sponsorshipAmount: 30000,
+    sponsorshipAmount: 3000000,
     agreementUrl: "http://x/b.pdf",
     createdAt: "2026-01-05T00:00:00Z",
     agreementType: "PDF",
@@ -59,7 +59,7 @@ describe("Companies", () => {
     expect(screen.getByText("Total Sponsors").nextElementSibling).toHaveTextContent("2");
     // Confirmed = 1 (only Acme is CONFIRMED)
     expect(screen.getByText("Confirmed").nextElementSibling).toHaveTextContent("1");
-    // Total Sponsorship = 50000 + 30000
+    // Total Sponsorship (paise) = 5000000 + 3000000 = 8000000 = ₹80,000.00
     expect(screen.getByText("₹80,000.00")).toBeInTheDocument();
   });
 
@@ -149,7 +149,7 @@ describe("Companies", () => {
           companyName: "Gamma Inc",
           contactPerson: "Carol",
           email: "carol@gamma.com",
-          sponsorshipAmount: 10000,
+          sponsorshipAmount: 1000000,
           agreementUrl: "",
           createdAt: "2026-01-10T00:00:00Z",
           agreementType: "IMAGE",

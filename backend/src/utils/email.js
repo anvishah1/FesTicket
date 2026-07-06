@@ -271,7 +271,9 @@ export async function sendBookingConfirmation(booking) {
   const eventTime = event.startTime || "—";
   const venue = event.venue || "—";
 
-  const money = (n) => `₹${Number(n ?? 0).toLocaleString("en-IN")}`;
+  // PAY-03: booking money is INTEGER PAISE — render as 2-decimal rupees.
+  const money = (n) =>
+    `₹${(Number(n ?? 0) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const rows = (booking.items || []).map((item) => ({
     name: item.ticketType?.name || "Ticket",
     qty: item.quantity || 0,

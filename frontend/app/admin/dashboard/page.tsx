@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { getApiUrl, getStoredUser, getAccessToken, isAuthenticated, updateStoredUser, apiFetch } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
+import { formatPaise } from "@/lib/format";
 
 import RoleRequests from "@/components/admin/RoleRequests";
 import FestEvents from "@/components/admin/FestEvents";
@@ -315,21 +316,21 @@ export default function AdminDashboardPage() {
                     <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
                       <p className="text-sm text-[#6B597F]">Income</p>
                       <p className="text-2xl font-bold text-green-600">
-                        ₹{(analytics?.revenue ?? 0).toLocaleString()}
+                        {formatPaise(analytics?.revenue ?? 0)}
                       </p>
                       <p className="text-xs text-[#6B597F] mt-1">from completed bookings</p>
                     </div>
                     <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
                       <p className="text-sm text-[#6B597F]">Spend</p>
                       <p className="text-2xl font-bold text-red-600">
-                        ₹{(totalSpend ?? 0).toLocaleString()}
+                        {formatPaise(totalSpend ?? 0)}
                       </p>
                       <p className="text-xs text-[#6B597F] mt-1">fest-wide expenses</p>
                     </div>
                     <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
                       <p className="text-sm text-[#6B597F]">Net Balance</p>
                       <p className={`text-2xl font-bold ${(netBalance ?? 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
-                        {netBalance == null ? "—" : `${netBalance >= 0 ? "+" : ""}₹${netBalance.toLocaleString()}`}
+                        {netBalance == null ? "—" : `${netBalance >= 0 ? "+" : ""}${formatPaise(netBalance)}`}
                       </p>
                       <p className="text-xs text-[#6B597F] mt-1">income − spend</p>
                     </div>

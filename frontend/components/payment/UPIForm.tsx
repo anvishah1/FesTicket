@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { formatPaise } from "@/lib/format";
 
 type Props = {
   amount: number;
@@ -63,7 +64,7 @@ export default function UPIForm({ amount, onPaymentComplete, processing: externa
               </div>
               <div>
                 <div className="text-sm text-slate-700">Scan this QR code using your UPI app</div>
-                <div className="text-xs text-slate-500 mt-1">Amount: ₹{amount.toLocaleString()}</div>
+                <div className="text-xs text-slate-500 mt-1">Amount: {formatPaise(amount)}</div>
                 <div className="mt-3">
                   <button
                     onClick={handleQRPaid}
@@ -105,7 +106,7 @@ export default function UPIForm({ amount, onPaymentComplete, processing: externa
                   disabled={isProcessing}
                   className="bg-green-600 text-white px-4 py-2 rounded-md disabled:opacity-50"
                 >
-                  {isProcessing ? "Verifying…" : `Pay ₹${amount.toLocaleString()}`}
+                  {isProcessing ? "Verifying…" : `Pay ${formatPaise(amount)}`}
                 </button>
               </div>
             </>

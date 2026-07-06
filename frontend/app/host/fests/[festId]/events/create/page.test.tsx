@@ -128,6 +128,11 @@ describe("EventCreatePage custom questions persistence (C4)", () => {
     // it up so ticketsComplete becomes true.
     await userEvent.click(screen.getByText("Tickets"));
     await screen.findByRole("heading", { name: "Tickets" });
+    // Enter a price in RUPEES; the POST body must convert it to integer paise.
+    await userEvent.type(
+      screen.getByLabelText("Ticket 1 price in rupees"),
+      "250"
+    );
 
     // Registration Form: now unlocked. Configure a custom question.
     const formNav = screen.getByText("Registration Form").closest("button")!;
@@ -166,6 +171,10 @@ describe("EventCreatePage custom questions persistence (C4)", () => {
     const body = JSON.parse((post[1] as RequestInit).body as string);
     expect(body.questions).toEqual([
       { label: "How old are you?", type: "number", required: true, order: 0 },
+    ]);
+    // Ticket price is sent as integer paise (₹250 → 25000).
+    expect(body.ticketTypes).toEqual([
+      { name: "General Admission", price: 25000, quantity: 100, description: "" },
     ]);
   });
 });

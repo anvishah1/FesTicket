@@ -12,7 +12,7 @@ import Link from "next/link";
 import Footer from "@/components/Footer";
 import { apiFetch, getApiUrl } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
-import { formatCurrency } from "@/lib/format";
+import { formatPaise } from "@/lib/format";
 
 type TicketType = {
   id: string;
@@ -149,19 +149,18 @@ export default function BookingPage() {
     0
   );
 
-  // L9 / DISCOUNT: CANONICAL fee/tax/discount math — must stay byte-for-byte
-  // identical to the backend (backend/src/routes/bookings.js). Round every
-  // currency amount to 2 decimals (paise) so the total shown here equals the
-  // total the backend stores and Razorpay charges (Math.round(total * 100)).
+  // PAY-03 / DISCOUNT: CANONICAL fee/tax/discount math in INTEGER PAISE — must
+  // stay byte-for-byte identical to the backend (backend/src/routes/bookings.js)
+  // so the total shown here equals the total the backend stores and Razorpay
+  // charges. t.price is paise, so subtotal is paise; fees round to whole paise.
   // The discount percentage comes from the EVENT (never the client), and the
   // platform fee + GST are computed on the DISCOUNTED base.
-  const round2 = (n: number) => Math.round(n * 100) / 100;
   const discountPct = event?.discount ?? 0;
-  const discountAmount = round2(subtotal * (discountPct / 100));
-  const discountedBase = round2(subtotal - discountAmount);
-  const platformFee = round2(discountedBase * 0.02);
-  const tax = round2((discountedBase + platformFee) * 0.18);
-  const total = round2(discountedBase + platformFee + tax);
+  const discountAmount = Math.round(subtotal * (discountPct / 100)); // paise
+  const discountedBase = subtotal - discountAmount; // paise (integers)
+  const platformFee = Math.round(discountedBase * 0.02); // paise
+  const tax = Math.round((discountedBase + platformFee) * 0.18); // paise
+  const total = discountedBase + platformFee + tax; // paise (exact)
 
   const totalTickets = Object.values(quantities).reduce((a, b) => a + b, 0);
   const requiredAttendees = totalTickets;
@@ -492,34 +491,34 @@ export default function BookingPage() {
                       <div>
                         <div className="font-medium">{t.name}</div>
                         <div className="text-xs text-slate-500">
-                          Qty {quantities[t.id] ?? 0} × {formatCurrency(t.price)}
+                          Qty {quantities[t.id] ?? 0} × {formatPaise(t.price)}
                         </div>
                       </div>
-                      <div className="font-medium">{formatCurrency((quantities[t.id] ?? 0) * t.price)}</div>
+                      <div className="font-medium">{formatPaise((quantities[t.id] ?? 0) * t.price)}</div>
                     </div>
                   ))}
 
                 <hr className="my-3" />
                 <div className="flex justify-between text-sm">
                   <div className="text-slate-600">Subtotal</div>
-                  <div>{formatCurrency(subtotal)}</div>
+                  <div>{formatPaise(subtotal)}</div>
                 </div>
                 <div className="flex justify-between text-sm text-green-700">
                   <div>Discount ({discountPct}%)</div>
-                  <div>-{formatCurrency(discountAmount)}</div>
+                  <div>-{formatPaise(discountAmount)}</div>
                 </div>
                 <div className="flex justify-between text-sm">
                   <div className="text-slate-600">Platform fee</div>
-                  <div>{formatCurrency(platformFee)}</div>
+                  <div>{formatPaise(platformFee)}</div>
                 </div>
                 <div className="flex justify-between text-sm">
                   <div className="text-slate-600">Tax</div>
-                  <div>{formatCurrency(tax)}</div>
+                  <div>{formatPaise(tax)}</div>
                 </div>
 
                 <div className="flex justify-between items-center mt-4">
                   <div className="text-sm font-medium">Total</div>
-                  <div className="text-xl font-bold">{formatCurrency(total)}</div>
+                  <div className="text-xl font-bold">{formatPaise(total)}</div>
                 </div>
               </div>
             </div>
@@ -538,7 +537,7 @@ export default function BookingPage() {
 
             <div className="space-y-3">
               <div className="text-sm text-slate-600">Total to pay</div>
-              <div className="text-2xl font-bold text-slate-900">{formatCurrency(total)}</div>
+              <div className="text-2xl font-bold text-slate-900">{formatPaise(total)}</div>
 
               {/* Validation message */}
               {!isValid && totalTickets > 0 && (

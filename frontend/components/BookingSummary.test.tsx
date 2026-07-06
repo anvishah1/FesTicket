@@ -2,9 +2,10 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import BookingSummary from "@/components/BookingSummary";
 
+// All money props are INTEGER PAISE (PAY-03): 50000 paise = ₹500.00.
 const items = [
-  { id: "1", name: "General", price: 500, available: 5, qty: 2 },
-  { id: "2", name: "VIP", price: 1000, available: 3, qty: 0 },
+  { id: "1", name: "General", price: 50000, available: 5, qty: 2 },
+  { id: "2", name: "VIP", price: 100000, available: 3, qty: 0 },
 ];
 
 describe("BookingSummary", () => {
@@ -12,10 +13,10 @@ describe("BookingSummary", () => {
     render(
       <BookingSummary
         items={items}
-        subtotal={999}
-        platformFee={20}
-        tax={180}
-        total={1199}
+        subtotal={99900}
+        platformFee={2000}
+        tax={18000}
+        total={119900}
       />
     );
     expect(screen.getByText("General")).toBeInTheDocument();
@@ -27,15 +28,15 @@ describe("BookingSummary", () => {
     render(
       <BookingSummary
         items={items}
-        subtotal={999}
-        platformFee={20}
-        tax={180}
-        total={1199}
+        subtotal={99900}
+        platformFee={2000}
+        tax={18000}
+        total={119900}
       />
     );
     // "Qty 2 × ₹500.00"
     expect(screen.getByText(/Qty 2/)).toBeInTheDocument();
-    // line total = qty * price = 2 * 500 = 1000
+    // line total = qty * price = 2 * 50000 paise = 100000 paise = ₹1,000.00
     expect(screen.getByText("₹1,000.00")).toBeInTheDocument();
   });
 
@@ -43,10 +44,10 @@ describe("BookingSummary", () => {
     render(
       <BookingSummary
         items={items}
-        subtotal={999}
-        platformFee={20}
-        tax={180}
-        total={1199}
+        subtotal={99900}
+        platformFee={2000}
+        tax={18000}
+        total={119900}
       />
     );
     expect(screen.getByText("Subtotal")).toBeInTheDocument();

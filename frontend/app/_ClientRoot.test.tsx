@@ -49,7 +49,7 @@ describe("ClientRoot (root auth + profile modal)", () => {
     setAuth("tok", "ref", storedUser);
     mockFetch((url) => {
       if (url.includes("/api/user/me")) {
-        return jsonResponse({ role: "EDITOR", profileCompleted: false });
+        return jsonResponse({ success: true, data: { role: "EDITOR", profileCompleted: false } });
       }
       return jsonResponse({});
     });
@@ -68,7 +68,7 @@ describe("ClientRoot (root auth + profile modal)", () => {
     setAuth("tok", "ref", { ...storedUser, role: "VIEWER" });
     mockFetch((url) => {
       if (url.includes("/api/user/me")) {
-        return jsonResponse({ role: "VIEWER", profileCompleted: false });
+        return jsonResponse({ success: true, data: { role: "VIEWER", profileCompleted: false } });
       }
       return jsonResponse({});
     });
@@ -89,10 +89,10 @@ describe("ClientRoot (root auth + profile modal)", () => {
     setAuth("tok", "ref", storedUser);
     mockFetch((url) => {
       if (url.includes("/api/user/me")) {
-        return jsonResponse({ role: "EDITOR", profileCompleted: false });
+        return jsonResponse({ success: true, data: { role: "EDITOR", profileCompleted: false } });
       }
       if (url.includes("/api/user/complete-profile")) {
-        return jsonResponse({ message: "Session expired" }, false, 401);
+        return jsonResponse({ success: false, error: { code: "UNAUTHORIZED", message: "Session expired" } }, false, 401);
       }
       return jsonResponse({});
     });
@@ -124,10 +124,10 @@ describe("ClientRoot (root auth + profile modal)", () => {
     setAuth("tok", "ref", storedUser);
     mockFetch((url) => {
       if (url.includes("/api/user/me")) {
-        return jsonResponse({ role: "EDITOR", profileCompleted: false });
+        return jsonResponse({ success: true, data: { role: "EDITOR", profileCompleted: false } });
       }
       if (url.includes("/api/user/complete-profile")) {
-        return jsonResponse({ profileCompleted: true });
+        return jsonResponse({ success: true, data: { profileCompleted: true } });
       }
       return jsonResponse({});
     });

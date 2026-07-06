@@ -16,10 +16,7 @@ export const validate = (schema) => {
         }
       });
 
-      return res.status(400).json({
-        message: "Validation failed",
-        errors
-      });
+      return res.fail(400, "VALIDATION_ERROR", "Validation failed", errors);
     }
 
     req.body = result.data;

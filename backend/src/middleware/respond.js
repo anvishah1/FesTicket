@@ -3,7 +3,7 @@
 // with a requestId. Mounted after requestLogger (needs req.id) and before routes.
 //
 //   res.ok(data, { status = 200, message })  -> { success:true, data, message?, requestId }
-//   res.fail(status, code, message)          -> { success:false, error:{code,message}, requestId }
+//   res.fail(status, code, message, details) -> { success:false, error:{code,message,details?}, requestId }
 export default function respond(req, res, next) {
   res.ok = (data = null, { status = 200, message } = {}) => {
     const body = { success: true, requestId: req.id };
@@ -12,12 +12,17 @@ export default function respond(req, res, next) {
     return res.status(status).json(body);
   };
 
-  res.fail = (status, code, message) =>
-    res.status(status).json({
+  res.fail = (status, code, message, details) => {
+    const error = { code, message };
+    // `details` carries per-field validation info (see validate.js). Only attach
+    // it when provided so plain errors stay { code, message }.
+    if (details !== undefined) error.details = details;
+    return res.status(status).json({
       success: false,
       requestId: req.id,
-      error: { code, message },
+      error,
     });
+  };
 
   next();
 }

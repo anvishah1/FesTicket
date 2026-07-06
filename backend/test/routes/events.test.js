@@ -464,7 +464,8 @@ describe("POST /api/events", () => {
 // ==================== M1: zod body validation (defense-in-depth) ====================
 // The route's own inline checks stay the primary gate (they keep the
 // {success,error} envelope); zod rejects genuinely malformed/oversized/wrong-type
-// bodies up front with validate()'s { message, errors } shape.
+// bodies up front with validate()'s unified { success:false, error:{ code,
+// message, details }, requestId } envelope (ARCH-01).
 describe("M1 zod validation", () => {
   const hostAuth = ["Authorization", `Bearer ${signToken({ userId: 50, role: "HOST" })}`];
 
@@ -474,7 +475,7 @@ describe("M1 zod validation", () => {
       .set(...hostAuth)
       .send({ name: "X", status: "BOGUS" });
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Validation failed");
+    expect(res.body.error.message).toBe("Validation failed");
     expect(prismaMock.event.create).not.toHaveBeenCalled();
   });
 
@@ -484,7 +485,7 @@ describe("M1 zod validation", () => {
       .set(...hostAuth)
       .send({ name: "x".repeat(201) });
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Validation failed");
+    expect(res.body.error.message).toBe("Validation failed");
     expect(prismaMock.event.create).not.toHaveBeenCalled();
   });
 
@@ -494,7 +495,7 @@ describe("M1 zod validation", () => {
       .set(...hostAuth)
       .send({ name: 123, price: 1, quantity: 1 });
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Validation failed");
+    expect(res.body.error.message).toBe("Validation failed");
     expect(prismaMock.event.findUnique).not.toHaveBeenCalled();
     expect(prismaMock.ticketType.create).not.toHaveBeenCalled();
   });
@@ -1715,7 +1716,7 @@ describe("POST /api/events with questions", () => {
       .set(...hostAuth)
       .send({ name: "Bad Q", questions: [{ type: "text" }] });
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Validation failed");
+    expect(res.body.error.message).toBe("Validation failed");
     expect(prismaMock.event.create).not.toHaveBeenCalled();
   });
 });
@@ -1730,7 +1731,7 @@ describe("createEventSchema inline ticket validation", () => {
       .set(...hostAuth)
       .send({ name: "X", ticketTypes: [{ name: "VIP", price: -5, quantity: 1 }] });
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Validation failed");
+    expect(res.body.error.message).toBe("Validation failed");
     expect(prismaMock.event.create).not.toHaveBeenCalled();
   });
 
@@ -1740,7 +1741,7 @@ describe("createEventSchema inline ticket validation", () => {
       .set(...hostAuth)
       .send({ name: "X", ticketTypes: [{ name: "VIP", price: 10 }] });
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Validation failed");
+    expect(res.body.error.message).toBe("Validation failed");
     expect(prismaMock.event.create).not.toHaveBeenCalled();
   });
 
@@ -1750,7 +1751,7 @@ describe("createEventSchema inline ticket validation", () => {
       .set(...hostAuth)
       .send({ name: "X", ticketTypes: [{ name: "VIP", price: 10, quantity: "1.5" }] });
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Validation failed");
+    expect(res.body.error.message).toBe("Validation failed");
     expect(prismaMock.event.create).not.toHaveBeenCalled();
   });
 });

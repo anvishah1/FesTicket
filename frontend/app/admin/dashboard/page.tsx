@@ -60,7 +60,9 @@ export default function AdminDashboardPage() {
     // validly on the dashboard (via stored user) — fall through on auth failure.
     apiFetch(`${getApiUrl()}/api/user/me`, {}, { redirectOnAuthFailure: false })
       .then((r) => r.ok ? r.json() : null)
-      .then((me) => {
+      .then((body) => {
+        // Unified envelope: the user object is under `data`.
+        const me = body?.data;
         if (!me) return;
         const managedFestId = me.managedFestId != null ? Number(me.managedFestId) : null;
         const editorFestId = me.editorFestId != null ? Number(me.editorFestId) : null;

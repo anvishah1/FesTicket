@@ -33,9 +33,7 @@ router.get("/me", authenticateUser, async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({
-        message: "User not found"
-      });
+      return res.fail(404, "NOT_FOUND", "User not found");
     }
 
     // The adminKey is a shared onboarding secret. Only surface managedFest (which
@@ -47,15 +45,13 @@ router.get("/me", authenticateUser, async (req, res) => {
     // NOTE: managedFestId is returned exactly as stored. We intentionally do NOT
     // re-grant it from an approved AdminRequest when null — that self-heal
     // silently re-granted admin access and defeated admin revocation.
-    res.json(user);
+    res.ok(user);
 
   } catch (error) {
 
     req.log.error({ err: error }, "Get user error");
 
-    res.status(500).json({
-      message: "Server error"
-    });
+    res.fail(500, "SERVER_ERROR", "Server error");
 
   }
 });
@@ -90,10 +86,10 @@ router.post("/complete-profile", authenticateUser, validate(completeProfileSchem
       },
     });
 
-    res.json(user);
+    res.ok(user);
   } catch (error) {
     req.log.error({ err: error }, "Complete profile error");
-    res.status(500).json({ message: "Server error" });
+    res.fail(500, "SERVER_ERROR", "Server error");
   }
 });
 

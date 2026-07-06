@@ -98,11 +98,14 @@ export async function signupAndSignin(
   // keeping the suite deterministic across rapid re-runs. When signin succeeds
   // (the normal case) we return the real tokens.
   if (signin.ok()) {
+    // Unified API envelope (ARCH-01): tokens + user live under `data`.
+    // Tolerate a bare body too, for resilience across transitional backends.
     const body = await signin.json();
+    const payload = body.data ?? body;
     return {
-      accessToken: body.accessToken,
-      refreshToken: body.refreshToken,
-      user: body.user,
+      accessToken: payload.accessToken,
+      refreshToken: payload.refreshToken,
+      user: payload.user,
     };
   }
 
@@ -145,8 +148,10 @@ export async function signupPrimedSession(
   }
   let userId = -1;
   try {
+    // Unified envelope (ARCH-01): userId may live under `data`; tolerate a bare body.
     const body = await signup.json();
-    if (typeof body?.userId === "number") userId = body.userId;
+    const uid = body?.data?.userId ?? body?.userId;
+    if (typeof uid === "number") userId = uid;
   } catch {
     // signup body wasn't JSON (e.g. 409 path) — a synthetic id is fine.
   }
@@ -193,7 +198,9 @@ export async function signupHostToken(api: APIRequestContext): Promise<string> {
     throw new Error(`Host signup failed (${signup.status()}): ${await signup.text()}`);
   }
   const body = await signup.json().catch(() => ({}));
-  const userId = typeof body?.userId === "number" ? body.userId : 1;
+  // Unified envelope (ARCH-01): userId may live under `data`; tolerate a bare body.
+  const uid = body?.data?.userId ?? body?.userId;
+  const userId = typeof uid === "number" ? uid : 1;
   return signHostJwt(userId);
 }
 

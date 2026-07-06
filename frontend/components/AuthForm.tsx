@@ -75,17 +75,19 @@ export default function AuthForm() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.message || "Invalid email or password.");
+        setError(data.error?.message || "Invalid email or password.");
         setLoading(false);
         return;
       }
-      setAuth(data.accessToken, data.refreshToken, data.user);
-      
-        if (data.user.role === "ADMIN") {
+      // Unified envelope: tokens + user live under `data`.
+      const { accessToken, refreshToken, user } = data.data;
+      setAuth(accessToken, refreshToken, user);
+
+        if (user.role === "ADMIN") {
           router.push("/admin/dashboard");
         }
 
-        else if (data.user.role === "EDITOR" || data.user.role === "HOST") {
+        else if (user.role === "EDITOR" || user.role === "HOST") {
           router.push("/host/dashboard");
         }
 

@@ -42,7 +42,7 @@ export default function ResetPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.message || "Invalid or expired token. Request a new reset link.");
+        setError(data.error?.message || "Invalid or expired token. Request a new reset link.");
         setStatus("error");
         return;
       }

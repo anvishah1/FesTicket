@@ -59,7 +59,8 @@ export default function EventCreatePage() {
       // /me so a stale localStorage can't wrongly allow or deny.
       try {
         const res = await apiFetch("/api/user/me", {}, { redirectOnAuthFailure: false });
-        const me = res.ok ? await res.json() : null;
+        // Unified envelope: the user object is under `data`.
+        const me = res.ok ? (await res.json()).data : null;
         // Prefer the authoritative /me fest scope; fall back to the stored user
         // if /me didn't carry one (the server still enforces ownership on submit).
         const meScoped = me ? (me.role === "ADMIN" ? me.managedFestId : me.editorFestId) : null;

@@ -60,6 +60,30 @@ describe("lib/auth", () => {
   });
 });
 
+describe("lib/auth unwrap", () => {
+  it("returns body.data on a success envelope", async () => {
+    const res = {
+      json: async () => ({ success: true, data: { hello: "world" }, requestId: "r1" }),
+    } as unknown as Response;
+    await expect(auth.unwrap<{ hello: string }>(res)).resolves.toEqual({ hello: "world" });
+  });
+
+  it("throws with error.message/code/details on an error envelope", async () => {
+    const res = {
+      json: async () => ({
+        success: false,
+        error: { code: "VALIDATION", message: "Bad input", details: { email: "Required" } },
+        requestId: "r2",
+      }),
+    } as unknown as Response;
+    await expect(auth.unwrap(res)).rejects.toMatchObject({
+      message: "Bad input",
+      code: "VALIDATION",
+      details: { email: "Required" },
+    });
+  });
+});
+
 const refreshedUser = {
   id: 1,
   email: "a@b.com",
@@ -90,7 +114,7 @@ describe("lib/auth refreshAccessToken", () => {
   it("posts the refresh token, stores the rotated pair, and returns true", async () => {
     auth.setAuth("old-access", "old-refresh", { ...refreshedUser, role: "VIEWER" });
     globalThis.fetch = vi.fn().mockResolvedValue(
-      jsonResponse({ accessToken: "new-access", refreshToken: "new-refresh", user: refreshedUser })
+      jsonResponse({ success: true, data: { accessToken: "new-access", refreshToken: "new-refresh", user: refreshedUser } })
     ) as unknown as typeof fetch;
 
     const ok = await auth.refreshAccessToken();
@@ -190,7 +214,7 @@ describe("lib/auth apiFetch", () => {
       .mockResolvedValueOnce(jsonResponse({}, { ok: false, status: 401 }))
       // 2) refresh-token -> new pair
       .mockResolvedValueOnce(
-        jsonResponse({ accessToken: "fresh", refreshToken: "ref2", user: sampleUser })
+        jsonResponse({ success: true, data: { accessToken: "fresh", refreshToken: "ref2", user: sampleUser } })
       )
       // 3) retried original request -> 200
       .mockResolvedValueOnce(jsonResponse({ done: true }));
@@ -212,7 +236,7 @@ describe("lib/auth apiFetch", () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       if (typeof url === "string" && url.includes("/api/auth/refresh-token")) {
         return Promise.resolve(
-          jsonResponse({ accessToken: "fresh", refreshToken: "ref2", user: sampleUser })
+          jsonResponse({ success: true, data: { accessToken: "fresh", refreshToken: "ref2", user: sampleUser } })
         );
       }
       // every protected call: 401 first (stale token), 200 once refreshed

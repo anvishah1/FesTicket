@@ -34,11 +34,12 @@ export default function AdminSignInPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.message || "Invalid email or password");
+        setError(data.error?.message || "Invalid email or password");
         setLoading(false);
         return;
       }
-      setAuth(data.accessToken, data.refreshToken, data.user);
+      // Unified envelope: tokens + user live under `data`.
+      setAuth(data.data.accessToken, data.data.refreshToken, data.data.user);
       router.push("/admin/dashboard");
     } catch {
       setError("Could not reach server. Try again.");
@@ -58,7 +59,7 @@ export default function AdminSignInPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setForgotError(data.message || "Something went wrong.");
+        setForgotError(data.error?.message || "Something went wrong.");
         setForgotLoading(false);
         return;
       }

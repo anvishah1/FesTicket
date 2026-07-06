@@ -69,7 +69,7 @@ router.post("/signup", signupLimiter, validate(signupSchema), async (req, res) =
 
     // CAPTCHA gate (graceful no-op when CAPTCHA_SECRET is unset).
     if (!(await verifyCaptcha(req.body.captchaToken, req.ip))) {
-      return res.status(400).json({ message: "Captcha verification failed" });
+      return res.fail(400, "CAPTCHA_FAILED", "Captcha verification failed");
     }
 
     const {
@@ -84,10 +84,12 @@ router.post("/signup", signupLimiter, validate(signupSchema), async (req, res) =
     const wantEditor = wantsEditor === true || wantsEditor === "true";
 
     if (wantEditor && (!festKey || String(festKey).trim() === "")) {
-      return res.status(400).json({
-        message: "Fest key is required when requesting editor access.",
-        errors: { festKey: "Enter the key provided by your fest admin." }
-      });
+      return res.fail(
+        400,
+        "VALIDATION_ERROR",
+        "Fest key is required when requesting editor access.",
+        { festKey: "Enter the key provided by your fest admin." }
+      );
     }
 
     let festForRequest = null;
@@ -97,10 +99,12 @@ router.post("/signup", signupLimiter, validate(signupSchema), async (req, res) =
         where: { adminKey: key }
       });
       if (!festForRequest) {
-        return res.status(400).json({
-          message: "Invalid fest key. Check the key with your fest admin.",
-          errors: { festKey: "No fest found for this key." }
-        });
+        return res.fail(
+          400,
+          "VALIDATION_ERROR",
+          "Invalid fest key. Check the key with your fest admin.",
+          { festKey: "No fest found for this key." }
+        );
       }
     }
 
@@ -109,9 +113,7 @@ router.post("/signup", signupLimiter, validate(signupSchema), async (req, res) =
     });
 
     if (existingUser) {
-      return res.status(409).json({
-        message: "User already exists"
-      });
+      return res.fail(409, "CONFLICT", "User already exists");
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -158,21 +160,21 @@ router.post("/signup", signupLimiter, validate(signupSchema), async (req, res) =
       req.log.info({ verifyLink }, "Email verification link");
     }
 
-    res.status(201).json({
-      message: process.env.NODE_ENV === "development"
-        ? "Signup successful. You can sign in."
-        : "Signup successful. Please verify your email.",
-      userId: user.id,
-      createdRoleRequest: wantEditor
-    });
+    res.ok(
+      { userId: user.id, createdRoleRequest: wantEditor },
+      {
+        status: 201,
+        message: process.env.NODE_ENV === "development"
+          ? "Signup successful. You can sign in."
+          : "Signup successful. Please verify your email.",
+      }
+    );
 
   } catch (error) {
 
     req.log.error({ err: error }, "Signup error");
 
-    res.status(500).json({
-      message: "Internal server error"
-    });
+    res.fail(500, "SERVER_ERROR", "Internal server error");
 
   }
 
@@ -190,7 +192,7 @@ router.post("/signin", loginLimiter, validate(signinSchema), async (req, res) =>
     // could weaponise the failed-attempt lockout to DoS an account. Graceful
     // no-op when CAPTCHA_SECRET is unset.
     if (!(await verifyCaptcha(req.body.captchaToken, req.ip))) {
-      return res.status(400).json({ message: "Captcha verification failed" });
+      return res.fail(400, "CAPTCHA_FAILED", "Captcha verification failed");
     }
 
     const user = await prisma.user.findUnique({
@@ -202,14 +204,12 @@ router.post("/signin", loginLimiter, validate(signinSchema), async (req, res) =>
       // takes roughly the same time as a wrong password, and return the SAME
       // generic message so timing/wording can't be used to enumerate accounts.
       await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.fail(401, "INVALID_CREDENTIALS", "Invalid credentials");
     }
 
     /* ACCOUNT LOCK CHECK */
     if (user.lockUntil && user.lockUntil > new Date()) {
-      return res.status(403).json({
-        message: "Account locked. Try again later."
-      });
+      return res.fail(403, "ACCOUNT_LOCKED", "Account locked. Try again later.");
     }
 
     /* Email verification is not required for signin */
@@ -229,9 +229,11 @@ router.post("/signin", loginLimiter, validate(signinSchema), async (req, res) =>
           }
         });
 
-        return res.status(403).json({
-          message: "Too many failed attempts. Account locked for 15 minutes."
-        });
+        return res.fail(
+          403,
+          "ACCOUNT_LOCKED",
+          "Too many failed attempts. Account locked for 15 minutes."
+        );
 
       }
 
@@ -242,9 +244,7 @@ router.post("/signin", loginLimiter, validate(signinSchema), async (req, res) =>
         }
       });
 
-      return res.status(401).json({
-        message: "Invalid credentials"
-      });
+      return res.fail(401, "INVALID_CREDENTIALS", "Invalid credentials");
 
     }
 
@@ -287,28 +287,28 @@ router.post("/signin", loginLimiter, validate(signinSchema), async (req, res) =>
 
     await cleanupRefreshTokens(user.id);
 
-    res.json({
-      message: "Signin successful",
-      accessToken,
-      refreshToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name ?? null,
-        role: user.role,
-        profileCompleted: user.profileCompleted,
-        editorFestId: user.editorFestId ?? null,
-        managedFestId: user.managedFestId ?? null,
-      }
-    });
+    res.ok(
+      {
+        accessToken,
+        refreshToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name ?? null,
+          role: user.role,
+          profileCompleted: user.profileCompleted,
+          editorFestId: user.editorFestId ?? null,
+          managedFestId: user.managedFestId ?? null,
+        }
+      },
+      { message: "Signin successful" }
+    );
 
   } catch (error) {
 
     req.log.error({ err: error }, "Signin error");
 
-    res.status(500).json({
-      message: "Internal server error"
-    });
+    res.fail(500, "SERVER_ERROR", "Internal server error");
 
   }
 
@@ -323,9 +323,7 @@ router.post("/refresh-token", async (req, res) => {
     const { refreshToken } = req.body;
 
     if (!refreshToken) {
-      return res.status(401).json({
-        message: "Refresh token required"
-      });
+      return res.fail(401, "TOKEN_REQUIRED", "Refresh token required");
     }
 
     const hashedToken = hashToken(refreshToken);
@@ -335,9 +333,7 @@ router.post("/refresh-token", async (req, res) => {
     });
 
     if (!storedToken) {
-      return res.status(401).json({
-        message: "Invalid refresh token"
-      });
+      return res.fail(401, "INVALID_TOKEN", "Invalid refresh token");
     }
 
     // REPLAY DETECTION: a match on an already-revoked tombstone means a rotated
@@ -349,9 +345,7 @@ router.post("/refresh-token", async (req, res) => {
           ? { where: { familyId: storedToken.familyId } }
           : { where: { id: storedToken.id } }
       );
-      return res.status(401).json({
-        message: "Refresh token reuse detected"
-      });
+      return res.fail(401, "TOKEN_REUSE_DETECTED", "Refresh token reuse detected");
     }
 
     if (storedToken.expiresAt < new Date()) {
@@ -360,9 +354,7 @@ router.post("/refresh-token", async (req, res) => {
         where: { token: hashedToken }
       });
 
-      return res.status(403).json({
-        message: "Refresh token expired"
-      });
+      return res.fail(403, "TOKEN_EXPIRED", "Refresh token expired");
 
     }
 
@@ -371,9 +363,7 @@ router.post("/refresh-token", async (req, res) => {
     });
 
     if (!user) {
-      return res.status(403).json({
-        message: "Invalid token user"
-      });
+      return res.fail(403, "INVALID_TOKEN", "Invalid token user");
     }
 
     /* ROTATION: mark the presented token as a revoked tombstone (kept so a
@@ -410,7 +400,7 @@ router.post("/refresh-token", async (req, res) => {
       { expiresIn: "15m" }
     );
 
-    res.json({
+    res.ok({
       accessToken,
       refreshToken: newRefreshToken
     });
@@ -419,9 +409,7 @@ router.post("/refresh-token", async (req, res) => {
 
     req.log.error({ err: error }, "Refresh token error");
 
-    res.status(500).json({
-      message: "Server error"
-    });
+    res.fail(500, "SERVER_ERROR", "Server error");
 
   }
 
@@ -436,9 +424,7 @@ router.post("/logout", async (req, res) => {
     const { refreshToken } = req.body;
 
     if (!refreshToken) {
-      return res.status(400).json({
-        message: "Refresh token required"
-      });
+      return res.fail(400, "TOKEN_REQUIRED", "Refresh token required");
     }
 
     await prisma.refreshToken.deleteMany({
@@ -451,17 +437,13 @@ router.post("/logout", async (req, res) => {
       where: { expiresAt: { lt: new Date() } }
     });
 
-    res.json({
-      message: "Logged out successfully"
-    });
+    res.ok(null, { message: "Logged out successfully" });
 
   } catch (error) {
 
     req.log.error({ err: error }, "Logout error");
 
-    res.status(500).json({
-      message: "Server error"
-    });
+    res.fail(500, "SERVER_ERROR", "Server error");
 
   }
 
@@ -484,17 +466,13 @@ router.get("/sessions", authenticateUser, async (req, res) => {
       },
     });
 
-    res.json({
-      sessions
-    });
+    res.ok(sessions);
 
   } catch (error) {
 
     req.log.error({ err: error }, "Session fetch error");
 
-    res.status(500).json({
-      message: "Server error"
-    });
+    res.fail(500, "SERVER_ERROR", "Server error");
 
   }
 
@@ -513,17 +491,13 @@ router.delete("/sessions/:id", authenticateUser, async (req, res) => {
       }
     });
 
-    res.json({
-      message: "Session revoked"
-    });
+    res.ok(null, { message: "Session revoked" });
 
   } catch (error) {
 
     req.log.error({ err: error }, "Session delete error");
 
-    res.status(500).json({
-      message: "Server error"
-    });
+    res.fail(500, "SERVER_ERROR", "Server error");
 
   }
 
@@ -539,17 +513,13 @@ router.delete("/sessions", authenticateUser, async (req, res) => {
       }
     });
 
-    res.json({
-      message: "All sessions revoked"
-    });
+    res.ok(null, { message: "All sessions revoked" });
 
   } catch (error) {
 
     req.log.error({ err: error }, "Session clear error");
 
-    res.status(500).json({
-      message: "Server error"
-    });
+    res.fail(500, "SERVER_ERROR", "Server error");
 
   }
 
@@ -567,7 +537,7 @@ router.post("/forgot-password", writeLimiter, async (req, res) => {
     });
 
     if (!user) {
-      return res.json({
+      return res.ok(null, {
         message: "If this email exists, a reset link was sent."
       });
     }
@@ -589,7 +559,7 @@ router.post("/forgot-password", writeLimiter, async (req, res) => {
 
     req.log.info({ resetLink }, "Password reset link");
 
-    res.json({
+    res.ok(null, {
       message: "If this email exists, a reset link was sent."
     });
 
@@ -597,9 +567,7 @@ router.post("/forgot-password", writeLimiter, async (req, res) => {
 
     req.log.error({ err }, "Forgot password error");
 
-    res.status(500).json({
-      message: "Server error"
-    });
+    res.fail(500, "SERVER_ERROR", "Server error");
 
   }
 
@@ -618,15 +586,11 @@ router.post("/reset-password", async (req, res) => {
     // entirely (undefined => Prisma drops the filter), matching an arbitrary
     // user's reset row and taking over the account without the token.
     if (typeof token !== "string" || token.length < 1) {
-      return res.status(400).json({
-        message: "Invalid or expired token"
-      });
+      return res.fail(400, "INVALID_TOKEN", "Invalid or expired token");
     }
 
     if (typeof newPassword !== "string" || newPassword.length < 8 || newPassword.length > 30) {
-      return res.status(400).json({
-        message: "Password must be 8–30 characters"
-      });
+      return res.fail(400, "VALIDATION_ERROR", "Password must be 8–30 characters");
     }
 
     // Enforce the SAME complexity rules as signup — previously reset-password only
@@ -639,7 +603,7 @@ router.post("/reset-password", async (req, res) => {
     ];
     for (const [re, label] of complexity) {
       if (!re.test(newPassword)) {
-        return res.status(400).json({ message: `Password must contain ${label}` });
+        return res.fail(400, "VALIDATION_ERROR", `Password must contain ${label}`);
       }
     }
 
@@ -653,9 +617,7 @@ router.post("/reset-password", async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({
-        message: "Invalid or expired token"
-      });
+      return res.fail(400, "INVALID_TOKEN", "Invalid or expired token");
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -676,17 +638,13 @@ router.post("/reset-password", async (req, res) => {
     // after a password reset.
     await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
 
-    res.json({
-      message: "Password reset successful"
-    });
+    res.ok(null, { message: "Password reset successful" });
 
   } catch (err) {
 
     req.log.error({ err }, "Reset password error");
 
-    res.status(500).json({
-      message: "Server error"
-    });
+    res.fail(500, "SERVER_ERROR", "Server error");
 
   }
 
@@ -703,9 +661,7 @@ router.get("/verify-email", async (req, res) => {
     // Guard against a non-string token (?token[not]=null => object) or a missing
     // token (undefined => Prisma drops the filter and verifies an arbitrary user).
     if (typeof token !== "string" || !token) {
-      return res.status(400).json({
-        message: "Invalid verification token"
-      });
+      return res.fail(400, "INVALID_TOKEN", "Invalid verification token");
     }
 
     const user = await prisma.user.findFirst({
@@ -715,9 +671,7 @@ router.get("/verify-email", async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({
-        message: "Invalid verification token"
-      });
+      return res.fail(400, "INVALID_TOKEN", "Invalid verification token");
     }
 
     await prisma.user.update({
@@ -728,17 +682,13 @@ router.get("/verify-email", async (req, res) => {
       }
     });
 
-    res.json({
-      message: "Email verified successfully"
-    });
+    res.ok(null, { message: "Email verified successfully" });
 
   } catch (error) {
 
     req.log.error({ err: error }, "Email verification error");
 
-    res.status(500).json({
-      message: "Server error"
-    });
+    res.fail(500, "SERVER_ERROR", "Server error");
 
   }
 

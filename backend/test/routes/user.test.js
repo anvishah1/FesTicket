@@ -30,7 +30,7 @@ describe("GET /api/user/me", () => {
       .get("/api/user/me")
       .set("Authorization", `Bearer ${signToken({ userId: 1, role: "VIEWER" })}`);
     expect(res.status).toBe(404);
-    expect(res.body.message).toMatch(/not found/i);
+    expect(res.body.error.message).toMatch(/not found/i);
   });
 
   it("returns the current user on success", async () => {
@@ -49,8 +49,8 @@ describe("GET /api/user/me", () => {
       .get("/api/user/me")
       .set("Authorization", `Bearer ${signToken({ userId: 1, role: "VIEWER" })}`);
     expect(res.status).toBe(200);
-    expect(res.body.email).toBe("a@b.com");
-    expect(res.body.role).toBe("VIEWER");
+    expect(res.body.data.email).toBe("a@b.com");
+    expect(res.body.data.role).toBe("VIEWER");
   });
 
   it("returns a null admin managedFestId as null WITHOUT re-granting from an AdminRequest", async () => {
@@ -73,7 +73,7 @@ describe("GET /api/user/me", () => {
       .set("Authorization", `Bearer ${signToken({ userId: 2, role: "ADMIN" })}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.managedFestId).toBe(null);
+    expect(res.body.data.managedFestId).toBe(null);
     // No lookup and no write — the revoked state is returned as-is.
     expect(prismaMock.adminRequest.findFirst).not.toHaveBeenCalled();
     expect(prismaMock.user.update).not.toHaveBeenCalled();
@@ -95,7 +95,7 @@ describe("GET /api/user/me", () => {
       .get("/api/user/me")
       .set("Authorization", `Bearer ${signToken({ userId: 3, role: "ADMIN" })}`);
     expect(res.status).toBe(200);
-    expect(res.body.managedFestId).toBe(5);
+    expect(res.body.data.managedFestId).toBe(5);
     expect(prismaMock.adminRequest.findFirst).not.toHaveBeenCalled();
   });
 
@@ -118,7 +118,7 @@ describe("GET /api/user/me", () => {
       .set("Authorization", `Bearer ${signToken({ userId: 4, role: "ADMIN" })}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.managedFest).toEqual({ id: 7, name: "Tech Fest", adminKey: "FEST-KEY-123" });
+    expect(res.body.data.managedFest).toEqual({ id: 7, name: "Tech Fest", adminKey: "FEST-KEY-123" });
     // Confirms the /me select requested the owner-only managedFest.adminKey.
     expect(prismaMock.user.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -149,7 +149,7 @@ describe("GET /api/user/me", () => {
       .set("Authorization", `Bearer ${signToken({ userId: 5, role: "EDITOR" })}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).not.toHaveProperty("managedFest");
+    expect(res.body.data).not.toHaveProperty("managedFest");
   });
 
   it("returns 500 when the database throws", async () => {
@@ -186,7 +186,7 @@ describe("POST /api/user/complete-profile", () => {
       .send({ firstName: "First", lastName: "Last", organiserName: "Org", phone: "9999999999" });
 
     expect(res.status).toBe(200);
-    expect(res.body.profileCompleted).toBe(true);
+    expect(res.body.data.profileCompleted).toBe(true);
     expect(prismaMock.user.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 1 },

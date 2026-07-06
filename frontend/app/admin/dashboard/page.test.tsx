@@ -21,7 +21,7 @@ function installFetch() {
   globalThis.fetch = vi.fn((url: unknown) => {
     const u = String(url);
     if (u.includes("/api/user/me"))
-      return resp({ managedFestId: 7, editorFestId: null, managedFest: { adminKey: "TIQR-KEY" } });
+      return resp({ success: true, data: { managedFestId: 7, editorFestId: null, managedFest: { adminKey: "TIQR-KEY" } } });
     if (u.includes("/api/events/analytics/fest/7"))
       return resp({ success: true, data: { revenue: 5000, ticketsSold: 12, eventsCount: 3, bookingsCount: 4 } });
     if (u.includes("/api/events/marketing/fest/7/expenses"))

@@ -61,9 +61,9 @@ describe("POST /api/auth/signup", () => {
       .send({ email: "not-an-email", password: GOOD_PW, name: "Alice" });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Validation failed");
-    expect(res.body.errors).toBeTruthy();
-    expect(res.body.errors.email).toBeDefined();
+    expect(res.body.error.message).toBe("Validation failed");
+    expect(res.body.error.details).toBeTruthy();
+    expect(res.body.error.details.email).toBeDefined();
     // Never reached the DB layer.
     expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
   });
@@ -74,8 +74,8 @@ describe("POST /api/auth/signup", () => {
       .send({ email: "a@b.com", password: "weak", name: "Alice" });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Validation failed");
-    expect(res.body.errors.password).toBeDefined();
+    expect(res.body.error.message).toBe("Validation failed");
+    expect(res.body.error.details.password).toBeDefined();
   });
 
   it("returns 400 when wantsEditor is true but no festKey is supplied", async () => {
@@ -84,10 +84,10 @@ describe("POST /api/auth/signup", () => {
       .send({ email: "a@b.com", password: GOOD_PW, wantsEditor: true });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe(
+    expect(res.body.error.message).toBe(
       "Fest key is required when requesting editor access."
     );
-    expect(res.body.errors.festKey).toBe(
+    expect(res.body.error.details.festKey).toBe(
       "Enter the key provided by your fest admin."
     );
   });
@@ -105,10 +105,10 @@ describe("POST /api/auth/signup", () => {
       });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe(
+    expect(res.body.error.message).toBe(
       "Invalid fest key. Check the key with your fest admin."
     );
-    expect(res.body.errors.festKey).toBe("No fest found for this key.");
+    expect(res.body.error.details.festKey).toBe("No fest found for this key.");
     expect(prismaMock.fest.findFirst).toHaveBeenCalledWith({
       where: { adminKey: "BADKEY" },
     });
@@ -122,7 +122,7 @@ describe("POST /api/auth/signup", () => {
       .send({ email: "a@b.com", password: GOOD_PW, name: "Alice" });
 
     expect(res.status).toBe(409);
-    expect(res.body.message).toBe("User already exists");
+    expect(res.body.error.message).toBe("User already exists");
     expect(prismaMock.user.create).not.toHaveBeenCalled();
   });
 
@@ -135,11 +135,12 @@ describe("POST /api/auth/signup", () => {
       .send({ email: "a@b.com", password: GOOD_PW, name: "Alice" });
 
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({
-      message: "Signup successful. Please verify your email.",
-      userId: 42,
-      createdRoleRequest: false,
-    });
+    // Enveloped success: message stays top-level, payload moves under `data`,
+    // and every enveloped response carries success + requestId.
+    expect(res.body.success).toBe(true);
+    expect(res.body.requestId).toBeTruthy();
+    expect(res.body.message).toBe("Signup successful. Please verify your email.");
+    expect(res.body.data).toEqual({ userId: 42, createdRoleRequest: false });
     expect(bcrypt.hash).toHaveBeenCalledWith(GOOD_PW, 10);
     expect(prismaMock.user.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -172,8 +173,8 @@ describe("POST /api/auth/signup", () => {
       });
 
     expect(res.status).toBe(201);
-    expect(res.body.userId).toBe(43);
-    expect(res.body.createdRoleRequest).toBe(true);
+    expect(res.body.data.userId).toBe(43);
+    expect(res.body.data.createdRoleRequest).toBe(true);
     expect(prismaMock.roleRequest.create).toHaveBeenCalledWith({
       data: {
         userId: 43,
@@ -193,7 +194,7 @@ describe("POST /api/auth/signup", () => {
       .send({ email: "c@b.com", password: GOOD_PW, name: "Cara", captchaToken: "anything" });
 
     expect(res.status).toBe(201);
-    expect(res.body.userId).toBe(44);
+    expect(res.body.data.userId).toBe(44);
   });
 
   it("returns 500 when the database throws", async () => {
@@ -205,7 +206,7 @@ describe("POST /api/auth/signup", () => {
       .send({ email: "a@b.com", password: GOOD_PW, name: "Alice" });
 
     expect(res.status).toBe(500);
-    expect(res.body.message).toBe("Internal server error");
+    expect(res.body.error.message).toBe("Internal server error");
   });
 });
 
@@ -233,7 +234,7 @@ describe("POST /api/auth/signin", () => {
       .send({ email: "bad", password: "x" });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Validation failed");
+    expect(res.body.error.message).toBe("Validation failed");
   });
 
   it("returns 401 when the user does not exist", async () => {
@@ -244,7 +245,7 @@ describe("POST /api/auth/signin", () => {
       .send({ email: "a@b.com", password: "whatever" });
 
     expect(res.status).toBe(401);
-    expect(res.body.message).toBe("Invalid credentials");
+    expect(res.body.error.message).toBe("Invalid credentials");
   });
 
   it("returns 401 when the user has no password set", async () => {
@@ -255,7 +256,7 @@ describe("POST /api/auth/signin", () => {
       .send({ email: "a@b.com", password: "whatever" });
 
     expect(res.status).toBe(401);
-    expect(res.body.message).toBe("Invalid credentials");
+    expect(res.body.error.message).toBe("Invalid credentials");
   });
 
   it("returns 403 when the account is currently locked", async () => {
@@ -269,7 +270,7 @@ describe("POST /api/auth/signin", () => {
       .send({ email: "a@b.com", password: "whatever" });
 
     expect(res.status).toBe(403);
-    expect(res.body.message).toBe("Account locked. Try again later.");
+    expect(res.body.error.message).toBe("Account locked. Try again later.");
   });
 
   it("increments failedLoginAttempts and returns 401 on a wrong password", async () => {
@@ -282,7 +283,7 @@ describe("POST /api/auth/signin", () => {
       .send({ email: "a@b.com", password: "wrong" });
 
     expect(res.status).toBe(401);
-    expect(res.body.message).toBe("Invalid credentials");
+    expect(res.body.error.message).toBe("Invalid credentials");
     expect(prismaMock.user.update).toHaveBeenCalledWith({
       where: { id: 1 },
       data: { failedLoginAttempts: 2 },
@@ -299,7 +300,7 @@ describe("POST /api/auth/signin", () => {
       .send({ email: "a@b.com", password: "wrong" });
 
     expect(res.status).toBe(403);
-    expect(res.body.message).toBe(
+    expect(res.body.error.message).toBe(
       "Too many failed attempts. Account locked for 15 minutes."
     );
     expect(prismaMock.user.update).toHaveBeenCalledWith({
@@ -322,10 +323,11 @@ describe("POST /api/auth/signin", () => {
       .send({ email: "a@b.com", password: GOOD_PW });
 
     expect(res.status).toBe(200);
+    // res.ok keeps `message` top-level; tokens/user move under `data`.
     expect(res.body.message).toBe("Signin successful");
-    expect(typeof res.body.accessToken).toBe("string");
-    expect(typeof res.body.refreshToken).toBe("string");
-    expect(res.body.user).toEqual({
+    expect(typeof res.body.data.accessToken).toBe("string");
+    expect(typeof res.body.data.refreshToken).toBe("string");
+    expect(res.body.data.user).toEqual({
       id: 1,
       email: "a@b.com",
       name: "Alice",
@@ -353,7 +355,7 @@ describe("POST /api/auth/signin", () => {
       .send({ email: "a@b.com", password: GOOD_PW });
 
     expect(res.status).toBe(200);
-    const decoded = jwtDecode(res.body.accessToken);
+    const decoded = jwtDecode(res.body.data.accessToken);
     expect(decoded.userId).toBe(1);
     expect(decoded.role).toBe("ADMIN");
     expect(decoded.tokenVersion).toBe(7);
@@ -418,9 +420,9 @@ describe("POST /api/auth/signin", () => {
 
     expect(wrongPw.status).toBe(401);
     // Identical wording — nothing distinguishes unknown-email from wrong-password.
-    expect(unknown.body.message).toBe("Invalid credentials");
-    expect(wrongPw.body.message).toBe("Invalid credentials");
-    expect(unknown.body.message).toBe(wrongPw.body.message);
+    expect(unknown.body.error.message).toBe("Invalid credentials");
+    expect(wrongPw.body.error.message).toBe("Invalid credentials");
+    expect(unknown.body.error.message).toBe(wrongPw.body.error.message);
   });
 
   it("persists the HASH of the refresh token, never the plaintext returned to the client", async () => {
@@ -435,8 +437,8 @@ describe("POST /api/auth/signin", () => {
 
     expect(res.status).toBe(200);
     const createArg = prismaMock.refreshToken.create.mock.calls[0][0];
-    expect(createArg.data.token).toBe(sha256(res.body.refreshToken));
-    expect(createArg.data.token).not.toBe(res.body.refreshToken);
+    expect(createArg.data.token).toBe(sha256(res.body.data.refreshToken));
+    expect(createArg.data.token).not.toBe(res.body.data.refreshToken);
     // A sha256 hex digest is exactly 64 chars.
     expect(createArg.data.token).toMatch(/^[a-f0-9]{64}$/);
   });
@@ -449,7 +451,7 @@ describe("POST /api/auth/signin", () => {
       .send({ email: "a@b.com", password: GOOD_PW });
 
     expect(res.status).toBe(500);
-    expect(res.body.message).toBe("Internal server error");
+    expect(res.body.error.message).toBe("Internal server error");
   });
 });
 
@@ -461,7 +463,7 @@ describe("POST /api/auth/refresh-token", () => {
     const res = await request(app).post("/api/auth/refresh-token").send({});
 
     expect(res.status).toBe(401);
-    expect(res.body.message).toBe("Refresh token required");
+    expect(res.body.error.message).toBe("Refresh token required");
   });
 
   it("returns 401 for an unknown refresh token", async () => {
@@ -472,7 +474,7 @@ describe("POST /api/auth/refresh-token", () => {
       .send({ refreshToken: "nope" });
 
     expect(res.status).toBe(401);
-    expect(res.body.message).toBe("Invalid refresh token");
+    expect(res.body.error.message).toBe("Invalid refresh token");
   });
 
   it("returns 403 and deletes the token when it is expired", async () => {
@@ -488,7 +490,7 @@ describe("POST /api/auth/refresh-token", () => {
       .send({ refreshToken: "old" });
 
     expect(res.status).toBe(403);
-    expect(res.body.message).toBe("Refresh token expired");
+    expect(res.body.error.message).toBe("Refresh token expired");
     expect(prismaMock.refreshToken.delete).toHaveBeenCalledWith({
       where: { token: sha256("old") },
     });
@@ -507,7 +509,7 @@ describe("POST /api/auth/refresh-token", () => {
       .send({ refreshToken: "old" });
 
     expect(res.status).toBe(403);
-    expect(res.body.message).toBe("Invalid token user");
+    expect(res.body.error.message).toBe("Invalid token user");
   });
 
   it("rotates the token (revoking the old as a tombstone) and returns a fresh access + refresh token that inherits the family", async () => {
@@ -530,9 +532,9 @@ describe("POST /api/auth/refresh-token", () => {
       .send({ refreshToken: "old" });
 
     expect(res.status).toBe(200);
-    expect(typeof res.body.accessToken).toBe("string");
-    expect(typeof res.body.refreshToken).toBe("string");
-    expect(res.body.refreshToken).not.toBe("old");
+    expect(typeof res.body.data.accessToken).toBe("string");
+    expect(typeof res.body.data.refreshToken).toBe("string");
+    expect(res.body.data.refreshToken).not.toBe("old");
 
     // The old token is NOT hard-deleted; it is marked revoked (tombstone) so a
     // later replay can be detected.
@@ -544,13 +546,13 @@ describe("POST /api/auth/refresh-token", () => {
 
     const createArg = prismaMock.refreshToken.create.mock.calls[0][0];
     // Persist the HASH of the new token, never the plaintext.
-    expect(createArg.data.token).toBe(sha256(res.body.refreshToken));
-    expect(createArg.data.token).not.toBe(res.body.refreshToken);
+    expect(createArg.data.token).toBe(sha256(res.body.data.refreshToken));
+    expect(createArg.data.token).not.toBe(res.body.data.refreshToken);
     // The new token inherits the presented token's family lineage.
     expect(createArg.data.familyId).toBe("fam-123");
 
     // The re-signed access token reflects the user's CURRENT role + tokenVersion.
-    const decoded = jwtDecode(res.body.accessToken);
+    const decoded = jwtDecode(res.body.data.accessToken);
     expect(decoded.role).toBe("EDITOR");
     expect(decoded.tokenVersion).toBe(3);
   });
@@ -571,7 +573,7 @@ describe("POST /api/auth/refresh-token", () => {
       .send({ refreshToken: "old" });
 
     expect(res.status).toBe(401);
-    expect(res.body.message).toBe("Refresh token reuse detected");
+    expect(res.body.error.message).toBe("Refresh token reuse detected");
     // Entire lineage revoked; no rotation happened.
     expect(prismaMock.refreshToken.deleteMany).toHaveBeenCalledWith({
       where: { familyId: "fam-123" },
@@ -588,7 +590,7 @@ describe("POST /api/auth/refresh-token", () => {
       .send({ refreshToken: "old" });
 
     expect(res.status).toBe(500);
-    expect(res.body.message).toBe("Server error");
+    expect(res.body.error.message).toBe("Server error");
   });
 });
 
@@ -600,7 +602,7 @@ describe("POST /api/auth/logout", () => {
     const res = await request(app).post("/api/auth/logout").send({});
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Refresh token required");
+    expect(res.body.error.message).toBe("Refresh token required");
   });
 
   it("deletes matching refresh tokens and returns 200", async () => {
@@ -625,7 +627,7 @@ describe("POST /api/auth/logout", () => {
       .send({ refreshToken: "tok" });
 
     expect(res.status).toBe(500);
-    expect(res.body.message).toBe("Server error");
+    expect(res.body.error.message).toBe("Server error");
   });
 });
 
@@ -649,13 +651,14 @@ describe("GET /api/auth/sessions", () => {
       .set("Authorization", `Bearer ${signToken({ userId: 3, role: "VIEWER" })}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.sessions).toHaveLength(2);
+    // res.ok(sessions): the array is the `data` payload.
+    expect(res.body.data).toHaveLength(2);
     // The query must select only metadata (no `token` field).
     const call = prismaMock.refreshToken.findMany.mock.calls[0][0];
     expect(call.where).toEqual({ userId: 3 });
     expect(call.select).toBeDefined();
     expect(call.select.token).toBeUndefined();
-    expect(res.body.sessions[0].token).toBeUndefined();
+    expect(res.body.data[0].token).toBeUndefined();
   });
 
   it("returns 500 when the database throws", async () => {
@@ -666,7 +669,7 @@ describe("GET /api/auth/sessions", () => {
       .set("Authorization", `Bearer ${signToken({ userId: 3, role: "VIEWER" })}`);
 
     expect(res.status).toBe(500);
-    expect(res.body.message).toBe("Server error");
+    expect(res.body.error.message).toBe("Server error");
   });
 });
 
@@ -701,7 +704,7 @@ describe("DELETE /api/auth/sessions/:id", () => {
       .set("Authorization", `Bearer ${signToken({ userId: 3, role: "VIEWER" })}`);
 
     expect(res.status).toBe(500);
-    expect(res.body.message).toBe("Server error");
+    expect(res.body.error.message).toBe("Server error");
   });
 });
 
@@ -736,7 +739,7 @@ describe("DELETE /api/auth/sessions", () => {
       .set("Authorization", `Bearer ${signToken({ userId: 3, role: "VIEWER" })}`);
 
     expect(res.status).toBe(500);
-    expect(res.body.message).toBe("Server error");
+    expect(res.body.error.message).toBe("Server error");
   });
 });
 
@@ -789,7 +792,11 @@ describe("POST /api/auth/forgot-password", () => {
 
     expect(unknown.status).toBe(200);
     expect(known.status).toBe(200);
-    expect(unknown.body).toEqual(known.body);
+    // The per-request `requestId` differs by design; the rest of the enveloped
+    // body must be identical so existence can't be inferred (no enumeration).
+    const { requestId: _unknownReqId, ...unknownRest } = unknown.body;
+    const { requestId: _knownReqId, ...knownRest } = known.body;
+    expect(unknownRest).toEqual(knownRest);
   });
 
   it("stores the sha256 HASH of the reset token, not the plaintext", async () => {
@@ -812,7 +819,7 @@ describe("POST /api/auth/forgot-password", () => {
       .send({ email: "a@b.com" });
 
     expect(res.status).toBe(500);
-    expect(res.body.message).toBe("Server error");
+    expect(res.body.error.message).toBe("Server error");
   });
 });
 
@@ -826,7 +833,7 @@ describe("POST /api/auth/reset-password", () => {
       .send({ token: "tok" });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/Password must be/);
+    expect(res.body.error.message).toMatch(/Password must be/);
   });
 
   it("returns 400 when newPassword is shorter than 8 characters", async () => {
@@ -835,7 +842,7 @@ describe("POST /api/auth/reset-password", () => {
       .send({ token: "tok", newPassword: "short" });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/Password must be/);
+    expect(res.body.error.message).toMatch(/Password must be/);
     expect(prismaMock.user.findFirst).not.toHaveBeenCalled();
   });
 
@@ -844,7 +851,7 @@ describe("POST /api/auth/reset-password", () => {
       .post("/api/auth/reset-password")
       .send({ token: { not: null }, newPassword: "NewPassword1!" });
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Invalid or expired token");
+    expect(res.body.error.message).toBe("Invalid or expired token");
     expect(prismaMock.user.findFirst).not.toHaveBeenCalled();
   });
 
@@ -864,7 +871,7 @@ describe("POST /api/auth/reset-password", () => {
       .send({ token: "bad", newPassword: "NewPassword1!" });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Invalid or expired token");
+    expect(res.body.error.message).toBe("Invalid or expired token");
   });
 
   it("resets the password and clears the token on success", async () => {
@@ -902,7 +909,7 @@ describe("POST /api/auth/reset-password", () => {
       .send({ token: "good", newPassword: "NewPassword1!" });
 
     expect(res.status).toBe(500);
-    expect(res.body.message).toBe("Server error");
+    expect(res.body.error.message).toBe("Server error");
   });
 });
 
@@ -918,7 +925,7 @@ describe("GET /api/auth/verify-email", () => {
       .query({ token: "bad" });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Invalid verification token");
+    expect(res.body.error.message).toBe("Invalid verification token");
   });
 
   it("rejects a missing token (undefined-filter bypass) without querying", async () => {
@@ -954,6 +961,6 @@ describe("GET /api/auth/verify-email", () => {
       .query({ token: "good" });
 
     expect(res.status).toBe(500);
-    expect(res.body.message).toBe("Server error");
+    expect(res.body.error.message).toBe("Server error");
   });
 });

@@ -60,7 +60,7 @@ describe("RoleRequests", () => {
     setToken();
     globalThis.fetch = vi
       .fn()
-      .mockResolvedValue({ ok: true, json: async () => twoRequests }) as unknown as typeof fetch;
+      .mockResolvedValue({ ok: true, json: async () => ({ success: true, data: twoRequests }) }) as unknown as typeof fetch;
     render(<RoleRequests />);
     await screen.findByText("Alice");
     expect(screen.getByText("Bob")).toBeInTheDocument();
@@ -90,7 +90,7 @@ describe("RoleRequests", () => {
     setToken();
     globalThis.fetch = vi
       .fn()
-      .mockResolvedValue({ ok: true, json: async () => ({ oops: true }) }) as unknown as typeof fetch;
+      .mockResolvedValue({ ok: true, json: async () => ({ success: true, data: { oops: true } }) }) as unknown as typeof fetch;
     render(<RoleRequests />);
     expect(await screen.findByText("All caught up!")).toBeInTheDocument();
   });
@@ -99,7 +99,7 @@ describe("RoleRequests", () => {
     setToken();
     globalThis.fetch = vi
       .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => oneRequest })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: oneRequest }) })
       .mockResolvedValue({ ok: true, json: async () => ({}) }) as unknown as typeof fetch;
     render(<RoleRequests />);
     await screen.findByText("Alice");
@@ -127,7 +127,7 @@ describe("RoleRequests", () => {
     setToken();
     globalThis.fetch = vi
       .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => oneRequest })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: oneRequest }) })
       .mockResolvedValue({ ok: true, json: async () => ({}) }) as unknown as typeof fetch;
     render(<RoleRequests />);
     await screen.findByText("Alice");
@@ -151,7 +151,7 @@ describe("RoleRequests", () => {
     setToken();
     globalThis.fetch = vi
       .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => oneRequest })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: oneRequest }) })
       .mockResolvedValue({ ok: false, json: async () => ({}) }) as unknown as typeof fetch;
     render(<RoleRequests />);
     await screen.findByText("Alice");

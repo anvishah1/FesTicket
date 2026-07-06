@@ -59,7 +59,7 @@ describe("GET /api/role-requests", () => {
       .set("Authorization", `Bearer ${adminToken()}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body.data).toEqual([]);
     expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
       where: { id: 1 },
       select: { managedFestId: true },
@@ -94,7 +94,7 @@ describe("GET /api/role-requests", () => {
       .set("Authorization", `Bearer ${adminToken()}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body.data).toEqual([]);
     expect(prismaMock.roleRequest.findMany).not.toHaveBeenCalled();
   });
 
@@ -104,7 +104,7 @@ describe("GET /api/role-requests", () => {
       .set("Authorization", `Bearer ${adminToken()}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body.data).toEqual([]);
     expect(prismaMock.roleRequest.findMany).not.toHaveBeenCalled();
   });
 
@@ -129,8 +129,8 @@ describe("GET /api/role-requests", () => {
       .set("Authorization", `Bearer ${adminToken()}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0]).toEqual({
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0]).toEqual({
       id: 10,
       userId: 5,
       festId: 42,
@@ -165,8 +165,8 @@ describe("GET /api/role-requests", () => {
       .set("Authorization", `Bearer ${adminToken()}`);
 
     expect(res.status).toBe(200);
-    expect(res.body[0].festName).toBe("OrgOnly"); // fest?.name ?? organization
-    expect(res.body[0].studentName).toBe("noname@x.com"); // name || email
+    expect(res.body.data[0].festName).toBe("OrgOnly"); // fest?.name ?? organization
+    expect(res.body.data[0].studentName).toBe("noname@x.com"); // name || email
   });
 
   it("returns 500 when the database throws", async () => {
@@ -178,7 +178,7 @@ describe("GET /api/role-requests", () => {
       .set("Authorization", `Bearer ${adminToken()}`);
 
     expect(res.status).toBe(500);
-    expect(res.body.message).toBe("Server error");
+    expect(res.body.error.message).toBe("Server error");
   });
 });
 
@@ -208,11 +208,11 @@ describe("POST /api/role-requests", () => {
       .send({ requestedRole: "HOST", organization: "IIT", festKey: "KEY-7" });
 
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({
-      message: "Role request submitted",
-      id: 100,
-      status: "PENDING",
-    });
+    // res.ok keeps message top-level; the { id, status } payload is under data.
+    expect(res.body.success).toBe(true);
+    expect(res.body.requestId).toBeTruthy();
+    expect(res.body.message).toBe("Role request submitted");
+    expect(res.body.data).toEqual({ id: 100, status: "PENDING" });
     expect(prismaMock.roleRequest.findFirst).toHaveBeenCalledWith({
       where: { userId: 2, status: "PENDING" },
     });
@@ -232,7 +232,7 @@ describe("POST /api/role-requests", () => {
       .send({ requestedRole: "EDITOR" });
 
     expect(res.status).toBe(400);
-    expect(res.body.errors.festKey).toBeTruthy();
+    expect(res.body.error.details.festKey).toBeTruthy();
     expect(prismaMock.roleRequest.create).not.toHaveBeenCalled();
   });
 
@@ -286,7 +286,7 @@ describe("POST /api/role-requests", () => {
       .set("Authorization", `Bearer ${viewerToken()}`)
       .send({ requestedRole: "EDITOR", festKey: "BOGUS" });
     expect(res.status).toBe(400);
-    expect(res.body.errors.festKey).toBeTruthy();
+    expect(res.body.error.details.festKey).toBeTruthy();
   });
 
   it("clamps any requestedRole (even ADMIN) to EDITOR", async () => {
@@ -321,10 +321,9 @@ describe("POST /api/role-requests", () => {
       .send({ requestedRole: "EDITOR", festKey: "KEY-7" });
 
     expect(res.status).toBe(409);
-    expect(res.body).toEqual({
-      message: "You already have a pending role request",
-      requestId: 55,
-    });
+    // The existing pending request's id is preserved under error.details.
+    expect(res.body.error.message).toBe("You already have a pending role request");
+    expect(res.body.error.details.requestId).toBe(55);
     expect(prismaMock.roleRequest.create).not.toHaveBeenCalled();
   });
 
@@ -338,7 +337,7 @@ describe("POST /api/role-requests", () => {
       .send({ requestedRole: "EDITOR", festKey: "KEY-7" });
 
     expect(res.status).toBe(500);
-    expect(res.body.message).toBe("Server error");
+    expect(res.body.error.message).toBe("Server error");
   });
 });
 
@@ -367,7 +366,7 @@ describe("PATCH /api/role-requests/:id", () => {
       .set("Authorization", `Bearer ${adminToken()}`)
       .send({});
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/APPROVED or DENIED/);
+    expect(res.body.error.message).toMatch(/APPROVED or DENIED/);
     expect(prismaMock.roleRequest.findUnique).not.toHaveBeenCalled();
   });
 
@@ -397,7 +396,7 @@ describe("PATCH /api/role-requests/:id", () => {
       .send({ status: "APPROVED" });
 
     expect(res.status).toBe(404);
-    expect(res.body.message).toMatch(/not found/i);
+    expect(res.body.error.message).toMatch(/not found/i);
     expect(prismaMock.roleRequest.findUnique).toHaveBeenCalledWith({
       where: { id: 5 },
     });
@@ -419,7 +418,7 @@ describe("PATCH /api/role-requests/:id", () => {
       .send({ status: "DENIED" });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/no longer pending/i);
+    expect(res.body.error.message).toMatch(/no longer pending/i);
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
@@ -442,7 +441,8 @@ describe("PATCH /api/role-requests/:id", () => {
       .send({ status: "APPROVED" });
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ message: "Request approved", id: 5, status: "APPROVED" });
+    expect(res.body.message).toBe("Request approved");
+    expect(res.body.data).toEqual({ id: 5, status: "APPROVED" });
     expect(prismaMock.roleRequest.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 5 },
@@ -516,7 +516,8 @@ describe("PATCH /api/role-requests/:id", () => {
       .send({ status: "DENIED" });
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ message: "Request denied", id: 7, status: "DENIED" });
+    expect(res.body.message).toBe("Request denied");
+    expect(res.body.data).toEqual({ id: 7, status: "DENIED" });
     expect(prismaMock.roleRequest.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 7 },
@@ -535,6 +536,6 @@ describe("PATCH /api/role-requests/:id", () => {
       .send({ status: "APPROVED" });
 
     expect(res.status).toBe(500);
-    expect(res.body.message).toBe("Server error");
+    expect(res.body.error.message).toBe("Server error");
   });
 });

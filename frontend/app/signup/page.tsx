@@ -105,12 +105,14 @@ export default function SignUpPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        // Unified envelope: human message at error.message, field-level
+        // validation errors at error.details ({ field: msg }).
         const msg =
-          data.errors
-            ? Object.entries(data.errors)
+          data.error?.details
+            ? Object.entries(data.error.details)
                 .map(([k, v]) => `${k}: ${v}`)
                 .join(" ")
-            : data.message || "Signup failed. Please try again.";
+            : data.error?.message || "Signup failed. Please try again.";
         setError(msg);
         setLoading(false);
         return;

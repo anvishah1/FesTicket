@@ -22,7 +22,7 @@ router.get(
 
       // An admin who manages no fest must not see other fests' requests.
       if (managedFestId == null) {
-        return res.json([]);
+        return res.ok([]);
       }
 
       const onlyPending = req.query.status !== "all";
@@ -41,7 +41,7 @@ router.get(
         },
       });
 
-      res.json(
+      res.ok(
         requests.map((r) => ({
           id: r.id,
           userId: r.userId,
@@ -57,7 +57,7 @@ router.get(
       );
     } catch (err) {
       req.log.error({ err }, "Role requests list error");
-      res.status(500).json({ message: "Server error" });
+      res.fail(500, "SERVER_ERROR", "Server error");
     }
   }
 );
@@ -72,7 +72,7 @@ router.get("/mine", authenticateUser, async (req, res) => {
       orderBy: [{ requestDate: "desc" }, { id: "desc" }],
       include: { fest: { select: { id: true, name: true } } },
     });
-    res.json(
+    res.ok(
       requests.map((r) => ({
         id: r.id,
         festId: r.festId,
@@ -84,7 +84,7 @@ router.get("/mine", authenticateUser, async (req, res) => {
     );
   } catch (err) {
     req.log.error({ err }, "My role requests error");
-    res.status(500).json({ message: "Server error" });
+    res.fail(500, "SERVER_ERROR", "Server error");
   }
 });
 
@@ -103,18 +103,19 @@ router.post("/", writeLimiter, authenticateUser, async (req, res) => {
     // approve/deny it (approval needs festId===managedFestId) yet the
     // one-pending-per-user rule permanently blocked the user from re-requesting.
     if (!festKey || !String(festKey).trim()) {
-      return res.status(400).json({
-        message: "A fest key is required to request organizer access",
-        errors: { festKey: "Enter the fest key provided by your fest's organizer." },
-      });
+      return res.fail(
+        400,
+        "VALIDATION_ERROR",
+        "A fest key is required to request organizer access",
+        { festKey: "Enter the fest key provided by your fest's organizer." }
+      );
     }
     const fest = await prisma.fest.findFirst({
       where: { adminKey: String(festKey).trim() },
     });
     if (!fest) {
-      return res.status(400).json({
-        message: "Invalid fest key",
-        errors: { festKey: "No fest found for this key." },
+      return res.fail(400, "VALIDATION_ERROR", "Invalid fest key", {
+        festKey: "No fest found for this key.",
       });
     }
     const festId = fest.id;
@@ -123,10 +124,12 @@ router.post("/", writeLimiter, authenticateUser, async (req, res) => {
       where: { userId, status: "PENDING" },
     });
     if (existing) {
-      return res.status(409).json({
-        message: "You already have a pending role request",
-        requestId: existing.id,
-      });
+      return res.fail(
+        409,
+        "CONFLICT",
+        "You already have a pending role request",
+        { requestId: existing.id }
+      );
     }
     const created = await prisma.roleRequest.create({
       data: {
@@ -140,14 +143,13 @@ router.post("/", writeLimiter, authenticateUser, async (req, res) => {
       },
     });
     req.log.info({ roleRequestId: created.id, email: created.user.email }, "[role-requests] Created request");
-    res.status(201).json({
-      message: "Role request submitted",
-      id: created.id,
-      status: created.status,
-    });
+    res.ok(
+      { id: created.id, status: created.status },
+      { status: 201, message: "Role request submitted" }
+    );
   } catch (err) {
     req.log.error({ err }, "Role request create error");
-    res.status(500).json({ message: "Server error" });
+    res.fail(500, "SERVER_ERROR", "Server error");
   }
 });
 
@@ -161,13 +163,13 @@ router.patch(
       const id = Number(req.params.id);
       const { status } = req.body || {};
       if (!VALID_STATUSES.includes(status) || status === "PENDING") {
-        return res.status(400).json({ message: "Body must include status: APPROVED or DENIED" });
+        return res.fail(400, "VALIDATION_ERROR", "Body must include status: APPROVED or DENIED");
       }
       const roleRequest = await prisma.roleRequest.findUnique({
         where: { id },
       });
       if (!roleRequest) {
-        return res.status(404).json({ message: "Request not found" });
+        return res.fail(404, "NOT_FOUND", "Request not found");
       }
       // Admins may only act on requests belonging to the fest they manage.
       const admin = await prisma.user.findUnique({
@@ -175,10 +177,10 @@ router.patch(
         select: { managedFestId: true },
       });
       if (admin?.managedFestId == null || roleRequest.festId !== admin.managedFestId) {
-        return res.status(403).json({ message: "You can only act on your own fest's requests" });
+        return res.fail(403, "FORBIDDEN", "You can only act on your own fest's requests");
       }
       if (roleRequest.status !== "PENDING") {
-        return res.status(400).json({ message: "Request is no longer pending" });
+        return res.fail(400, "REQUEST_NOT_PENDING", "Request is no longer pending");
       }
       const reviewerId = req.user.userId;
       await prisma.$transaction([
@@ -209,14 +211,13 @@ router.patch(
             ]
           : []),
       ]);
-      res.json({
-        message: status === "APPROVED" ? "Request approved" : "Request denied",
-        id,
-        status,
-      });
+      res.ok(
+        { id, status },
+        { message: status === "APPROVED" ? "Request approved" : "Request denied" }
+      );
     } catch (err) {
       req.log.error({ err }, "Role request update error");
-      res.status(500).json({ message: "Server error" });
+      res.fail(500, "SERVER_ERROR", "Server error");
     }
   }
 );

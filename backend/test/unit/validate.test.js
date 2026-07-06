@@ -3,6 +3,7 @@ import express from "express";
 import request from "supertest";
 import { z } from "zod";
 import { validate } from "../../src/middleware/validate.js";
+import respond from "../../src/middleware/respond.js";
 
 const schema = z.object({
   email: z.string().email(),
@@ -12,6 +13,9 @@ const schema = z.object({
 function buildApp() {
   const app = express();
   app.use(express.json());
+  // validate() now emits its failure via res.fail (ARCH-01), so the respond
+  // middleware must be mounted for the helper to exist.
+  app.use(respond);
   app.post("/t", validate(schema), (req, res) => res.json({ ok: true, body: req.body }));
   return app;
 }
@@ -29,13 +33,15 @@ describe("validate middleware", () => {
   it("returns 400 with a per-field error map on an invalid body", async () => {
     const res = await request(buildApp()).post("/t").send({ email: "nope", age: 0 });
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Validation failed");
-    expect(res.body.errors.email).toBeTruthy();
-    expect(res.body.errors.age).toBe("Age must be positive");
+    // Unified envelope: message + per-field map live under `error`.
+    expect(res.body.error.message).toBe("Validation failed");
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.body.error.details.email).toBeTruthy();
+    expect(res.body.error.details.age).toBe("Age must be positive");
   });
 
   it("keeps only the first error per field", async () => {
     const res = await request(buildApp()).post("/t").send({ email: "nope", age: 0 });
-    expect(typeof res.body.errors.email).toBe("string");
+    expect(typeof res.body.error.details.email).toBe("string");
   });
 });

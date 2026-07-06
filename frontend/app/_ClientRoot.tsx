@@ -48,7 +48,8 @@ export default function ClientRoot({
           { redirectOnAuthFailure: false }
         );
         if (res.ok) {
-          setUser(await res.json());
+          // Unified envelope: the user object is under `data`.
+          setUser((await res.json()).data);
         }
       } catch {
         console.error("Failed to load user");
@@ -97,7 +98,7 @@ export default function ClientRoot({
               let message = "Could not save your profile. Please try again.";
               try {
                 const body = await res.json();
-                if (body?.message) message = body.message;
+                if (body?.error?.message) message = body.error.message;
               } catch {
                 /* non-JSON error body — keep the default message */
               }

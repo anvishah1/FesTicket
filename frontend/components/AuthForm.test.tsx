@@ -20,9 +20,12 @@ function successResponse(user: { role: string }) {
   return {
     ok: true,
     json: async () => ({
-      accessToken: "acc",
-      refreshToken: "ref",
-      user: { id: 1, email: "u@x.com", role: user.role, profileCompleted: true },
+      success: true,
+      data: {
+        accessToken: "acc",
+        refreshToken: "ref",
+        user: { id: 1, email: "u@x.com", role: user.role, profileCompleted: true },
+      },
     }),
   };
 }
@@ -102,7 +105,7 @@ describe("AuthForm", () => {
   it("shows the server error message on a non-ok response", async () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: false,
-      json: async () => ({ message: "Wrong password" }),
+      json: async () => ({ success: false, error: { code: "INVALID_CREDENTIALS", message: "Wrong password" } }),
     });
     render(<AuthForm />);
     await fillCredentials();

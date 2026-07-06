@@ -4,6 +4,30 @@ export function getApiUrl(): string {
   return API_URL;
 }
 
+/**
+ * Unwrap the unified API response envelope
+ * ({ success, data, message?, error?, requestId }) into its `data` payload.
+ *
+ * On an error envelope ({ success:false, error:{ code, message, details? } })
+ * it throws an Error whose `.message` is the server's `error.message`, with the
+ * machine `code` and any field-level `details` attached to the thrown error so
+ * callers can inspect them. This is an opt-in helper: callers that want the raw
+ * Response keep using `apiFetch`; those that want the payload use `unwrap`.
+ */
+export async function unwrap<T>(res: Response): Promise<T> {
+  const body = await res.json();
+  if (!body?.success) {
+    const err = new Error(body?.error?.message) as Error & {
+      code?: string;
+      details?: Record<string, string>;
+    };
+    err.code = body?.error?.code;
+    err.details = body?.error?.details;
+    throw err;
+  }
+  return body.data as T;
+}
+
 const ACCESS_TOKEN_KEY = "auth_accessToken";
 const REFRESH_TOKEN_KEY = "auth_refreshToken";
 const USER_KEY = "auth_user";
@@ -138,7 +162,8 @@ export async function refreshAccessToken(): Promise<boolean> {
         body: JSON.stringify({ refreshToken }),
       });
       if (!res.ok) return false;
-      const data = await res.json();
+      // Unified envelope: tokens/user live under `data`.
+      const data = (await res.json())?.data;
       if (!data?.accessToken || !data?.refreshToken || !data?.user) return false;
       setAuth(data.accessToken, data.refreshToken, data.user);
       return true;

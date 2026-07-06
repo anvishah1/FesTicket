@@ -345,8 +345,9 @@ describe("POST /api/bookings", () => {
       .post("/api/bookings")
       .send({ eventId: 1, guestEmail: "g@x.com", tickets: [{ ticketTypeId: 10, quantity: "2" }] });
     expect(res.status).toBe(400);
-    // validate() returns the { message, errors } shape (not the route envelope).
-    expect(res.body.message).toBe("Validation failed");
+    // validate() now emits the unified envelope: { success:false, error:{ code,
+    // message, details }, requestId } (ARCH-01).
+    expect(res.body.error.message).toBe("Validation failed");
     // Rejected by middleware — the route/transaction never ran.
     expect(prismaMock.event.findUnique).not.toHaveBeenCalled();
   });
@@ -357,7 +358,7 @@ describe("POST /api/bookings", () => {
       .post("/api/bookings")
       .send({ eventId: "abc", guestEmail: "g@x.com", tickets: [{ ticketTypeId: 10, quantity: 1 }] });
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Validation failed");
+    expect(res.body.error.message).toBe("Validation failed");
     expect(prismaMock.event.findUnique).not.toHaveBeenCalled();
   });
 

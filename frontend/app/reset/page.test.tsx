@@ -47,7 +47,7 @@ describe("ResetPage", () => {
   it("shows the server message on a non-ok response (invalid/expired token)", async () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: false,
-      json: async () => ({ message: "Invalid or expired token" }),
+      json: async () => ({ success: false, error: { code: "INVALID_TOKEN", message: "Invalid or expired token" } }),
     });
 
     render(<ResetPage />);

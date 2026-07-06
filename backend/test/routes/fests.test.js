@@ -423,7 +423,8 @@ describe("POST /api/fests", () => {
 
   // ---- M1: zod body validation rejects oversized/wrong-type input up front.
   // The inline "Name and college are required" check stays the gate for missing
-  // fields; zod adds length/type caps and returns validate()'s { message } shape.
+  // fields; zod adds length/type caps and returns validate()'s unified envelope
+  // { success:false, error:{ code, message, details }, requestId } (ARCH-01).
   it("returns 400 (zod) for an oversized name, before the handler runs", async () => {
     const res = await request(app)
       .post("/api/fests")
@@ -431,7 +432,7 @@ describe("POST /api/fests", () => {
       .send({ name: "x".repeat(201), college: "C" });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Validation failed");
+    expect(res.body.error.message).toBe("Validation failed");
     expect(prismaMock.fest.create).not.toHaveBeenCalled();
   });
 

@@ -34,7 +34,8 @@ export default function RoleRequests() {
         return res.json();
       })
       .then((data) => {
-        const list: RoleRequest[] = Array.isArray(data) ? data : [];
+        // Unified envelope: the request array is under `data`.
+        const list: RoleRequest[] = Array.isArray(data?.data) ? data.data : [];
         // Newest requests on top, oldest pushed down. Sort by requestDate desc
         // with the (monotonic) id as a tiebreaker so requests created in the same
         // moment still order deterministically newest-first.

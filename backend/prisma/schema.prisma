@@ -491,3 +491,16 @@ enum EmailStatus {
   FAILED
   SKIPPED
 }
+
+// ==================== WEBHOOK IDEMPOTENCY ====================
+// One row per received provider webhook (PAY-01). Razorpay retries a webhook for
+// up to 24h, so we dedupe on the provider's event id and only process once.
+model WebhookEvent {
+  id          Int       @id @default(autoincrement())
+  provider    String    @default("razorpay")
+  eventId     String    @unique
+  type        String
+  payload     String
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+}

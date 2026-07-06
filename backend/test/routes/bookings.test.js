@@ -1,9 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
+import express from "express";
+import crypto from "crypto";
 import { prismaMock, resetPrismaMock } from "@prisma/client";
 import { makeApp } from "../helpers/makeApp.js";
 import { signToken } from "../helpers/auth.js";
-import router, { expireStalePendingBookings, BOOKING_HOLD_MS } from "../../src/routes/bookings.js";
+import requestLogger from "../../src/middleware/requestLogger.js";
+import router, {
+  expireStalePendingBookings,
+  BOOKING_HOLD_MS,
+  razorpayWebhookHandler,
+} from "../../src/routes/bookings.js";
 import { sendBookingConfirmation } from "../../src/utils/email.js";
 
 vi.mock("@prisma/client");
@@ -26,7 +33,7 @@ vi.mock("../../src/middleware/rateLimiter.js", () => ({
 // Razorpay is a default-import constructor in bookings.js. The mock returns a
 // shared object whose methods we configure per test.
 const rzp = vi.hoisted(() => ({
-  orders: { create: vi.fn() },
+  orders: { create: vi.fn(), fetchPayments: vi.fn() },
   payments: { fetch: vi.fn() },
 }));
 vi.mock("razorpay", () => ({
@@ -43,12 +50,14 @@ beforeEach(() => {
   prismaMock.attendeeAnswer = { createMany: vi.fn().mockResolvedValue({ count: 0 }) };
   rzp.orders.create.mockReset();
   rzp.payments.fetch.mockReset();
+  rzp.orders.fetchPayments.mockReset();
 });
 
 // setup.js deletes RAZORPAY env by default; ensure any test that sets it cleans up.
 afterEach(() => {
   delete process.env.RAZORPAY_KEY_ID;
   delete process.env.RAZORPAY_KEY_SECRET;
+  delete process.env.RAZORPAY_WEBHOOK_SECRET;
 });
 
 function enableRazorpay() {
@@ -1885,5 +1894,98 @@ describe("POST /api/bookings/admin/sweep-stale", () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.expired).toBe(0);
     expect(typeof res.body.data.durationMs).toBe("number");
+  });
+});
+
+// ==================== PAY-01: Razorpay webhook ====================
+describe("POST /api/bookings/webhook/razorpay", () => {
+  const WEBHOOK_SECRET = "whsec_test";
+  // Minimal app mirroring index.js: requestLogger (req.log) + raw body + handler.
+  const webhookApp = express();
+  webhookApp.use(requestLogger);
+  webhookApp.post("/api/bookings/webhook/razorpay", express.raw({ type: "application/json" }), razorpayWebhookHandler);
+
+  const sign = (bodyStr) => crypto.createHmac("sha256", WEBHOOK_SECRET).update(bodyStr).digest("hex");
+  function post(bodyObj, { signature, eventId = "evt_1" } = {}) {
+    const body = JSON.stringify(bodyObj);
+    return request(webhookApp)
+      .post("/api/bookings/webhook/razorpay")
+      .set("Content-Type", "application/json")
+      .set("x-razorpay-event-id", eventId)
+      .set("x-razorpay-signature", signature ?? sign(body))
+      .send(body);
+  }
+  const captured = (amount = 12036, order = "order_1") => ({
+    event: "payment.captured",
+    payload: { payment: { entity: { id: "pay_1", order_id: order, amount, method: "upi", status: "captured" } } },
+  });
+  const enableWebhook = () => {
+    enableRazorpay();
+    process.env.RAZORPAY_WEBHOOK_SECRET = WEBHOOK_SECRET;
+  };
+
+  it("503s when Razorpay / the webhook secret is not configured", async () => {
+    const res = await post(captured());
+    expect(res.status).toBe(503);
+  });
+
+  it("400s on a bad signature and mutates nothing", async () => {
+    enableWebhook();
+    const res = await post(captured(), { signature: "deadbeef" });
+    expect(res.status).toBe(400);
+    expect(prismaMock.webhookEvent.create).not.toHaveBeenCalled();
+    expect(prismaMock.booking.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("settles a PENDING booking on a valid payment.captured (idempotent flip + email)", async () => {
+    enableWebhook();
+    prismaMock.webhookEvent.create.mockResolvedValue({ id: 1 });
+    prismaMock.webhookEvent.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.payment.findFirst.mockResolvedValue({ bookingId: 5, orderId: "order_1", booking: { id: 5, status: "PENDING", total: 12036 } });
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.booking.findUnique.mockResolvedValue({ id: 5, status: "COMPLETED", items: [], event: {}, attendees: [], user: {} });
+
+    const res = await post(captured(12036, "order_1"));
+
+    expect(res.status).toBe(200);
+    expect(res.body.received).toBe(true);
+    expect(prismaMock.booking.updateMany).toHaveBeenCalledWith({
+      where: { id: 5, status: "PENDING" },
+      data: expect.objectContaining({ status: "COMPLETED" }),
+    });
+    expect(prismaMock.payment.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { bookingId: 5 }, data: expect.objectContaining({ status: "SUCCESS", transactionId: "pay_1" }) })
+    );
+    expect(sendBookingConfirmation).toHaveBeenCalled();
+  });
+
+  it("does NOT settle when the captured amount != booking.total", async () => {
+    enableWebhook();
+    prismaMock.webhookEvent.create.mockResolvedValue({ id: 1 });
+    prismaMock.payment.findFirst.mockResolvedValue({ bookingId: 5, booking: { id: 5, status: "PENDING", total: 99999 } });
+    const res = await post(captured(12036));
+    expect(res.status).toBe(200);
+    expect(prismaMock.booking.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("is idempotent: a duplicate event id is a 200 no-op", async () => {
+    enableWebhook();
+    prismaMock.webhookEvent.create.mockRejectedValue(Object.assign(new Error("dup"), { code: "P2002" }));
+    const res = await post(captured());
+    expect(res.status).toBe(200);
+    expect(res.body.duplicate).toBe(true);
+    expect(prismaMock.booking.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("marks the payment FAILED on payment.failed", async () => {
+    enableWebhook();
+    prismaMock.webhookEvent.create.mockResolvedValue({ id: 2 });
+    prismaMock.webhookEvent.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
+    const body = { event: "payment.failed", payload: { payment: { entity: { id: "pay_x", order_id: "order_9" } } } };
+    const res = await post(body, { eventId: "evt_failed" });
+    expect(res.status).toBe(200);
+    expect(prismaMock.payment.updateMany).toHaveBeenCalledWith({ where: { orderId: "order_9" }, data: { status: "FAILED" } });
   });
 });

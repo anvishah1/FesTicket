@@ -1,5 +1,6 @@
 // backend/src/routes/bookings.js
 import { Router } from "express";
+import crypto from "crypto";
 import prisma from "../prisma.js";
 import Razorpay from "razorpay";
 import { sendBookingConfirmation } from "../utils/email.js";
@@ -115,6 +116,35 @@ const withHoldExpiry = (booking) => {
       : null;
   return { ...booking, expiresAt, holdMs: BOOKING_HOLD_MS };
 };
+
+// Idempotently settle a PENDING booking as paid (PAY-01). The status-guarded
+// updateMany means a webhook and the browser verify-payment racing each other
+// settle it exactly once; returns the full updated booking, or null if it was
+// not PENDING (already settled / cancelled) so the caller treats it as a no-op.
+async function settleBookingAsPaid(bookingId, { transactionId, method }) {
+  const won = await prisma.$transaction(async (tx) => {
+    const flip = await tx.booking.updateMany({
+      where: { id: bookingId, status: "PENDING" },
+      data: { status: "COMPLETED", purchaseDate: new Date() },
+    });
+    if (flip.count === 0) return false;
+    await tx.payment.updateMany({
+      where: { bookingId },
+      data: { status: "SUCCESS", transactionId, paymentDate: new Date(), method },
+    });
+    return true;
+  });
+  if (!won) return null;
+  return prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: {
+      event: true,
+      items: { include: { ticketType: true } },
+      attendees: true,
+      user: { select: { email: true, name: true } },
+    },
+  });
+}
 
 // ==================== CREATE BOOKING ====================
 
@@ -1315,6 +1345,119 @@ export async function expireStalePendingBookings(olderThanMs = BOOKING_HOLD_MS) 
   }
 
   return { expired, durationMs: Date.now() - started };
+}
+
+// ==================== PAY-01: RAZORPAY WEBHOOK ====================
+
+// Mounted directly in index.js with express.raw (BEFORE the global express.json)
+// so the HMAC is computed over the exact bytes Razorpay signed. Settles/fails a
+// booking server-side and idempotently, so a captured payment is honoured even
+// if the buyer closed the tab before verify-payment ran.
+export async function razorpayWebhookHandler(req, res) {
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!getRazorpay() || !secret) {
+    return res.status(503).json({ received: false, error: "Razorpay webhook not configured" });
+  }
+  try {
+    const raw = Buffer.isBuffer(req.body)
+      ? req.body
+      : Buffer.from(typeof req.body === "string" ? req.body : JSON.stringify(req.body || {}));
+    const signature = String(req.headers["x-razorpay-signature"] || "");
+    const expected = crypto.createHmac("sha256", secret).update(raw).digest("hex");
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expected);
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+      return res.status(400).json({ received: false, error: "invalid signature" });
+    }
+
+    let event;
+    try {
+      event = JSON.parse(raw.toString("utf8"));
+    } catch {
+      return res.status(400).json({ received: false, error: "invalid body" });
+    }
+
+    const eventId = String(
+      req.headers["x-razorpay-event-id"] || event.id || `${event.event}:${event?.payload?.payment?.entity?.id || ""}`
+    );
+
+    // Idempotency: first-write-wins on the unique eventId (Razorpay retries ~24h).
+    try {
+      await prisma.webhookEvent.create({
+        data: { provider: "razorpay", eventId, type: event.event || "unknown", payload: raw.toString("utf8") },
+      });
+    } catch (e) {
+      if (e?.code === "P2002") return res.status(200).json({ received: true, duplicate: true });
+      throw e;
+    }
+
+    const entity = event?.payload?.payment?.entity;
+    if (event.event === "payment.captured" && entity?.order_id) {
+      const payment = await prisma.payment.findFirst({
+        where: { orderId: entity.order_id },
+        include: { booking: true },
+      });
+      // Only settle when the captured amount matches the booking total (paise).
+      if (payment?.booking?.status === "PENDING" && entity.amount === payment.booking.total) {
+        const updated = await settleBookingAsPaid(payment.bookingId, {
+          transactionId: entity.id,
+          method: mapRazorpayMethod(entity.method),
+        });
+        if (updated) {
+          sendBookingConfirmation(updated).catch((err) =>
+            req.log?.error({ err }, "[webhook] confirmation email failed")
+          );
+        }
+      }
+    } else if (event.event === "payment.failed" && entity?.order_id) {
+      await prisma.payment.updateMany({ where: { orderId: entity.order_id }, data: { status: "FAILED" } });
+    }
+    // Unknown event types are accepted (200) so Razorpay stops retrying them.
+
+    await prisma.webhookEvent.updateMany({ where: { eventId }, data: { processedAt: new Date() } });
+    return res.status(200).json({ received: true });
+  } catch (error) {
+    req.log?.error({ err: error }, "[webhook] razorpay handler failed");
+    // 500 lets Razorpay retry a genuine server fault.
+    return res.status(500).json({ received: false });
+  }
+}
+
+// PAY-01: actively reconcile orderId-set PENDING bookings that the normal sweep
+// deliberately skips (a payment may be in flight). Asks Razorpay whether the
+// order was actually captured; if so, settles it (recovers a stuck booking). Only
+// runs when Razorpay is configured, bounded per pass to avoid hammering the API.
+export async function reconcileStalePaidOrders(olderThanMs = 30 * 60 * 1000, limit = 25) {
+  const razorpay = getRazorpay();
+  if (!razorpay) return { settled: 0, checked: 0 };
+  const cutoff = new Date(Date.now() - olderThanMs);
+  const stale = await prisma.booking.findMany({
+    where: { status: "PENDING", createdAt: { lt: cutoff }, payment: { orderId: { not: null } } },
+    include: { payment: true },
+    take: limit,
+  });
+  let settled = 0;
+  for (const b of stale) {
+    try {
+      const orderId = b.payment?.orderId;
+      if (!orderId) continue;
+      const result = await razorpay.orders.fetchPayments(orderId);
+      const captured = (result?.items || []).find((p) => p.status === "captured" && p.amount === b.total);
+      if (captured) {
+        const updated = await settleBookingAsPaid(b.id, {
+          transactionId: captured.id,
+          method: mapRazorpayMethod(captured.method),
+        });
+        if (updated) {
+          settled += 1;
+          sendBookingConfirmation(updated).catch(() => {});
+        }
+      }
+    } catch {
+      /* skip this one; retried next pass */
+    }
+  }
+  return { settled, checked: stale.length };
 }
 
 export default router;

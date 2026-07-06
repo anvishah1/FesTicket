@@ -17,7 +17,11 @@ import { UPLOADS_DIR } from "./src/utils/storage.js";
 // Import routes
 import festsRouter from "./src/routes/fests.js";
 import eventsRouter from "./src/routes/events.js";
-import bookingsRouter, { expireStalePendingBookings } from "./src/routes/bookings.js";
+import bookingsRouter, {
+  expireStalePendingBookings,
+  reconcileStalePaidOrders,
+  razorpayWebhookHandler,
+} from "./src/routes/bookings.js";
 import authRoutes from "./src/routes/auth.js";
 import userRoutes from "./src/routes/user.js";
 import roleRequestsRouter from "./src/routes/roleRequests.js";
@@ -89,6 +93,12 @@ app.use(cors({
 // with a request id by the time the error handler logs/returns it, and before
 // routes so every handler and the error handler can read `req.id`.
 app.use(requestLogger);
+
+// PAY-01: the Razorpay webhook must verify an HMAC over the EXACT bytes it was
+// sent, so it needs the raw body. Mount it with express.raw for THIS path only,
+// BEFORE the global express.json below (which would otherwise consume the body
+// and break the signature). req.log is already set (requestLogger, above).
+app.post("/api/bookings/webhook/razorpay", express.raw({ type: "application/json" }), razorpayWebhookHandler);
 
 // Body size limit. Event creation accepts base64 image data URLs, so allow up to
 // 1mb; anything larger is rejected with 413 before hitting route handlers.
@@ -239,6 +249,10 @@ async function runStaleSweepTick() {
     }
     const { expired, durationMs } = await expireStalePendingBookings();
     logger.info({ job: "stale-sweep", expired, durationMs, skipped: false }, "stale-sweep");
+    // PAY-01: recover any stuck orderId-set bookings whose capture the webhook
+    // missed (best-effort; no-op when Razorpay is unconfigured).
+    const { settled, checked } = await reconcileStalePaidOrders();
+    if (checked) logger.info({ job: "reconcile-orders", settled, checked }, "reconcile-orders");
   });
 }
 

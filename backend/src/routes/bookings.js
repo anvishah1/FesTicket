@@ -1088,6 +1088,117 @@ router.put("/:id/cancel", authenticateUser, async (req, res) => {
   }
 });
 
+// ==================== PAY-02: REFUNDS ====================
+
+// POST /api/bookings/:id/refund - full or partial refund of a COMPLETED booking.
+// Host of the event, or an ADMIN of the event's fest (buyers do NOT get this).
+// Body: { amount?: paise (omitted = full remaining), reason?: string }.
+router.post("/:id/refund", writeLimiter, authenticateUser, async (req, res) => {
+  try {
+    const bid = parseInt(req.params.id);
+    const { amount: amountBody, reason } = req.body || {};
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: bid },
+      include: { items: true, payment: true, event: { select: { hostId: true, festId: true } } },
+    });
+    if (!booking) {
+      return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Booking not found" } });
+    }
+
+    // Ownership: the event's host, or an ADMIN of the event's fest.
+    let allowed = booking.event?.hostId != null && booking.event.hostId === req.user.userId;
+    if (!allowed && req.user.role === "ADMIN") {
+      const { managedFestId } = await callerFests(req);
+      allowed = booking.event?.festId != null && booking.event.festId === managedFestId;
+    }
+    if (!allowed) return forbid(res);
+
+    if (booking.status !== "COMPLETED") {
+      return res.status(400).json({
+        success: false,
+        error: { code: "INVALID_STATE", message: "Only a completed booking can be refunded" },
+      });
+    }
+
+    const alreadyRefunded = booking.refundedAmount || 0;
+    const remaining = booking.total - alreadyRefunded; // paise
+    const amount = amountBody == null ? remaining : Math.round(Number(amountBody)); // paise
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Refund amount must be greater than 0" } });
+    }
+    if (amount > remaining) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Refund amount exceeds the refundable balance" } });
+    }
+    const isFull = amount === remaining;
+
+    // Atomically RESERVE the refund before calling the gateway: the guard means a
+    // concurrent refund cannot push cumulative refundedAmount over the total (and
+    // the booking must still be COMPLETED). If it fails, someone else got there.
+    const claim = await prisma.booking.updateMany({
+      where: { id: bid, status: "COMPLETED", refundedAmount: { lte: booking.total - amount } },
+      data: { refundedAmount: { increment: amount }, refundReason: reason || undefined },
+    });
+    if (claim.count === 0) {
+      return res.status(409).json({
+        success: false,
+        error: { code: "INVALID_STATE", message: "Refund could not be reserved (already refunded or state changed)" },
+      });
+    }
+
+    // Issue the refund. Real Razorpay refund when configured + we have a captured
+    // payment; otherwise a demo refund. On gateway failure, release the reservation.
+    let refundId = "DEMO-REFUND";
+    const razorpay = getRazorpay();
+    try {
+      if (razorpay && booking.payment?.transactionId) {
+        const r = await razorpay.payments.refund(booking.payment.transactionId, { amount, speed: "normal" });
+        refundId = r?.id || "REFUND";
+      }
+    } catch (err) {
+      await prisma.booking.updateMany({ where: { id: bid }, data: { refundedAmount: { decrement: amount } } });
+      req.log.error({ err }, "Razorpay refund failed");
+      return res.status(502).json({ success: false, error: { code: "REFUND_FAILED", message: "Payment gateway refund failed" } });
+    }
+
+    // Finalize: payment accounting + statuses; a FULL refund flips the booking to
+    // REFUNDED and restores inventory (floored). A partial refund keeps it
+    // COMPLETED and does NOT restore inventory.
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.payment.updateMany({
+        where: { bookingId: bid },
+        data: {
+          refundedAmount: { increment: amount },
+          refundId,
+          ...(isFull ? { status: "REFUNDED" } : {}),
+        },
+      });
+      if (isFull) {
+        await tx.booking.update({ where: { id: bid }, data: { status: "REFUNDED" } });
+        for (const item of booking.items) {
+          await tx.ticketType.updateMany({
+            where: { id: item.ticketTypeId, sold: { gte: item.quantity } },
+            data: { sold: { decrement: item.quantity } },
+          });
+        }
+      }
+      return tx.booking.findUnique({
+        where: { id: bid },
+        include: { items: { include: { ticketType: true } }, payment: true, event: { select: { name: true } } },
+      });
+    });
+
+    return res.json({
+      success: true,
+      data: updated,
+      message: isFull ? "Booking fully refunded" : "Partial refund issued",
+    });
+  } catch (error) {
+    req.log.error({ err: error }, "Refund error");
+    return res.status(500).json({ success: false, error: { code: "REFUND_ERROR", message: "Failed to process refund" } });
+  }
+});
+
 // ==================== HOST DASHBOARD - EVENT BOOKINGS ====================
 
 // GET /api/bookings/event/:eventId - Get all bookings for an event (for host dashboard).
@@ -1156,6 +1267,7 @@ router.get("/event/:eventId", authenticateUser, async (req, res) => {
       tax: booking.tax,
       total: booking.total,
       status: booking.status,
+      refundedAmount: booking.refundedAmount || 0, // paise (PAY-02)
       paymentStatus: booking.payment?.status || "PENDING",
       paymentMethod: booking.payment?.method || null,
       purchaseDate: booking.purchaseDate,

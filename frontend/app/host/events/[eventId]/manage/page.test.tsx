@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ManageEventPage from "@/app/host/events/[eventId]/manage/page";
 
@@ -54,6 +54,9 @@ function installFetch() {
     if (u.includes("/api/events/5") && method === "DELETE") {
       return resp(deleteBody, deleteStatus);
     }
+    if (u.includes("/api/bookings/1/refund") && method === "POST") {
+      return resp({ success: true, data: { status: "REFUNDED" }, message: "Booking fully refunded" });
+    }
     if (u.includes("/api/bookings/event/5")) {
       return resp({
         success: true,
@@ -69,6 +72,7 @@ function installFetch() {
               tickets: [{ type: "GA", quantity: 2 }],
               totalTickets: 2,
               total: 200,
+              refundedAmount: 0,
               purchaseDate: "2099-05-01T10:00:00.000Z",
             },
           ],
@@ -173,5 +177,25 @@ describe("ManageEventPage", () => {
     // The breakdown card reflects the new price.
     const breakdown = screen.getByText("Ticket Types Breakdown").closest("div")!;
     expect(within(breakdown).getByText("₹300.00")).toBeInTheDocument();
+  });
+
+  it("issues a full refund from the buyers table (PAY-02)", async () => {
+    render(<ManageEventPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /ticket buyers/i }));
+    // Row action opens the refund modal (defaults to a full refund).
+    await userEvent.click(await screen.findByRole("button", { name: "Refund" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm Refund" }));
+    await waitFor(() =>
+      expect(showToastMock).toHaveBeenCalledWith("Booking fully refunded", "success")
+    );
+    // The refund POST hit /api/bookings/1/refund.
+    const refundCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) =>
+        String(c[0]).includes("/api/bookings/1/refund") &&
+        (c[1] as RequestInit | undefined)?.method === "POST"
+    );
+    expect(refundCall).toBeTruthy();
+    // Modal closes on success.
+    expect(screen.queryByText("Issue Refund")).not.toBeInTheDocument();
   });
 });

@@ -34,7 +34,7 @@ vi.mock("../../src/middleware/rateLimiter.js", () => ({
 // shared object whose methods we configure per test.
 const rzp = vi.hoisted(() => ({
   orders: { create: vi.fn(), fetchPayments: vi.fn() },
-  payments: { fetch: vi.fn() },
+  payments: { fetch: vi.fn(), refund: vi.fn() },
 }));
 vi.mock("razorpay", () => ({
   default: vi.fn(() => rzp),
@@ -51,6 +51,7 @@ beforeEach(() => {
   rzp.orders.create.mockReset();
   rzp.payments.fetch.mockReset();
   rzp.orders.fetchPayments.mockReset();
+  rzp.payments.refund.mockReset();
 });
 
 // setup.js deletes RAZORPAY env by default; ensure any test that sets it cleans up.
@@ -1987,5 +1988,126 @@ describe("POST /api/bookings/webhook/razorpay", () => {
     const res = await post(body, { eventId: "evt_failed" });
     expect(res.status).toBe(200);
     expect(prismaMock.payment.updateMany).toHaveBeenCalledWith({ where: { orderId: "order_9" }, data: { status: "FAILED" } });
+  });
+});
+
+// ==================== PAY-02: refunds ====================
+describe("POST /api/bookings/:id/refund", () => {
+  const completed = (over = {}) => ({
+    id: 5, status: "COMPLETED", total: 12036, refundedAmount: 0,
+    items: [{ ticketTypeId: 10, quantity: 2 }],
+    payment: { transactionId: "pay_1" },
+    event: { hostId: 7, festId: 3 },
+    ...over,
+  });
+
+  it("returns 401 without a token", async () => {
+    const res = await request(app).post("/api/bookings/5/refund").send({});
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for a non-owner non-admin", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(completed({ event: { hostId: 999, festId: 3 } }));
+    const res = await request(app)
+      .post("/api/bookings/5/refund")
+      .set("Authorization", auth({ userId: 7, role: "VIEWER" }))
+      .send({});
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 400 INVALID_STATE for a non-COMPLETED booking", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(completed({ status: "PENDING" }));
+    const res = await request(app)
+      .post("/api/bookings/5/refund")
+      .set("Authorization", auth({ userId: 7, role: "HOST" }))
+      .send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("INVALID_STATE");
+  });
+
+  it("rejects an amount exceeding the refundable balance", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(completed({ refundedAmount: 10000 })); // remaining 2036
+    const res = await request(app)
+      .post("/api/bookings/5/refund")
+      .set("Authorization", auth({ userId: 7, role: "HOST" }))
+      .send({ amount: 5000 });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/exceeds/i);
+  });
+
+  it("full refund (host, demo): REFUNDED + inventory restored + payment REFUNDED", async () => {
+    prismaMock.booking.findUnique
+      .mockResolvedValueOnce(completed())
+      .mockResolvedValueOnce({ id: 5, status: "REFUNDED", refundedAmount: 12036 });
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 }); // claim
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.booking.update.mockResolvedValue({});
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(app)
+      .post("/api/bookings/5/refund")
+      .set("Authorization", auth({ userId: 7, role: "HOST" }))
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/fully refunded/i);
+    expect(prismaMock.booking.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 5, status: "COMPLETED" }),
+        data: expect.objectContaining({ refundedAmount: { increment: 12036 } }),
+      })
+    );
+    expect(prismaMock.booking.update).toHaveBeenCalledWith({ where: { id: 5 }, data: { status: "REFUNDED" } });
+    expect(prismaMock.ticketType.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: 10 }), data: { sold: { decrement: 2 } } })
+    );
+  });
+
+  it("partial refund keeps the booking COMPLETED and does NOT restore inventory", async () => {
+    prismaMock.booking.findUnique
+      .mockResolvedValueOnce(completed())
+      .mockResolvedValueOnce({ id: 5, status: "COMPLETED", refundedAmount: 5000 });
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(app)
+      .post("/api/bookings/5/refund")
+      .set("Authorization", auth({ userId: 7, role: "HOST" }))
+      .send({ amount: 5000 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/partial/i);
+    expect(prismaMock.booking.update).not.toHaveBeenCalled();
+    expect(prismaMock.ticketType.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("issues a real Razorpay refund (amount in paise) when configured", async () => {
+    enableRazorpay();
+    prismaMock.booking.findUnique
+      .mockResolvedValueOnce(completed({ items: [{ ticketTypeId: 10, quantity: 1 }] }))
+      .mockResolvedValueOnce({ id: 5, status: "REFUNDED" });
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.booking.update.mockResolvedValue({});
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
+    rzp.payments.refund.mockResolvedValue({ id: "rfnd_1" });
+
+    const res = await request(app)
+      .post("/api/bookings/5/refund")
+      .set("Authorization", auth({ userId: 7, role: "HOST" }))
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(rzp.payments.refund).toHaveBeenCalledWith("pay_1", expect.objectContaining({ amount: 12036, speed: "normal" }));
+  });
+
+  it("returns 409 when the atomic reservation loses the race", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(completed());
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 0 }); // someone else refunded
+    const res = await request(app)
+      .post("/api/bookings/5/refund")
+      .set("Authorization", auth({ userId: 7, role: "HOST" }))
+      .send({});
+    expect(res.status).toBe(409);
   });
 });

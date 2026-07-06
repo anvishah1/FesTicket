@@ -43,6 +43,10 @@ interface TicketBuyer {
   amountPaid: number;
   purchaseDate: string;
   bookingId: string;
+  // PAY-02 refund support: booking lifecycle status and cumulative refunded
+  // amount (integer paise) so the row can show a badge and gate the Refund action.
+  status: string;
+  refundedAmount: number;
 }
 
 interface SalesDataPoint {
@@ -106,8 +110,14 @@ export default function ManageEventPage() {
     category: "",
   });
 
-  useEffect(() => {
-    const fetchEventData = async () => {
+  // PAY-02 refund modal state.
+  const [refundBuyer, setRefundBuyer] = useState<TicketBuyer | null>(null);
+  const [refundMode, setRefundMode] = useState<"full" | "partial">("full");
+  const [refundRupees, setRefundRupees] = useState("");
+  const [refundReason, setRefundReason] = useState("");
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
+
+  const fetchEventData = async () => {
       try {
         const [eventRes, bookingsRes] = await Promise.all([
           apiFetch(`${getApiUrl()}/api/events/${eventId}`),
@@ -144,8 +154,13 @@ export default function ManageEventPage() {
 
         const completed = bookings.filter((b: { status: string }) => b.status === "COMPLETED");
 
-        // Build buyers from completed bookings (scoped to this event)
-        const buyers: TicketBuyer[] = completed.map((b: any) => ({
+        // Buyers table shows COMPLETED and REFUNDED bookings (PAY-02) — sales/sold
+        // stats below stay COMPLETED-only so a full refund (inventory restored)
+        // doesn't inflate them.
+        const buyerBookings = bookings.filter(
+          (b: { status: string }) => b.status === "COMPLETED" || b.status === "REFUNDED"
+        );
+        const buyers: TicketBuyer[] = buyerBookings.map((b: any) => ({
           id: b.id,
           bookingId: b.bookingCode,
           name: b.buyerName || "Guest",
@@ -154,6 +169,8 @@ export default function ManageEventPage() {
           ticketType: b.tickets?.map((t: any) => t.type).join(", ") || "—",
           quantity: b.totalTickets ?? 0,
           amountPaid: b.total ?? 0,
+          status: b.status,
+          refundedAmount: b.refundedAmount ?? 0,
           purchaseDate: b.purchaseDate
             ? new Date(b.purchaseDate).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
             : "—",
@@ -240,7 +257,9 @@ export default function ManageEventPage() {
       }
     };
 
+  useEffect(() => {
     fetchEventData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
   const handleSaveChanges = async () => {
@@ -408,6 +427,53 @@ export default function ManageEventPage() {
     } catch (err) {
       console.error("Failed to update ticket type:", err);
       showToast("Failed to update ticket type. Please try again.", "error");
+    }
+  };
+
+  // PAY-02: open the refund modal for a buyer, resetting the form to a full refund.
+  const openRefund = (buyer: TicketBuyer) => {
+    setRefundBuyer(buyer);
+    setRefundMode("full");
+    setRefundRupees("");
+    setRefundReason("");
+  };
+
+  const closeRefund = () => {
+    setRefundBuyer(null);
+    setRefundMode("full");
+    setRefundRupees("");
+    setRefundReason("");
+  };
+
+  // POST /api/bookings/:id/refund. Full refund omits amount; partial sends integer
+  // paise. On success we re-fetch so the row reflects the new status/refundedAmount;
+  // on failure we keep the modal open.
+  const handleRefund = async () => {
+    if (!refundBuyer) return;
+    setRefundSubmitting(true);
+    try {
+      const body =
+        refundMode === "full"
+          ? { reason: refundReason }
+          : { amount: Math.round(Number(refundRupees) * 100), reason: refundReason };
+      const res = await apiFetch(`/api/bookings/${refundBuyer.id}/refund`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        showToast(data?.error?.message || "Refund failed", "error");
+        return;
+      }
+      showToast(data.message || "Refund issued", "success");
+      closeRefund();
+      await fetchEventData();
+    } catch (err) {
+      console.error("Failed to issue refund:", err);
+      showToast("Refund failed", "error");
+    } finally {
+      setRefundSubmitting(false);
     }
   };
 
@@ -1000,6 +1066,7 @@ export default function ManageEventPage() {
                     <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Qty</th>
                     <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Amount Paid</th>
                     <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Date</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#C5BAC4]">
@@ -1031,6 +1098,26 @@ export default function ManageEventPage() {
                         <span className="text-[#29104A] font-bold">{formatPaise(buyer.amountPaid)}</span>
                       </td>
                       <td className="px-6 py-4 text-sm text-[#6B597F]">{buyer.purchaseDate}</td>
+                      <td className="px-6 py-4">
+                        {buyer.status === "REFUNDED" ? (
+                          <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700">
+                            Refunded
+                          </span>
+                        ) : buyer.refundedAmount > 0 ? (
+                          <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Partially refunded {formatPaise(buyer.refundedAmount)}
+                          </span>
+                        ) : null}
+                        {buyer.status === "COMPLETED" && buyer.refundedAmount < buyer.amountPaid && (
+                          <button
+                            type="button"
+                            onClick={() => openRefund(buyer)}
+                            className="mt-1 block px-3 py-1 rounded-lg text-xs font-medium bg-[#C5BAC4]/30 text-[#29104A] hover:bg-[#C5BAC4] transition-colors"
+                          >
+                            Refund
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1040,6 +1127,95 @@ export default function ManageEventPage() {
           </div>
         )}
       </div>
+
+      {/* PAY-02 refund modal */}
+      {refundBuyer && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-[#29104A] mb-1">Issue Refund</h3>
+            <p className="text-sm text-[#6B597F] mb-4">
+              <span className="font-mono">{refundBuyer.bookingId}</span> · {refundBuyer.name} · Paid{" "}
+              {formatPaise(refundBuyer.amountPaid)}
+              {refundBuyer.refundedAmount > 0 && (
+                <> · Already refunded {formatPaise(refundBuyer.refundedAmount)}</>
+              )}
+            </p>
+
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-sm text-[#29104A]">
+                <input
+                  type="radio"
+                  name="refundMode"
+                  checked={refundMode === "full"}
+                  onChange={() => setRefundMode("full")}
+                />
+                Full refund ({formatPaise(refundBuyer.amountPaid - refundBuyer.refundedAmount)})
+              </label>
+              <label className="flex items-center gap-2 text-sm text-[#29104A]">
+                <input
+                  type="radio"
+                  name="refundMode"
+                  checked={refundMode === "partial"}
+                  onChange={() => setRefundMode("partial")}
+                />
+                Partial refund
+              </label>
+
+              {refundMode === "partial" && (
+                <div>
+                  <label htmlFor="refund-amount" className="text-xs text-[#6B597F] block mb-1">
+                    Amount (₹)
+                  </label>
+                  <input
+                    id="refund-amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    max={(refundBuyer.amountPaid - refundBuyer.refundedAmount) / 100}
+                    aria-label="Refund amount"
+                    value={refundRupees}
+                    onChange={(e) => setRefundRupees(e.target.value)}
+                    className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm text-[#29104A]"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="refund-reason" className="text-xs text-[#6B597F] block mb-1">
+                  Reason (optional)
+                </label>
+                <input
+                  id="refund-reason"
+                  type="text"
+                  aria-label="Refund reason"
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm text-[#29104A]"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-5">
+              <button
+                type="button"
+                onClick={handleRefund}
+                disabled={refundSubmitting}
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-[#522C5D] text-white hover:bg-[#29104A] disabled:opacity-60"
+              >
+                {refundSubmitting ? "Processing…" : "Confirm Refund"}
+              </button>
+              <button
+                type="button"
+                onClick={closeRefund}
+                disabled={refundSubmitting}
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-white border border-[#C5BAC4] text-[#6B597F] hover:bg-[#C5BAC4]/20"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <Footer />
     </main>
   );

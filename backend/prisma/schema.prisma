@@ -177,6 +177,8 @@ model Booking {
   tax          Int           @default(0) // paise
   total        Int // paise
   status       BookingStatus @default(PENDING)
+  refundedAmount Int         @default(0) // paise refunded so far (PAY-02)
+  refundReason String?
   purchaseDate DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -247,6 +249,8 @@ model Payment {
   bookingId     Int           @unique
   orderId       String?
   amount        Int // paise (PAY-03)
+  refundedAmount Int          @default(0) // paise refunded so far (PAY-02)
+  refundId      String?
   method        PaymentMethod?
   status        PaymentStatus @default(PENDING)
   transactionId String?

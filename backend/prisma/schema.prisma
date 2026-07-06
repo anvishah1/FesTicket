@@ -27,6 +27,7 @@ model User {
   lastLogin         DateTime?
   failedLoginAttempts Int     @default(0)
   lockUntil         DateTime?
+  tokenVersion      Int       @default(0) // bumped on password/role change to invalidate live access tokens
   managedFestId     Int?      @unique // for ADMIN: which fest they manage (key belongs to that fest)
   editorFestId      Int?      // for EDITOR: which fest they were approved for (from RoleRequest)
   createdAt         DateTime  @default(now())
@@ -67,6 +68,7 @@ model Fest {
   startDate   DateTime?
   endDate     DateTime?
   adminKey    String?   @unique  // key given to admin; students enter this to request editor for this fest
+  isDeleted   Boolean   @default(false) // soft-delete flag; DELETE /api/fests/:id archives instead of removing
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -88,6 +90,7 @@ model Event {
   shortDescription String?
   description      String?
   aboutEvent       String?
+  audience         String?
   image            String?
   category         String?
   startDate        DateTime?
@@ -111,6 +114,12 @@ model Event {
   bookings      Booking[]
   sponsors      Sponsor[]
   expenses      Expense[]
+  questions     EventQuestion[]
+
+  @@index([festId])
+  @@index([hostId])
+  @@index([status])
+  @@index([visibility])
 }
 
 enum EventStatus {
@@ -144,6 +153,8 @@ model TicketType {
   event        Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
   bookingItems BookingItem[]
   attendees    Attendee[]
+
+  @@index([eventId])
 }
 
 // ==================== BOOKINGS ====================
@@ -157,6 +168,7 @@ model Booking {
   guestName    String?
   guestPhone   String?
   subtotal     Float
+  discount     Float         @default(0)
   platformFee  Float         @default(0)
   tax          Float         @default(0)
   total        Float
@@ -171,6 +183,10 @@ model Booking {
   items        BookingItem[]
   attendees    Attendee[]
   payment      Payment?
+  answers      AttendeeAnswer[]
+
+  @@index([eventId])
+  @@index([userId])
 }
 
 model BookingItem {
@@ -185,6 +201,8 @@ model BookingItem {
   // Relations
   booking    Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   ticketType TicketType @relation(fields: [ticketTypeId], references: [id])
+
+  @@index([bookingId])
 }
 
 model Attendee {
@@ -198,6 +216,9 @@ model Attendee {
   // Relations
   booking    Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   ticketType TicketType @relation(fields: [ticketTypeId], references: [id])
+
+  @@index([bookingId])
+  @@index([ticketTypeId])
 }
 
 enum BookingStatus {
@@ -223,6 +244,8 @@ model Payment {
 
   // Relations
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
 }
 
 enum PaymentMethod {
@@ -261,6 +284,9 @@ model Sponsor {
   // Relations
   fest  Fest?  @relation(fields: [festId], references: [id])
   event Event? @relation(fields: [eventId], references: [id])
+
+  @@index([festId])
+  @@index([eventId])
 }
 
 enum SponsorStatus {
@@ -291,6 +317,10 @@ model Expense {
   fest   Fest?         @relation(fields: [festId], references: [id])
   event  Event?        @relation(fields: [eventId], references: [id])
   files  ExpenseFile[]
+
+  @@index([hostId])
+  @@index([festId])
+  @@index([eventId])
 }
 
 model ExpenseFile {
@@ -342,17 +372,24 @@ model RoleRequest {
   user           User             @relation("requester", fields: [userId], references: [id])
   reviewedBy     User?            @relation("reviewer", fields: [reviewedById], references: [id])
   fest           Fest?            @relation(fields: [festId], references: [id])
+
+  @@index([userId])
+  @@index([festId])
 }
 
 model RefreshToken {
   id        Int      @id @default(autoincrement())
   token     String   @unique
   userId    Int
+  familyId  String?  // lineage id shared across a rotation chain; used for reuse/replay detection
+  revokedAt DateTime? // set when rotated (kept as a tombstone so a replay of the old token can be detected)
   userAgent String?
   ipAddress String?
   expiresAt DateTime
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 enum RoleRequestStatus {
@@ -384,4 +421,33 @@ enum AdminRequestStatus {
   PENDING
   APPROVED
   DENIED
+}
+
+// ==================== EVENT QUESTIONS & ATTENDEE ANSWERS ====================
+
+model EventQuestion {
+  id        Int      @id @default(autoincrement())
+  eventId   Int
+  label     String
+  type      String   @default("text")
+  options   String?
+  required  Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
+
+model AttendeeAnswer {
+  id         Int      @id @default(autoincrement())
+  bookingId  Int
+  questionId Int
+  value      String
+  createdAt  DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
 }

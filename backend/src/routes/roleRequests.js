@@ -1,11 +1,10 @@
 import express from "express";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../prisma.js";
 import { authenticateUser, authorizeRoles } from "../middleware/authMiddleware.js";
+import { writeLimiter } from "../middleware/rateLimiter.js";
 
-const prisma = new PrismaClient();
 const router = express.Router();
 
-const VALID_ROLES = ["VIEWER", "EDITOR", "HOST", "ADMIN"];
 const VALID_STATUSES = ["PENDING", "APPROVED", "DENIED"];
 
 /* ================= LIST (admin only; only requests for their fest) ================= */
@@ -21,15 +20,21 @@ router.get(
       });
       const managedFestId = adminUser?.managedFestId ?? null;
 
+      // An admin who manages no fest must not see other fests' requests.
+      if (managedFestId == null) {
+        return res.json([]);
+      }
+
       const onlyPending = req.query.status !== "all";
       const where = {
         ...(onlyPending ? { status: "PENDING" } : {}),
-        ...(managedFestId != null ? { festId: managedFestId } : {}),
+        festId: managedFestId,
       };
 
       const requests = await prisma.roleRequest.findMany({
         where,
-        orderBy: { requestDate: "desc" },
+        // Newest first; id is a deterministic tiebreaker for equal requestDates.
+        orderBy: [{ requestDate: "desc" }, { id: "desc" }],
         include: {
           user: { select: { id: true, email: true, name: true } },
           fest: { select: { id: true, name: true } },
@@ -58,16 +63,30 @@ router.get(
 );
 
 /* ================= CREATE (authenticated user) ================= */
-router.post("/", authenticateUser, async (req, res) => {
+router.post("/", writeLimiter, authenticateUser, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { organization, requestedRole } = req.body || {};
+    const { organization, requestedRole, festKey } = req.body || {};
     const role = requestedRole === "EDITOR" || requestedRole === "HOST"
       ? requestedRole
       : "EDITOR";
-    if (!VALID_ROLES.includes(role)) {
-      return res.status(400).json({ message: "Invalid requestedRole" });
+
+    // Optional fest key: if provided, resolve it so the request is scoped to a
+    // fest (mirrors the signup flow); approval then sets the user's editorFestId.
+    let festId = null;
+    if (festKey && String(festKey).trim()) {
+      const fest = await prisma.fest.findFirst({
+        where: { adminKey: String(festKey).trim() },
+      });
+      if (!fest) {
+        return res.status(400).json({
+          message: "Invalid fest key",
+          errors: { festKey: "No fest found for this key." },
+        });
+      }
+      festId = fest.id;
     }
+
     const existing = await prisma.roleRequest.findFirst({
       where: { userId, status: "PENDING" },
     });
@@ -80,6 +99,7 @@ router.post("/", authenticateUser, async (req, res) => {
     const created = await prisma.roleRequest.create({
       data: {
         userId,
+        festId,
         requestedRole: role,
         organization: organization || null,
       },
@@ -117,6 +137,14 @@ router.patch(
       if (!roleRequest) {
         return res.status(404).json({ message: "Request not found" });
       }
+      // Admins may only act on requests belonging to the fest they manage.
+      const admin = await prisma.user.findUnique({
+        where: { id: req.user.userId },
+        select: { managedFestId: true },
+      });
+      if (admin?.managedFestId == null || roleRequest.festId !== admin.managedFestId) {
+        return res.status(403).json({ message: "You can only act on your own fest's requests" });
+      }
       if (roleRequest.status !== "PENDING") {
         return res.status(400).json({ message: "Request is no longer pending" });
       }
@@ -132,12 +160,19 @@ router.patch(
         }),
         ...(status === "APPROVED"
           ? [
+              // Role change: bump tokenVersion so any live access token minted
+              // under the old role is superseded, and revoke the user's refresh
+              // tokens so they must re-login and pick up the new role.
               prisma.user.update({
                 where: { id: roleRequest.userId },
                 data: {
                   role: roleRequest.requestedRole,
                   editorFestId: roleRequest.festId ?? undefined,
+                  tokenVersion: { increment: 1 },
                 },
+              }),
+              prisma.refreshToken.deleteMany({
+                where: { userId: roleRequest.userId },
               }),
             ]
           : []),

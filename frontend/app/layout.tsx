@@ -1,60 +1,40 @@
-"use client";
-
 import "../globals.css";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useState } from "react";
-import CompleteProfileModal from "@/components/CompleteProfileModal";
+import type { Metadata } from "next";
+import ClientRoot from "./_ClientRoot";
+
+export const metadata: Metadata = {
+  title: "tiqr — event ticketing for college fests",
+  description:
+    "tiqr is the fastest way to discover, book, and manage tickets for college fest events. Browse fests, grab your passes, and organise events all in one place.",
+  applicationName: "tiqr",
+  openGraph: {
+    title: "tiqr — event ticketing for college fests",
+    description:
+      "Discover, book, and manage tickets for college fest events with tiqr.",
+    siteName: "tiqr",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "tiqr — event ticketing for college fests",
+    description:
+      "Discover, book, and manage tickets for college fest events with tiqr.",
+  },
+  icons: {
+    icon: "/favicon.ico",
+  },
+};
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadUser() {
-      try {
-        const res = await fetch("/api/me");
-        if (res.ok) {
-          const data = await res.json();
-          setUser(data);
-        }
-      } catch (err) {
-        console.error("Failed to load user");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadUser();
-  }, []);
-
-  const showProfileModal = user && !user.profileCompleted;
-
   return (
     <html lang="en">
       <body className="antialiased">
-        {!loading && (
-          <CompleteProfileModal
-            open={showProfileModal}
-            onSubmit={async (data) => {
-              await fetch("/api/user/complete-profile", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify(data),
-              });
-
-              // reload user state
-              window.location.reload();
-            }}
-          />
-        )}
-
-        {children}
+        <ClientRoot>{children}</ClientRoot>
       </body>
     </html>
   );

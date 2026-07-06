@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getApiUrl, getAccessToken } from "@/lib/auth";
+import { getApiUrl, getAccessToken, apiFetch } from "@/lib/auth";
 
 interface RoleRequest {
   id: number;
@@ -28,15 +28,22 @@ export default function RoleRequests() {
       setLoading(false);
       return;
     }
-    fetch(`${getApiUrl()}/api/role-requests`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    apiFetch(`${getApiUrl()}/api/role-requests`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to load requests");
         return res.json();
       })
       .then((data) => {
-        setRequests(Array.isArray(data) ? data : []);
+        const list: RoleRequest[] = Array.isArray(data) ? data : [];
+        // Newest requests on top, oldest pushed down. Sort by requestDate desc
+        // with the (monotonic) id as a tiebreaker so requests created in the same
+        // moment still order deterministically newest-first.
+        list.sort((a, b) => {
+          const diff =
+            new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime();
+          return diff !== 0 ? diff : b.id - a.id;
+        });
+        setRequests(list);
       })
       .catch(() => setError("Could not load role requests."))
       .finally(() => setLoading(false));
@@ -47,11 +54,10 @@ export default function RoleRequests() {
     if (!token) return;
     setActionLoading(id);
     try {
-      const res = await fetch(`${getApiUrl()}/api/role-requests/${id}`, {
+      const res = await apiFetch(`${getApiUrl()}/api/role-requests/${id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status: "APPROVED" }),
       });
@@ -74,11 +80,10 @@ export default function RoleRequests() {
     if (!token) return;
     setActionLoading(id);
     try {
-      const res = await fetch(`${getApiUrl()}/api/role-requests/${id}`, {
+      const res = await apiFetch(`${getApiUrl()}/api/role-requests/${id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status: "DENIED" }),
       });
@@ -111,7 +116,7 @@ export default function RoleRequests() {
       {requests.length === 0 ? (
         <div className="bg-white rounded-2xl border border-[#C5BAC4] p-12 text-center shadow-sm">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
-            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg aria-hidden="true" className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
@@ -180,7 +185,7 @@ export default function RoleRequests() {
                         className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition disabled:opacity-50 flex items-center gap-2"
                       >
                         {actionLoading === req.id ? (
-                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                          <svg aria-hidden="true" className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                             <circle
                               className="opacity-25"
                               cx="12"
@@ -196,7 +201,7 @@ export default function RoleRequests() {
                             ></path>
                           </svg>
                         ) : (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
                         )}

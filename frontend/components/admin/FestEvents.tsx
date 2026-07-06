@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getApiUrl } from "@/lib/auth";
+import { getApiUrl, apiFetch } from "@/lib/auth";
 
 interface AdminEvent {
   id: number;
@@ -20,6 +20,20 @@ interface FestEventsProps {
   festId: number;
 }
 
+// Human label + badge colour for the backend's effectiveStatus / stored status.
+const STATUS_META: Record<string, { label: string; className: string }> = {
+  UPCOMING: { label: "Upcoming", className: "bg-[#522C5D] text-white" },
+  LIVE: { label: "Live", className: "bg-green-500 text-white" },
+  PAST: { label: "Past", className: "bg-[#6B597F] text-white" },
+  PUBLISHED: { label: "Published", className: "bg-[#522C5D] text-white" },
+  DRAFT: { label: "Draft", className: "bg-yellow-500 text-white" },
+  CANCELLED: { label: "Cancelled", className: "bg-red-500 text-white" },
+};
+
+function statusMeta(status: string) {
+  return STATUS_META[status] ?? { label: status || "—", className: "bg-[#6B597F] text-white" };
+}
+
 export default function FestEvents({ festId }: FestEventsProps) {
   const router = useRouter();
   const [events, setEvents] = useState<AdminEvent[]>([]);
@@ -28,7 +42,7 @@ export default function FestEvents({ festId }: FestEventsProps) {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const res = await fetch(
+        const res = await apiFetch(
           `${getApiUrl()}/api/events?festId=${festId}`
         );
         const json = await res.json();
@@ -61,7 +75,7 @@ export default function FestEvents({ festId }: FestEventsProps) {
             image:
               ev.image ||
               "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&h=300&fit=crop",
-            status: "upcoming",
+            status: ev.effectiveStatus || ev.status || "PUBLISHED",
             ticketsSold,
             totalTickets: totalTickets || 1,
           };
@@ -155,6 +169,15 @@ export default function FestEvents({ festId }: FestEventsProps) {
             <div
               key={event.id}
               onClick={() => router.push(`/host/events/${event.id}/manage?from=admin`)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  router.push(`/host/events/${event.id}/manage?from=admin`);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label={`Manage event ${event.name}`}
               className="group cursor-pointer border border-[#C5BAC4] rounded-xl overflow-hidden hover:shadow-lg hover:border-[#522C5D] transition-all"
             >
               <div className="relative h-40 overflow-hidden">
@@ -164,8 +187,8 @@ export default function FestEvents({ festId }: FestEventsProps) {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
                 <div className="absolute top-3 right-3">
-                  <span className="px-2 py-1 bg-green-500 text-white text-xs font-medium rounded-lg">
-                    {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+                  <span className={`px-2 py-1 text-xs font-medium rounded-lg ${statusMeta(event.status).className}`}>
+                    {statusMeta(event.status).label}
                   </span>
                 </div>
                 {/* Hover overlay */}
@@ -198,7 +221,7 @@ export default function FestEvents({ festId }: FestEventsProps) {
                   <div className="w-full h-1.5 bg-[#C5BAC4]/30 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-[#29104A] to-[#522C5D] rounded-full"
-                      style={{ width: `${(event.ticketsSold / event.totalTickets) * 100}%` }}
+                      style={{ width: `${Math.min(100, event.totalTickets ? (event.ticketsSold / event.totalTickets) * 100 : 0)}%` }}
                     ></div>
                   </div>
                 </div>

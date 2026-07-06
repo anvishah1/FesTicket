@@ -2,15 +2,34 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import * as XLSX from "xlsx";
+// NOTE: xlsx is imported dynamically inside handleExportExcel (below). A top-level
+// `import * as XLSX from "xlsx"` crashes the Turbopack compile worker and 500s this
+// whole page, so the heavy CJS library is loaded on demand only when exporting.
 import Footer from "@/components/Footer";
-import { getApiUrl, getStoredUser } from "@/lib/auth";
+import { getApiUrl, getStoredUser, apiFetch } from "@/lib/auth";
+import { showToast } from "@/lib/toast";
 
 interface TicketType {
+  id: number;
   name: string;
   price: number;
   sold: number;
   total: number;
+}
+
+// Badge styling for the event's derived lifecycle / stored status.
+const STATUS_BADGE: Record<string, string> = {
+  UPCOMING: "bg-white/20 text-white",
+  LIVE: "bg-green-500/20 text-green-300",
+  PAST: "bg-white/10 text-white/70",
+  PUBLISHED: "bg-white/20 text-white",
+  DRAFT: "bg-yellow-500/20 text-yellow-100",
+  CANCELLED: "bg-red-500/20 text-red-200",
+};
+
+function statusLabel(status: string): string {
+  if (!status) return "—";
+  return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
 }
 
 interface TicketBuyer {
@@ -42,6 +61,8 @@ interface EventDetails {
   image: string;
   category: string;
   status: "upcoming" | "past" | "live";
+  storedStatus: string;
+  effectiveStatus: string;
   ticketTypes: TicketType[];
   discount: number;
   totalRevenue: number;
@@ -71,6 +92,8 @@ export default function ManageEventPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "buyers">("overview");
   const [isEditing, setIsEditing] = useState(false);
+  const [editingTicketId, setEditingTicketId] = useState<number | null>(null);
+  const [ticketDraft, setTicketDraft] = useState({ name: "", price: "", total: "" });
   const [editForm, setEditForm] = useState({
     name: "",
     date: "",
@@ -85,8 +108,8 @@ export default function ManageEventPage() {
     const fetchEventData = async () => {
       try {
         const [eventRes, bookingsRes] = await Promise.all([
-          fetch(`${getApiUrl()}/api/events/${eventId}`),
-          fetch(`${getApiUrl()}/api/bookings/event/${eventId}`),
+          apiFetch(`${getApiUrl()}/api/events/${eventId}`),
+          apiFetch(`${getApiUrl()}/api/bookings/event/${eventId}`),
         ]);
         const eventData = await eventRes.json();
         const bookingsData = await bookingsRes.json();
@@ -146,6 +169,7 @@ export default function ManageEventPage() {
         }
 
         const ticketTypes = (ev.ticketTypes || []).map((t: any) => ({
+          id: t.id,
           name: t.name,
           price: t.price,
           sold: soldByTypeName[t.name] ?? t.sold ?? 0,
@@ -171,6 +195,8 @@ export default function ManageEventPage() {
             "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&h=600&fit=crop",
           category: ev.category || "Event",
           status: "upcoming",
+          storedStatus: ev.status || "PUBLISHED",
+          effectiveStatus: ev.effectiveStatus || ev.status || "PUBLISHED",
           ticketTypes,
           discount: ev.discount || 0,
           totalRevenue: stats.totalRevenue ?? 0,
@@ -203,9 +229,11 @@ export default function ManageEventPage() {
     if (!event) return;
 
     try {
-      const res = await fetch(`${getApiUrl()}/api/events/${eventId}`, {
+      const res = await apiFetch(`${getApiUrl()}/api/events/${eventId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           name: editForm.name,
           description: editForm.description,
@@ -221,7 +249,7 @@ export default function ManageEventPage() {
 
       const data = await res.json();
       if (!data.success) {
-        alert(data.error?.message || "Failed to update event");
+        showToast(data.error?.message || "Failed to update event", "error");
         return;
       }
 
@@ -243,10 +271,123 @@ export default function ManageEventPage() {
         time: updated.startTime || event.time,
       });
       setIsEditing(false);
-      alert("Changes saved successfully!");
+      showToast("Changes saved successfully!", "success");
     } catch (err) {
       console.error("Failed to update event:", err);
-      alert("Failed to update event. Please try again.");
+      showToast("Failed to update event. Please try again.", "error");
+    }
+  };
+
+  // Publish / unpublish (DRAFT) / cancel via PATCH /api/events/:id/status.
+  const handleStatusChange = async (
+    newStatus: "PUBLISHED" | "DRAFT" | "CANCELLED"
+  ) => {
+    if (!event) return;
+    if (
+      newStatus === "CANCELLED" &&
+      !confirm("Cancel this event? It will no longer be bookable.")
+    ) {
+      return;
+    }
+    try {
+      const res = await apiFetch(`${getApiUrl()}/api/events/${eventId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        showToast(data.error?.message || "Failed to update status", "error");
+        return;
+      }
+      const updated = data.data || {};
+      setEvent({
+        ...event,
+        storedStatus: updated.status ?? newStatus,
+        effectiveStatus: updated.effectiveStatus ?? updated.status ?? newStatus,
+      });
+      showToast(
+        newStatus === "PUBLISHED"
+          ? "Event published"
+          : newStatus === "DRAFT"
+          ? "Event unpublished (moved to draft)"
+          : "Event cancelled",
+        "success"
+      );
+    } catch (err) {
+      console.error("Failed to update status:", err);
+      showToast("Failed to update status. Please try again.", "error");
+    }
+  };
+
+  // Delete via DELETE /api/events/:id — a 409 means bookings exist (cancel instead).
+  const handleDelete = async () => {
+    if (!event) return;
+    if (!confirm("Delete this event permanently? This cannot be undone.")) return;
+    try {
+      const res = await apiFetch(`${getApiUrl()}/api/events/${eventId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        showToast("Event deleted", "success");
+        router.push(isAdmin ? "/admin/dashboard" : "/host/dashboard");
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      if (res.status === 409 || data?.error?.code === "HAS_BOOKINGS") {
+        showToast(
+          "This event has bookings — cancel it instead of deleting.",
+          "error"
+        );
+        return;
+      }
+      showToast(data?.error?.message || "Failed to delete event", "error");
+    } catch (err) {
+      console.error("Failed to delete event:", err);
+      showToast("Failed to delete event. Please try again.", "error");
+    }
+  };
+
+  // Edit a ticket type in place via PUT /api/events/:eventId/ticket-types/:id.
+  const startEditTicket = (t: TicketType) => {
+    setEditingTicketId(t.id);
+    setTicketDraft({ name: t.name, price: String(t.price), total: String(t.total) });
+  };
+
+  const handleSaveTicket = async (t: TicketType) => {
+    if (!event) return;
+    try {
+      const res = await apiFetch(
+        `${getApiUrl()}/api/events/${eventId}/ticket-types/${t.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: ticketDraft.name,
+            price: parseFloat(ticketDraft.price) || 0,
+            quantity: parseInt(ticketDraft.total, 10) || 0,
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        showToast(data.error?.message || "Failed to update ticket type", "error");
+        return;
+      }
+      const upd = data.data;
+      setEvent({
+        ...event,
+        ticketTypes: event.ticketTypes.map((x) =>
+          x.id === t.id
+            ? { ...x, name: upd.name, price: upd.price, total: upd.quantity }
+            : x
+        ),
+      });
+      setEditingTicketId(null);
+      showToast("Ticket type updated", "success");
+    } catch (err) {
+      console.error("Failed to update ticket type:", err);
+      showToast("Failed to update ticket type. Please try again.", "error");
     }
   };
 
@@ -264,16 +405,22 @@ export default function ManageEventPage() {
       b.email,
       b.phone || "",
       b.ticketType,
-      b.quantity,
-      b.amountPaid,
+      String(b.quantity),
+      String(b.amountPaid),
       b.purchaseDate,
     ]);
-    const data = [headers, ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Ticket Buyers");
+    // Build a CSV (Excel opens it natively) via a Blob download — no heavy xlsx
+    // dependency, which was crashing the Turbopack compile worker and 500ing the page.
+    const esc = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const csv = [headers, ...rows].map((r) => r.map(esc).join(",")).join("\r\n");
     const safeName = event.name.replace(/[^\w\s-]/g, "").slice(0, 30) || "event";
-    XLSX.writeFile(wb, `${safeName}-ticket-buyers.xlsx`);
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${safeName}-ticket-buyers.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const getTotalTickets = () => {
@@ -325,9 +472,11 @@ export default function ManageEventPage() {
             {!isAdmin && (
               <button
                 onClick={() => router.push("/host/dashboard")}
+                aria-label="Back to dashboard"
                 className="p-2 hover:bg-white/10 rounded-lg transition-colors"
               >
                 <svg
+                  aria-hidden="true"
                   className="w-5 h-5 text-white/80"
                   fill="none"
                   stroke="currentColor"
@@ -350,14 +499,10 @@ export default function ManageEventPage() {
           <div className="flex items-center gap-3">
             <span
               className={`px-3 py-1 rounded-full text-xs font-medium ${
-                event.status === "upcoming"
-                  ? "bg-white/20 text-white"
-                  : event.status === "live"
-                  ? "bg-green-500/20 text-green-300"
-                  : "bg-white/10 text-white/70"
+                STATUS_BADGE[event.effectiveStatus] ?? "bg-white/20 text-white"
               }`}
             >
-              {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+              {statusLabel(event.effectiveStatus)}
             </span>
           </div>
         </div>
@@ -406,6 +551,7 @@ export default function ManageEventPage() {
                   {isEditing ? (
                     <input
                       type="text"
+                      aria-label="Event name"
                       value={editForm.name}
                       onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                       className="text-2xl font-bold bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 w-full text-[#29104A]"
@@ -425,14 +571,14 @@ export default function ManageEventPage() {
                 >
                   {isEditing ? (
                     <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                       Save Changes
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                       Edit Event
@@ -452,6 +598,7 @@ export default function ManageEventPage() {
                     {isEditing ? (
                       <input
                         type="date"
+                        aria-label="Event date"
                         value={editForm.date}
                         onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
                         className="bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 text-sm flex-1 text-[#29104A]"
@@ -469,6 +616,7 @@ export default function ManageEventPage() {
                     {isEditing ? (
                       <input
                         type="time"
+                        aria-label="Event time"
                         value={editForm.time}
                         onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
                         className="bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 text-sm flex-1 text-[#29104A]"
@@ -489,6 +637,7 @@ export default function ManageEventPage() {
                     {isEditing ? (
                       <input
                         type="text"
+                        aria-label="Venue"
                         value={editForm.venue}
                         onChange={(e) => setEditForm({ ...editForm, venue: e.target.value })}
                         className="bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 text-sm flex-1 text-[#29104A]"
@@ -506,6 +655,7 @@ export default function ManageEventPage() {
                     {isEditing ? (
                       <input
                         type="text"
+                        aria-label="Category"
                         value={editForm.category}
                         onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
                         className="bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 text-sm flex-1 text-[#29104A]"
@@ -519,14 +669,58 @@ export default function ManageEventPage() {
 
               {isEditing && (
                 <div className="mt-4">
-                  <label className="text-sm text-[#6B597F] mb-1 block">Description</label>
+                  <label htmlFor="event-description" className="text-sm text-[#6B597F] mb-1 block">Description</label>
                   <textarea
+                    id="event-description"
                     value={editForm.description}
                     onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                     className="w-full bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm resize-none h-20 text-[#29104A]"
                   />
                 </div>
               )}
+
+              {/* Lifecycle actions: publish / unpublish / cancel / delete */}
+              <div className="mt-5 pt-5 border-t border-[#C5BAC4] flex flex-wrap items-center gap-3">
+                <span className="text-sm text-[#6B597F]">
+                  Status:{" "}
+                  <span className="font-semibold text-[#29104A]">
+                    {statusLabel(event.storedStatus)}
+                  </span>
+                </span>
+                {event.storedStatus === "PUBLISHED" ? (
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange("DRAFT")}
+                    className="px-4 py-2 rounded-lg text-sm font-medium bg-yellow-100 text-yellow-800 hover:bg-yellow-200 transition-colors"
+                  >
+                    Unpublish
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange("PUBLISHED")}
+                    className="px-4 py-2 rounded-lg text-sm font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
+                  >
+                    Publish
+                  </button>
+                )}
+                {event.storedStatus !== "CANCELLED" && (
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange("CANCELLED")}
+                    className="px-4 py-2 rounded-lg text-sm font-medium bg-[#C5BAC4]/40 text-[#29104A] hover:bg-[#C5BAC4] transition-colors"
+                  >
+                    Cancel Event
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors ml-auto"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -630,30 +824,100 @@ export default function ManageEventPage() {
             <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 shadow-sm">
               <h3 className="text-lg font-bold mb-6 text-[#29104A]">Ticket Types Breakdown</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {event.ticketTypes.map((ticket, index) => (
-                  <div key={index} className="bg-[#C5BAC4]/20 rounded-xl p-5">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="font-semibold text-[#29104A]">{ticket.name}</span>
-                      <span className="text-[#522C5D] font-bold">₹{ticket.price}</span>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-[#6B597F]">Sold</span>
-                        <span className="text-[#29104A]">{ticket.sold} / {ticket.total}</span>
+                {event.ticketTypes.map((ticket) => (
+                  <div key={ticket.id} className="bg-[#C5BAC4]/20 rounded-xl p-5">
+                    {editingTicketId === ticket.id ? (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs text-[#6B597F] block mb-1">Name</label>
+                          <input
+                            type="text"
+                            aria-label="Ticket name"
+                            value={ticketDraft.name}
+                            onChange={(e) => setTicketDraft({ ...ticketDraft, name: e.target.value })}
+                            className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-1.5 text-sm text-[#29104A]"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-xs text-[#6B597F] block mb-1">Price (₹)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              aria-label="Ticket price"
+                              value={ticketDraft.price}
+                              onChange={(e) => setTicketDraft({ ...ticketDraft, price: e.target.value })}
+                              className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-1.5 text-sm text-[#29104A]"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-[#6B597F] block mb-1">Quantity</label>
+                            <input
+                              type="number"
+                              min="0"
+                              aria-label="Ticket quantity"
+                              value={ticketDraft.total}
+                              onChange={(e) => setTicketDraft({ ...ticketDraft, total: e.target.value })}
+                              className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-1.5 text-sm text-[#29104A]"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleSaveTicket(ticket)}
+                            className="flex-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#522C5D] text-white hover:bg-[#29104A]"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingTicketId(null)}
+                            className="flex-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-[#C5BAC4] text-[#6B597F] hover:bg-[#C5BAC4]/20"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
-                      <div className="w-full h-2 bg-[#C5BAC4] rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-[#522C5D] rounded-full"
-                          style={{ width: `${ticket.total ? (ticket.sold / ticket.total) * 100 : 0}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-[#6B597F]">Revenue</span>
-                        <span className="text-[#29104A] font-medium">
-                          ₹{(ticket.sold * ticket.price * (1 - event.discount / 100)).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="font-semibold text-[#29104A]">{ticket.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#522C5D] font-bold">₹{ticket.price}</span>
+                            <button
+                              type="button"
+                              onClick={() => startEditTicket(ticket)}
+                              aria-label={`Edit ticket type ${ticket.name}`}
+                              title="Edit ticket type"
+                              className="p-1 rounded hover:bg-[#C5BAC4]/40 text-[#522C5D]"
+                            >
+                              <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-[#6B597F]">Sold</span>
+                            <span className="text-[#29104A]">{ticket.sold} / {ticket.total}</span>
+                          </div>
+                          <div className="w-full h-2 bg-[#C5BAC4] rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-[#522C5D] rounded-full"
+                              style={{ width: `${ticket.total ? (ticket.sold / ticket.total) * 100 : 0}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-[#6B597F]">Revenue</span>
+                            <span className="text-[#29104A] font-medium">
+                              ₹{(ticket.sold * ticket.price * (1 - event.discount / 100)).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -670,7 +934,7 @@ export default function ManageEventPage() {
                 onClick={handleExportExcel}
                 className="px-4 py-2 bg-[#C5BAC4]/30 hover:bg-[#C5BAC4] rounded-lg text-sm font-medium transition-colors flex items-center gap-2 text-[#29104A]"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 Export Excel
@@ -681,13 +945,13 @@ export default function ManageEventPage() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-[#C5BAC4]/20">
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Booking ID</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Buyer</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Contact</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Ticket Type</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Qty</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Amount Paid</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Date</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Booking ID</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Buyer</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Contact</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Ticket Type</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Qty</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Amount Paid</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Date</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#C5BAC4]">

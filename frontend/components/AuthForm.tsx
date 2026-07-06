@@ -6,12 +6,16 @@ import { useRouter } from "next/navigation";
 import cx from "clsx";
 import { getApiUrl, setAuth } from "@/lib/auth";
 
-function SocialButton({ children, onClick }: { children: React.ReactNode; onClick?: () => void; }) {
+function SocialButton({ children }: { children: React.ReactNode; }) {
+  // Google OAuth is not implemented yet. Render the button disabled ("Coming
+  // soon") rather than routing to a protected/fake page.
   return (
     <button
       type="button"
-      onClick={onClick}
-      className="w-full flex items-center justify-center gap-3 border border-[#6B597F] bg-[#DEDCDC] rounded-lg px-4 py-3 hover:bg-[#6B597F]/20 transition"
+      disabled
+      aria-disabled="true"
+      title="Coming soon"
+      className="w-full flex items-center justify-center gap-3 border border-[#6B597F] bg-[#DEDCDC] rounded-lg px-4 py-3 opacity-60 cursor-not-allowed"
     >
       {children}
     </button>
@@ -24,6 +28,28 @@ export default function AuthForm() {
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = React.useState("");
+
+  // CAPTCHA: graceful degradation. When NEXT_PUBLIC_CAPTCHA_SITE_KEY is unset
+  // (dev / E2E / tests) we send a placeholder token — the backend accepts any
+  // token when CAPTCHA_SECRET is unset. When a site key IS set we render a real
+  // Cloudflare Turnstile widget and send the token it produces. Sign-in submit
+  // is NOT gated on the captcha (only email + password), matching the E2E flow.
+  const captchaSiteKey = process.env.NEXT_PUBLIC_CAPTCHA_SITE_KEY;
+
+  React.useEffect(() => {
+    if (!captchaSiteKey) return;
+    const w = window as unknown as { __tiqrCaptchaCb?: (t: string) => void };
+    w.__tiqrCaptchaCb = (token: string) => setCaptchaToken(token || "");
+    if (!document.getElementById("cf-turnstile-script")) {
+      const s = document.createElement("script");
+      s.id = "cf-turnstile-script";
+      s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+      s.async = true;
+      s.defer = true;
+      document.head.appendChild(s);
+    }
+  }, [captchaSiteKey]);
 
   const canSubmit = email.trim().length > 0 && password.trim().length > 0;
 
@@ -40,7 +66,11 @@ export default function AuthForm() {
       const res = await fetch(`${getApiUrl()}/api/auth/signin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({
+          email,
+          password,
+          captchaToken: captchaSiteKey ? captchaToken : "dev",
+        })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -54,7 +84,7 @@ export default function AuthForm() {
           router.push("/admin/dashboard");
         }
 
-        else if (data.user.role === "EDITOR") {
+        else if (data.user.role === "EDITOR" || data.user.role === "HOST") {
           router.push("/host/dashboard");
         }
 
@@ -70,15 +100,12 @@ export default function AuthForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Google sign-in (placeholder) */}
-      <SocialButton onClick={() => {
-        // TODO: Implement Google OAuth
-        router.push("/host/dashboard");
-      }}>
+      {/* Google sign-in — not implemented yet, shown disabled ("Coming soon"). */}
+      <SocialButton>
         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden className="inline-block">
           <path fill="#EA4335" d="M12 11v3h6.5c-.3 1.7-1.8 5-6.5 5a7 7 0 1 1 0-14c1.9 0 3.2.8 4.1 1.6l2.8-2.9C18.9 2 15.9 1 12 1 6.5 1 2 5.5 2 11s4.5 10 10 10c5.7 0 9.9-4.1 9.9-9.9 0-.7-.1-1.4-.3-2H12z"/>
         </svg>
-        <span className="text-sm font-medium">Sign in with Google</span>
+        <span className="text-sm font-medium">Sign in with Google (coming soon)</span>
       </SocialButton>
 
       <div className="flex items-center gap-3">
@@ -87,7 +114,11 @@ export default function AuthForm() {
         <div className="flex-grow border-t border-[#6B597F]" />
       </div>
 
-      {error && <div className="text-sm text-red-600">{error}</div>}
+      {error && (
+        <div id="auth-form-error" role="alert" className="text-sm text-red-600">
+          {error}
+        </div>
+      )}
 
       <div>
         <label htmlFor="email" className="block text-sm font-medium text-[#522C5D]">Email</label>
@@ -97,9 +128,11 @@ export default function AuthForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          aria-required="true"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "auth-form-error" : undefined}
           placeholder="you@school.edu"
           className="mt-2 w-full border border-[#6B597F] rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#522C5D]/20"
-          aria-label="Email"
         />
       </div>
 
@@ -111,9 +144,11 @@ export default function AuthForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
+          aria-required="true"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "auth-form-error" : undefined}
           placeholder="Password"
           className="mt-2 w-full border border-[#6B597F] rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#522C5D]/20"
-          aria-label="Password"
         />
       </div>
 
@@ -125,6 +160,14 @@ export default function AuthForm() {
 
         <a className="text-[#29104A] hover:underline" href="/forgot">Forgot password?</a>
       </div>
+
+      {captchaSiteKey && (
+        <div
+          className="cf-turnstile"
+          data-sitekey={captchaSiteKey}
+          data-callback="__tiqrCaptchaCb"
+        />
+      )}
 
       <div>
         <button

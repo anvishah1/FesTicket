@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getApiUrl } from "@/lib/auth";
+import { getApiUrl, apiFetch } from "@/lib/auth";
+import { resolveMarketingFile } from "@/lib/files";
 
 interface Company {
   id: number;
@@ -25,11 +26,34 @@ export default function Companies({ festId }: CompaniesProps) {
   const [search, setSearch] = useState("");
   const [zoom, setZoom] = useState(false);
   const [sortBy, setSortBy] = useState<"name-asc" | "name-desc" | "recent">("recent");
+  // The agreement file is streamed through the authenticated marketing-files
+  // route and shown via an object URL (see @/lib/files). Fetched on select.
+  const [agreementSrc, setAgreementSrc] = useState("");
+
+  useEffect(() => {
+    let objectUrl = "";
+    let cancelled = false;
+    setAgreementSrc("");
+    if (selected?.agreementUrl) {
+      resolveMarketingFile(selected.agreementUrl).then((src) => {
+        if (cancelled) {
+          if (src.startsWith("blob:")) URL.revokeObjectURL(src);
+          return;
+        }
+        objectUrl = src.startsWith("blob:") ? src : "";
+        setAgreementSrc(src);
+      });
+    }
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [selected]);
 
   useEffect(() => {
     const fetchSponsors = async () => {
       try {
-        const res = await fetch(
+        const res = await apiFetch(
           `${getApiUrl()}/api/events/marketing/fest/${festId}/sponsors`
         );
         const json = await res.json();
@@ -62,10 +86,9 @@ export default function Companies({ festId }: CompaniesProps) {
     fetchSponsors();
   }, [festId]);
 
+  const searchTerm = search.toLowerCase();
   const filteredCompanies = companies
-    .filter((company) =>
-      company.name.toLowerCase().includes(search.toLowerCase())
-    )
+    .filter((company) => company.name.toLowerCase().includes(searchTerm))
     .sort((a, b) => {
       if (sortBy === "name-asc") return a.name.localeCompare(b.name);
       if (sortBy === "name-desc") return b.name.localeCompare(a.name);
@@ -100,10 +123,11 @@ export default function Companies({ festId }: CompaniesProps) {
           {/* Search + Sort */}
           <div className="flex gap-3">
             <div className="relative flex-1">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
+                aria-label="Search sponsors"
                 placeholder="Search sponsors..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -112,6 +136,7 @@ export default function Companies({ festId }: CompaniesProps) {
               {search && (
                 <button
                   onClick={() => setSearch("")}
+                  aria-label="Clear search"
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B597F] hover:text-[#29104A]"
                 >
                   ✕
@@ -120,6 +145,7 @@ export default function Companies({ festId }: CompaniesProps) {
             </div>
 
             <select
+              aria-label="Sort sponsors"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
               className="px-3 py-2.5 rounded-xl border border-[#C5BAC4] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#522C5D]/20"
@@ -180,36 +206,49 @@ export default function Companies({ festId }: CompaniesProps) {
                   <h3 className="font-bold text-[#29104A] text-lg">{selected.name}</h3>
                   <p className="text-sm text-[#6B597F]">{selected.email}</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                    selected.type === "pdf"
-                      ? "bg-red-100 text-red-700"
-                      : "bg-blue-100 text-blue-700"
-                  }`}>
-                    {selected.type.toUpperCase()}
-                  </span>
-                  <button
-                    onClick={() => setZoom(true)}
-                    className="px-3 py-1.5 bg-[#522C5D]/10 text-[#522C5D] rounded-lg text-sm font-medium hover:bg-[#522C5D]/20 transition"
-                  >
-                    Full Screen
-                  </button>
-                </div>
+                {selected.agreementUrl && (
+                  <div className="flex items-center gap-3">
+                    <span className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                      selected.type === "pdf"
+                        ? "bg-red-100 text-red-700"
+                        : "bg-blue-100 text-blue-700"
+                    }`}>
+                      {selected.type.toUpperCase()}
+                    </span>
+                    <button
+                      onClick={() => setZoom(true)}
+                      className="px-3 py-1.5 bg-[#522C5D]/10 text-[#522C5D] rounded-lg text-sm font-medium hover:bg-[#522C5D]/20 transition"
+                    >
+                      Full Screen
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="flex-1 rounded-xl border border-[#C5BAC4] overflow-hidden bg-[#F9F7FA] flex items-center justify-center">
-                {selected.type === "image" ? (
+                {!selected.agreementUrl ? (
+                  <div className="text-center px-6 py-10">
+                    <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-[#C5BAC4]/30 flex items-center justify-center">
+                      <svg className="w-7 h-7 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <p className="text-[#6B597F] font-medium">No agreement uploaded</p>
+                    <p className="text-sm text-[#6B597F] mt-1">
+                      This sponsor doesn&apos;t have an agreement document on file yet.
+                    </p>
+                  </div>
+                ) : !agreementSrc ? (
+                  <div className="text-sm text-[#6B597F] px-6 py-10">Loading agreement…</div>
+                ) : selected.type === "image" ? (
                   <img
-                    src={selected.agreementUrl}
+                    src={agreementSrc}
                     alt="Agreement"
                     className="max-h-full max-w-full object-contain"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = "https://via.placeholder.com/400x300?text=Agreement+Document";
-                    }}
                   />
                 ) : (
                   <iframe
-                    src={selected.agreementUrl}
+                    src={agreementSrc}
                     className="w-full h-full min-h-[300px]"
                     title="Agreement PDF"
                   />
@@ -221,9 +260,17 @@ export default function Companies({ festId }: CompaniesProps) {
                   <p className="text-sm text-[#6B597F]">Sponsorship Amount</p>
                   <p className="text-xl font-bold text-[#29104A]">₹{selected.amount.toLocaleString()}</p>
                 </div>
-                <button className="px-4 py-2 bg-gradient-to-r from-[#29104A] to-[#522C5D] text-white rounded-lg font-medium hover:opacity-90 transition">
-                  Download Agreement
-                </button>
+                {selected.agreementUrl && agreementSrc && (
+                  <a
+                    href={agreementSrc}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                    className="px-4 py-2 bg-gradient-to-r from-[#29104A] to-[#522C5D] text-white rounded-lg font-medium hover:opacity-90 transition"
+                  >
+                    Download Agreement
+                  </a>
+                )}
               </div>
             </>
           ) : (
@@ -242,16 +289,17 @@ export default function Companies({ festId }: CompaniesProps) {
       </div>
 
       {/* ZOOM MODAL */}
-      {zoom && selected && (
+      {zoom && selected && selected.agreementUrl && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-5xl h-[90vh] p-6 relative">
+          <div role="dialog" aria-modal="true" aria-labelledby="agreement-zoom-title" className="bg-white rounded-2xl w-full max-w-5xl h-[90vh] p-6 relative">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-[#29104A] text-lg">{selected.name} - Agreement</h3>
+              <h3 id="agreement-zoom-title" className="font-bold text-[#29104A] text-lg">{selected.name} - Agreement</h3>
               <button
                 onClick={() => setZoom(false)}
+                aria-label="Close agreement preview"
                 className="p-2 hover:bg-[#C5BAC4]/30 rounded-lg transition"
               >
-                <svg className="w-5 h-5 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg aria-hidden="true" className="w-5 h-5 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -260,16 +308,13 @@ export default function Companies({ festId }: CompaniesProps) {
             <div className="h-[calc(100%-60px)] rounded-xl border border-[#C5BAC4] overflow-hidden bg-[#F9F7FA]">
               {selected.type === "image" ? (
                 <img
-                  src={selected.agreementUrl}
+                  src={agreementSrc}
                   alt="Agreement"
                   className="w-full h-full object-contain"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = "https://via.placeholder.com/800x600?text=Agreement+Document";
-                  }}
                 />
               ) : (
                 <iframe
-                  src={selected.agreementUrl}
+                  src={agreementSrc}
                   className="w-full h-full"
                   title="Agreement PDF"
                 />

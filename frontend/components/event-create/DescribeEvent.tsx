@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface DescribeEventProps {
   onNext: (data: DescribeEventData) => void;
+  /** Fires on every edit so the wizard persists in-progress input (H11). */
+  onChange?: (data: DescribeEventData) => void;
   initialData?: DescribeEventData;
 }
 
@@ -26,12 +28,17 @@ const categories = [
   "Other",
 ];
 
-export default function DescribeEvent({ onNext, initialData }: DescribeEventProps) {
+export default function DescribeEvent({ onNext, onChange, initialData }: DescribeEventProps) {
   const [formData, setFormData] = useState<DescribeEventData>(initialData || {
     description: "",
     category: "Workshop",
     audience: "",
   });
+
+  useEffect(() => {
+    onChange?.(formData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData]);
 
   const handleSubmit = () => {
     onNext(formData);
@@ -46,10 +53,11 @@ export default function DescribeEvent({ onNext, initialData }: DescribeEventProp
       <div className="space-y-6">
         {/* Event Description */}
         <div>
-          <label className="block text-sm font-medium text-[#29104A]">
+          <label htmlFor="describe-description" className="block text-sm font-medium text-[#29104A]">
             Event Description
           </label>
           <textarea
+            id="describe-description"
             rows={6}
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -63,10 +71,10 @@ export default function DescribeEvent({ onNext, initialData }: DescribeEventProp
 
         {/* Tags / Categories */}
         <div>
-          <label className="block text-sm font-medium text-[#29104A]">
+          <span id="describe-category-label" className="block text-sm font-medium text-[#29104A]">
             Event Category
-          </label>
-          <div className="mt-2 flex flex-wrap gap-3">
+          </span>
+          <div className="mt-2 flex flex-wrap gap-3" role="group" aria-labelledby="describe-category-label">
             {categories.map((cat) => (
               <Tag
                 key={cat}
@@ -83,10 +91,11 @@ export default function DescribeEvent({ onNext, initialData }: DescribeEventProp
 
         {/* Audience */}
         <div>
-          <label className="block text-sm font-medium text-[#29104A]">
+          <label htmlFor="describe-audience" className="block text-sm font-medium text-[#29104A]">
             Intended Audience
           </label>
           <textarea
+            id="describe-audience"
             rows={3}
             value={formData.audience}
             onChange={(e) => setFormData({ ...formData, audience: e.target.value })}
@@ -119,6 +128,7 @@ function Tag({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={`rounded-full border px-4 py-1.5 text-sm transition
         ${

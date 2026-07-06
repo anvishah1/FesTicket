@@ -3,19 +3,31 @@
 import React from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { getApiUrl } from "@/lib/auth";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = React.useState("");
   const [status, setStatus] = React.useState<"idle" | "sending" | "sent">("idle");
+  const [error, setError] = React.useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     setStatus("sending");
 
-    // mock request — replace with your backend call
-    await new Promise((res) => setTimeout(res, 800));
-
-    setStatus("sent");
+    try {
+      await fetch(`${getApiUrl()}/api/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      // Backend always returns a generic 200 to avoid email enumeration,
+      // so show the success state regardless of whether the email exists.
+      setStatus("sent");
+    } catch {
+      setError("Could not reach server. Try again.");
+      setStatus("idle");
+    }
   }
 
   return (
@@ -33,7 +45,13 @@ export default function ForgotPasswordPage() {
 
           {status === "sent" && (
             <div className="mb-4 text-sm text-green-700 bg-green-100 px-4 py-2 rounded-lg text-center">
-              Reset email sent! Check your inbox.
+              If an account exists for that email, a reset link was sent. Check your inbox.
+            </div>
+          )}
+
+          {error && (
+            <div className="mb-4 text-sm text-red-600 bg-red-50 px-4 py-2 rounded-lg text-center">
+              {error}
             </div>
           )}
 

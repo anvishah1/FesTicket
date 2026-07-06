@@ -1,7 +1,8 @@
 import jwt from "jsonwebtoken";
+import prisma from "../prisma.js";
 
 /* Verify JWT */
-export const authenticateUser = (req, res, next) => {
+export const authenticateUser = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -11,7 +12,28 @@ export const authenticateUser = (req, res, next) => {
 
     const token = authHeader.split(" ")[1];
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+      algorithms: ["HS256"],
+    });
+
+    // M2: honor User.tokenVersion so an access token minted BEFORE a password
+    // reset or role change (both bump tokenVersion) is rejected within its own
+    // 15-min lifetime — closing the window where a stolen/old token keeps working.
+    // Strict only on a genuine mismatch; lenient if the user can't be loaded, so a
+    // transient DB blip (or a test that doesn't stub the lookup) never locks users out.
+    try {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: { tokenVersion: true },
+      });
+      if (dbUser && (dbUser.tokenVersion ?? 0) !== (decoded.tokenVersion ?? 0)) {
+        return res
+          .status(401)
+          .json({ message: "Session no longer valid. Please sign in again." });
+      }
+    } catch {
+      // DB unavailable — fall through on the JWT's own validity rather than hard-failing.
+    }
 
     req.user = decoded;
 
@@ -29,7 +51,9 @@ export const optionalAuthenticate = (req, res, next) => {
       return next();
     }
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+      algorithms: ["HS256"],
+    });
     req.user = decoded;
   } catch {
     // ignore invalid/expired token

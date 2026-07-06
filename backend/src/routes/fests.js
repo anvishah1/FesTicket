@@ -1,11 +1,27 @@
 // backend/src/routes/fests.js
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../prisma.js";
 import { authenticateUser, authorizeRoles } from "../middleware/authMiddleware.js";
-import validator from "validator";
+import { validate } from "../middleware/validate.js";
+import { createFestSchema, updateFestSchema } from "../validators/festValidator.js";
 
 const router = Router();
-const prisma = new PrismaClient();
+
+// An ADMIN may only act on the fest they manage. Writes to res + returns false on mismatch.
+async function assertManagesFest(festId, req, res) {
+  const u = await prisma.user.findUnique({
+    where: { id: req.user.userId },
+    select: { managedFestId: true },
+  });
+  if ((u?.managedFestId ?? null) !== festId) {
+    res.status(403).json({
+      success: false,
+      error: { code: "FORBIDDEN", message: "You can only modify the fest you manage" },
+    });
+    return false;
+  }
+  return true;
+}
 
 // GET /api/fests - List all fests
 router.get("/", async (req, res) => {
@@ -15,16 +31,21 @@ router.get("/", async (req, res) => {
 
     const skip = (page - 1) * limit;
 
-    const total = await prisma.fest.count({
-      where: {
-        isDeleted: false
-      }
-    });
+    // Optional free-text search on the fest name or college (case-insensitive).
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+
+    const where = { isDeleted: false };
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { college: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    const total = await prisma.fest.count({ where });
 
     const fests = await prisma.fest.findMany({
-      where: {
-        isDeleted: false
-      },
+      where,
       skip,
       take: limit,
       orderBy: { startDate: "desc" },
@@ -50,13 +71,18 @@ router.get("/", async (req, res) => {
       },
     });
 
+    const totalPages = Math.ceil(total / limit);
+
     res.json({
       success: true,
+      // Top-level fields kept for backward compatibility with existing callers.
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
-      data: fests,
+      totalPages,
+      pagination: { page, limit, total, totalPages },
+      // Never expose the fest's adminKey (the shared onboarding secret) publicly.
+      data: fests.map(({ adminKey, ...rest }) => rest),
     });
   } catch (error) {
     console.error("Error fetching fests:", error);
@@ -86,6 +112,9 @@ router.get("/:id", async (req, res) => {
       where: { id: festId, isDeleted: false },
       include: {
         events: {
+          // Public fest detail: never expose DRAFT or PRIVATE events (they are
+          // not bookable and must not leak on the public read path).
+          where: { status: "PUBLISHED", visibility: "PUBLIC" },
           orderBy: { startDate: "asc" },
           include: {
             ticketTypes: true,
@@ -102,9 +131,10 @@ router.get("/:id", async (req, res) => {
       });
     }
 
+    const { adminKey, ...festSafe } = fest;
     res.json({
       success: true,
-      data: fest,
+      data: festSafe,
     });
   } catch (error) {
     console.error("Error fetching fest:", error);
@@ -116,7 +146,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // POST /api/fests - Create a new fest
-router.post("/", authenticateUser, authorizeRoles("ADMIN"), async (req, res) => {
+router.post("/", authenticateUser, authorizeRoles("ADMIN"), validate(createFestSchema), async (req, res) => {
   try {
     const { name, college, description, image, startDate, endDate } = req.body;
 
@@ -131,14 +161,14 @@ router.post("/", authenticateUser, authorizeRoles("ADMIN"), async (req, res) => 
     const cleanStartDate = startDate?.trim() || null;
     const cleanEndDate = endDate?.trim() || null;
 
-    const sanitizedName = validator.escape(name.trim());
+    // Store raw user text (trimmed). Do NOT HTML-entity-escape at rest — that
+    // double-encodes and leaks entities into the UI (e.g. "St. Xavier&#x27;s").
+    // React escapes on render, which is the correct XSS boundary.
+    const sanitizedName = name.trim();
 
-    const sanitizedCollege = validator.escape(college.trim());
+    const sanitizedCollege = college.trim();
 
-    const sanitizedDescription =
-      description
-        ? validator.escape(description.trim())
-        : null;
+    const sanitizedDescription = description ? description.trim() : null;
 
     const sanitizedImage = image?.trim() || null;
 
@@ -188,8 +218,8 @@ router.post("/", authenticateUser, authorizeRoles("ADMIN"), async (req, res) => 
         college: sanitizedCollege,
         description: sanitizedDescription,
         image: sanitizedImage,
-        startDate: startDate ? new Date(cleanStartDate) : null,
-        endDate: endDate ? new Date(cleanEndDate) : null,
+        startDate: cleanStartDate ? new Date(cleanStartDate) : null,
+        endDate: cleanEndDate ? new Date(cleanEndDate) : null,
       },
     });
 
@@ -208,7 +238,7 @@ router.post("/", authenticateUser, authorizeRoles("ADMIN"), async (req, res) => 
 });
 
 // PUT /api/fests/:id - Update a fest
-router.put("/:id", authenticateUser, authorizeRoles("ADMIN"), async (req, res) => {
+router.put("/:id", authenticateUser, authorizeRoles("ADMIN"), validate(updateFestSchema), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -223,6 +253,8 @@ router.put("/:id", authenticateUser, authorizeRoles("ADMIN"), async (req, res) =
         }
       });
     }
+
+    if (!(await assertManagesFest(festId, req, res))) return;
 
     const { name, college, description, image, startDate, endDate } = req.body;
 
@@ -239,14 +271,13 @@ router.put("/:id", authenticateUser, authorizeRoles("ADMIN"), async (req, res) =
     const cleanStartDate = startDate?.trim() || null;
     const cleanEndDate = endDate?.trim() || null;
 
-    const sanitizedName = validator.escape(name.trim());
+    // Store raw user text (trimmed). See POST handler note: no HTML-entity
+    // escaping at rest; React escapes at render.
+    const sanitizedName = name.trim();
 
-    const sanitizedCollege = validator.escape(college.trim());
+    const sanitizedCollege = college.trim();
 
-    const sanitizedDescription =
-      description
-        ? validator.escape(description.trim())
-        : null;
+    const sanitizedDescription = description ? description.trim() : null;
 
     const sanitizedImage =
       image?.trim() || null;
@@ -297,8 +328,8 @@ router.put("/:id", authenticateUser, authorizeRoles("ADMIN"), async (req, res) =
         college: sanitizedCollege,
         description: sanitizedDescription,
         image: sanitizedImage,
-        startDate: startDate ? new Date(cleanStartDate) : null,
-        endDate: endDate ? new Date(cleanEndDate) : null,
+        startDate: cleanStartDate ? new Date(cleanStartDate) : null,
+        endDate: cleanEndDate ? new Date(cleanEndDate) : null,
       },
     });
 
@@ -336,6 +367,8 @@ router.delete("/:id", authenticateUser, authorizeRoles("ADMIN"), async (req, res
         }
       });
     }
+
+    if (!(await assertManagesFest(festId, req, res))) return;
 
     await prisma.fest.update({
       where: { id: festId },
@@ -380,9 +413,14 @@ router.get("/:festId/events", async (req, res) => {
 
     const events = await prisma.event.findMany({
       where: {
-        // All events for this fest (no status filter) — for host and
-        // public fest views. festId is already a Number (see above).
+        // Public fest events list: only PUBLISHED + PUBLIC events. DRAFT/PRIVATE
+        // events must not be exposed or made bookable here. festId is already a
+        // Number (see above). Also require the parent fest to be live — a
+        // soft-deleted (isDeleted=true) fest must expose no events publicly.
         festId: festId,
+        status: "PUBLISHED",
+        visibility: "PUBLIC",
+        fest: { isDeleted: false },
       },
       orderBy: { startDate: "asc" },
       include: {

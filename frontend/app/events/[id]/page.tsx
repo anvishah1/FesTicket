@@ -22,17 +22,55 @@ interface EventData {
   shortDescription?: string | null;
   description?: string | null;
   aboutEvent?: string | null;
+  audience?: string | null;
   image?: string | null;
   category?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   venue?: string | null;
   venueAddress?: string | null;
+  discount?: number;
+  status?: string;
+  effectiveStatus?: string;
   fest?: {
     name: string;
     college: string;
   } | null;
   ticketTypes: TicketType[];
+}
+
+// Geocode results are cached in localStorage keyed by the venue string so repeat
+// views of the same event don't re-hit Nominatim. Entries older than TTL_MS are
+// treated as stale and refetched. A resolved miss (coords: null) is cached too.
+const GEOCODE_CACHE_PREFIX = "geocode:";
+const GEOCODE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+type GeoCoords = { lat: number; lng: number } | null;
+
+function readGeocodeCache(addr: string): { hit: boolean; coords: GeoCoords } {
+  if (typeof window === "undefined") return { hit: false, coords: null };
+  try {
+    const raw = window.localStorage.getItem(GEOCODE_CACHE_PREFIX + addr);
+    if (!raw) return { hit: false, coords: null };
+    const parsed = JSON.parse(raw) as { ts: number; coords: GeoCoords };
+    if (!parsed || typeof parsed.ts !== "number") return { hit: false, coords: null };
+    if (Date.now() - parsed.ts > GEOCODE_TTL_MS) return { hit: false, coords: null };
+    return { hit: true, coords: parsed.coords ?? null };
+  } catch {
+    return { hit: false, coords: null };
+  }
+}
+
+function writeGeocodeCache(addr: string, coords: GeoCoords) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      GEOCODE_CACHE_PREFIX + addr,
+      JSON.stringify({ ts: Date.now(), coords })
+    );
+  } catch {
+    /* quota / disabled storage — geocoding simply won't be cached */
+  }
 }
 
 // Dynamically import React Leaflet components on client only
@@ -66,27 +104,36 @@ export default function EventDetailsPage() {
         const data = await res.json();
         if (data.success && data.data) {
           setEvent(data.data);
-          // Kick off geocoding based on venue address, if available
+          // Geocode the venue, but serve from the localStorage cache first so
+          // repeat views of the same venue don't re-hit Nominatim.
           const addr = data.data.venueAddress || data.data.venue;
           if (addr) {
-            setGeocoding(true);
-            const query = encodeURIComponent(addr);
-            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}`)
-              .then((res) => res.json())
-              .then((results) => {
-                if (Array.isArray(results) && results.length > 0) {
-                  const first = results[0];
-                  const lat = parseFloat(first.lat);
-                  const lng = parseFloat(first.lon);
-                  if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-                    setCoords({ lat, lng });
+            const cached = readGeocodeCache(addr);
+            if (cached.hit) {
+              setCoords(cached.coords);
+            } else {
+              setGeocoding(true);
+              const query = encodeURIComponent(addr);
+              fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}`)
+                .then((res) => res.json())
+                .then((results) => {
+                  let resolved: GeoCoords = null;
+                  if (Array.isArray(results) && results.length > 0) {
+                    const first = results[0];
+                    const lat = parseFloat(first.lat);
+                    const lng = parseFloat(first.lon);
+                    if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+                      resolved = { lat, lng };
+                    }
                   }
-                }
-              })
-              .catch((err) => {
-                console.error("Geocoding failed:", err);
-              })
-              .finally(() => setGeocoding(false));
+                  setCoords(resolved);
+                  writeGeocodeCache(addr, resolved);
+                })
+                .catch((err) => {
+                  console.error("Geocoding failed:", err);
+                })
+                .finally(() => setGeocoding(false));
+            }
           }
         }
       } catch (err) {
@@ -170,7 +217,7 @@ export default function EventDetailsPage() {
               <div className="h-64 w-full overflow-hidden">
                 <img
                   src={event.image}
-                  alt={event.name}
+                  alt={`Poster for ${event.name}`}
                   className="h-full w-full object-cover"
                 />
               </div>
@@ -187,11 +234,21 @@ export default function EventDetailsPage() {
                     </p>
                   )}
                 </div>
-                {event.category && (
-                  <span className="inline-flex items-center rounded-full bg-[#522C5D]/10 px-3 py-1 text-xs font-medium text-[#522C5D]">
-                    {event.category}
-                  </span>
-                )}
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {typeof event.discount === "number" && event.discount > 0 && (
+                    <span
+                      data-testid="discount-badge"
+                      className="inline-flex items-center rounded-full bg-[#E11D48] px-3 py-1 text-xs font-bold text-white"
+                    >
+                      {event.discount}% OFF
+                    </span>
+                  )}
+                  {event.category && (
+                    <span className="inline-flex items-center rounded-full bg-[#522C5D]/10 px-3 py-1 text-xs font-medium text-[#522C5D]">
+                      {event.category}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-3 text-sm text-[#6B597F]">
@@ -213,6 +270,12 @@ export default function EventDetailsPage() {
             <p className="text-sm leading-relaxed text-[#4B3F60] whitespace-pre-line">
               {primaryDescription}
             </p>
+            {event.audience && (
+              <p className="text-sm text-[#6B597F]">
+                <span className="font-medium text-[#29104A]">Who should attend:</span>{" "}
+                {event.audience}
+              </p>
+            )}
           </div>
 
           {/* Venue details + map */}
@@ -262,11 +325,11 @@ export default function EventDetailsPage() {
             {event.ticketTypes.length === 0 ? (
               <p className="text-sm text-[#6B597F]">Tickets are not available yet. Check back soon.</p>
             ) : (
-              <div className="space-y-3">
+              <ul className="space-y-3">
                 {event.ticketTypes.map((t) => {
                   const available = t.quantity - t.sold;
                   return (
-                    <div
+                    <li
                       key={t.id}
                       className="flex items-center justify-between rounded-xl border border-[#C5BAC4] px-3 py-3"
                     >
@@ -280,20 +343,44 @@ export default function EventDetailsPage() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-base font-bold text-[#29104A]">₹{t.price}</p>
+                        <p className="text-base font-bold text-[#29104A]">
+                          <span className="sr-only">Price: </span>₹{t.price}
+                        </p>
                       </div>
-                    </div>
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
             )}
 
-            <button
-              onClick={() => router.push(`/events/${eventId}/booking`)}
-              className="mt-5 w-full rounded-lg bg-[#522C5D] py-3 text-sm font-semibold text-white hover:bg-[#29104A] transition-colors"
-            >
-              Book tickets
-            </button>
+            {(() => {
+              const isCancelled = event.status === "CANCELLED";
+              const isPast = event.effectiveStatus === "PAST";
+              const isSoldOut =
+                event.ticketTypes.length > 0 &&
+                event.ticketTypes.every((t) => t.quantity - t.sold <= 0);
+              const disabled = isCancelled || isPast || isSoldOut;
+              const label = isCancelled
+                ? "Cancelled"
+                : isPast
+                ? "Event ended"
+                : isSoldOut
+                ? "Sold out"
+                : "Book tickets";
+              return (
+                <button
+                  onClick={() => router.push(`/events/${eventId}/booking`)}
+                  disabled={disabled}
+                  className={`mt-5 w-full rounded-lg py-3 text-sm font-semibold text-white transition-colors ${
+                    disabled
+                      ? "cursor-not-allowed bg-[#C5BAC4]"
+                      : "bg-[#522C5D] hover:bg-[#29104A]"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })()}
           </div>
         </aside>
       </main>

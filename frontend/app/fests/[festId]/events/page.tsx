@@ -16,6 +16,7 @@ interface Event {
   description: string | null;
   image: string | null;
   category: string | null;
+  discount?: number;
 }
 
 interface FestInfo {
@@ -24,73 +25,129 @@ interface FestInfo {
   college: string;
 }
 
+interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: "date", label: "Date" },
+  { value: "name", label: "Name" },
+  { value: "newest", label: "Newest" },
+];
+
+function mapEvent(e: any): Event {
+  return {
+    id: e.id,
+    name: e.name,
+    startDate: e.startDate,
+    endDate: e.endDate,
+    venue: e.venue,
+    description: e.shortDescription || e.description || null,
+    image: e.image,
+    category: e.category,
+    discount: e.discount,
+  };
+}
+
 export default function EventsPage() {
   const params = useParams();
   const router = useRouter();
   const festId = Number(params.festId);
 
-  const [loading, setLoading] = useState(true);
+  const [festLoading, setFestLoading] = useState(true);
+  const [listLoading, setListLoading] = useState(true);
   const [events, setEvents] = useState<Event[]>([]);
   const [festInfo, setFestInfo] = useState<FestInfo | null>(null);
+  const [categories, setCategories] = useState<string[]>(["All"]);
+  const [pagination, setPagination] = useState<Pagination | null>(null);
+
+  // Filters / query state
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [sort, setSort] = useState<string>("date");
+  const [page, setPage] = useState(1);
 
+  // Load fest info once (name/college) and derive the full category list so the
+  // category chips stay stable even when the event list is server-filtered.
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchFest = async () => {
       try {
-        const festRes = await fetch(`${getApiUrl()}/api/fests/${festId}`);
-        const festJson = await festRes.json();
-
-        if (!festJson.success || !festJson.data) {
+        const res = await fetch(`${getApiUrl()}/api/fests/${festId}`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          setFestInfo({ id: json.data.id, name: json.data.name, college: json.data.college });
+          const evs = (json.data.events || []) as any[];
+          const cats = Array.from(new Set(evs.map((e) => e.category || "Other")));
+          setCategories(["All", ...cats]);
+        } else {
           setFestInfo(null);
-          setEvents([]);
-          setLoading(false);
-          return;
         }
-
-        setFestInfo({
-          id: festJson.data.id,
-          name: festJson.data.name,
-          college: festJson.data.college,
-        });
-
-        const apiEvents = (festJson.data.events || []) as any[];
-        const mappedEvents: Event[] = apiEvents.map((e) => ({
-          id: e.id,
-          name: e.name,
-          startDate: e.startDate,
-          endDate: e.endDate,
-          venue: e.venue,
-          description: e.shortDescription || e.description || null,
-          image: e.image,
-          category: e.category,
-        }));
-
-        setEvents(mappedEvents);
       } catch (err) {
-        console.error("Failed to load fest events:", err);
+        console.error("Failed to load fest:", err);
+        setFestInfo(null);
       } finally {
-        setLoading(false);
+        setFestLoading(false);
       }
     };
-
-    fetchData();
+    fetchFest();
   }, [festId]);
 
+  // Debounce the search box.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Reset to page 1 whenever a filter/sort changes.
+  useEffect(() => {
+    setPage(1);
+  }, [selectedCategory, sort]);
+
+  // Fetch the (filtered / sorted / paginated) event list.
+  useEffect(() => {
+    if (!Number.isFinite(festId)) return;
+    const fetchEvents = async () => {
+      setListLoading(true);
+      try {
+        const qs = new URLSearchParams();
+        qs.set("festId", String(festId));
+        if (debouncedSearch) qs.set("search", debouncedSearch);
+        if (selectedCategory && selectedCategory !== "All") qs.set("category", selectedCategory);
+        if (sort) qs.set("sort", sort);
+        qs.set("page", String(page));
+
+        const res = await fetch(`${getApiUrl()}/api/events?${qs.toString()}`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setEvents(json.data.map(mapEvent));
+          setPagination(json.pagination ?? null);
+        } else {
+          setEvents([]);
+          setPagination(null);
+        }
+      } catch (err) {
+        console.error("Failed to load events:", err);
+        setEvents([]);
+        setPagination(null);
+      } finally {
+        setListLoading(false);
+      }
+    };
+    fetchEvents();
+  }, [festId, debouncedSearch, selectedCategory, sort, page]);
+
   const handleEventClick = (eventId: number) => {
-    // Go to event details page; user can start booking from there
     router.push(`/events/${eventId}`);
   };
 
-  const categories =
-    events.length > 0
-      ? ["All", ...Array.from(new Set(events.map((e) => e.category || "Other")))]
-      : ["All"];
-
-  const filteredEvents = events.filter(
-    (event) => selectedCategory === "All" || (event.category || "Other") === selectedCategory
-  );
-
-  if (loading) {
+  if (festLoading) {
     return (
       <div className="min-h-screen bg-[#fdfdff]">
         <Header />
@@ -124,72 +181,146 @@ export default function EventsPage() {
     );
   }
 
+  const totalPages = pagination?.totalPages ?? 1;
+  const total = pagination?.total;
+
   return (
     <div className="min-h-screen bg-[#fdfdff]">
       <Header />
       <main className="py-8 px-4">
         {/* Page Title */}
-        <div className="max-w-6xl mx-auto mb-8">
-        <button
-          onClick={() => router.push("/fests")}
-          className="text-[#522C5D] hover:underline mb-4 flex items-center gap-1"
-        >
-          <span>←</span> Back to Fests
-        </button>
-        <h1 className="text-3xl font-bold text-[#29104A]">{festInfo.name} Events</h1>
-        <p className="text-[#6B597F] mt-1">
-          Explore all events at {festInfo.name} • {festInfo.college}
-        </p>
-      </div>
-
-      {/* Category Filter */}
-      <div className="max-w-6xl mx-auto mb-6">
-        <div className="flex flex-wrap gap-2">
-          {categories.map((category) => (
-            <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                selectedCategory === category
-                  ? "bg-[#522C5D] text-white"
-                  : "bg-white text-[#6B597F] hover:bg-[#C5BAC4]"
-              }`}
-            >
-              {category}
-            </button>
-          ))}
+        <div className="max-w-6xl mx-auto mb-6">
+          <button
+            onClick={() => router.push("/fests")}
+            className="text-[#522C5D] hover:underline mb-4 flex items-center gap-1"
+          >
+            <span>←</span> Back to Fests
+          </button>
+          <h1 className="text-3xl font-bold text-[#29104A]">{festInfo.name} Events</h1>
+          <p className="text-[#6B597F] mt-1">
+            Explore all events at {festInfo.name} • {festInfo.college}
+          </p>
         </div>
-      </div>
 
-      {/* Events Grid */}
-      <div className="max-w-6xl mx-auto">
-        {filteredEvents.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {filteredEvents.map((event) => (
-              <Card
-                key={event.id}
-                title={event.name}
-                subtitle={event.category || "Event"}
-                description={`${event.startDate ? new Date(event.startDate).toLocaleDateString(
-                  "en-US",
-                  { month: "short", day: "numeric", year: "numeric" }
-                ) : "Date TBA"}${event.venue ? ` • ${event.venue}` : ""}`}
-                image={
-                  event.image ||
-                  "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop"
-                }
-                hoverText="View Details"
-                onClick={() => handleEventClick(event.id)}
-              />
+        {/* Search + Sort */}
+        <div className="max-w-6xl mx-auto mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search events by name…"
+            aria-label="Search events"
+            className="w-full sm:max-w-md rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm text-[#29104A] placeholder-[#6B597F] focus:border-[#522C5D] focus:outline-none"
+          />
+          <label className="flex items-center gap-2 text-sm text-[#6B597F]">
+            Sort by
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              aria-label="Sort events"
+              className="rounded-lg border border-[#C5BAC4] bg-white px-3 py-2 text-sm text-[#29104A] focus:border-[#522C5D] focus:outline-none"
+            >
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {/* Category Filter */}
+        <div className="max-w-6xl mx-auto mb-4">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filter events by category">
+            {categories.map((category) => (
+              <button
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                aria-pressed={selectedCategory === category}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  selectedCategory === category
+                    ? "bg-[#522C5D] text-white"
+                    : "bg-white text-[#6B597F] hover:bg-[#C5BAC4]"
+                }`}
+              >
+                {category}
+              </button>
             ))}
           </div>
-        ) : (
-          <p className="text-[#6B597F]">No events found in this category</p>
+        </div>
+
+        {/* Result count */}
+        {!listLoading && typeof total === "number" && (
+          <div className="max-w-6xl mx-auto mb-4">
+            <p className="text-sm text-[#6B597F]" role="status" aria-live="polite">
+              {total} {total === 1 ? "event" : "events"} found
+            </p>
+          </div>
         )}
-      </div>
+
+        {/* Events Grid */}
+        <div className="max-w-6xl mx-auto">
+          {listLoading ? (
+            <p className="text-[#6B597F]">Loading events...</p>
+          ) : events.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {events.map((event) => (
+                <Card
+                  key={event.id}
+                  title={event.name}
+                  subtitle={event.category || "Event"}
+                  description={`${event.startDate ? new Date(event.startDate).toLocaleDateString(
+                    "en-US",
+                    { month: "short", day: "numeric", year: "numeric" }
+                  ) : "Date TBA"}${event.venue ? ` • ${event.venue}` : ""}`}
+                  image={
+                    event.image ||
+                    "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop"
+                  }
+                  discount={event.discount}
+                  hoverText="View Details"
+                  onClick={() => handleEventClick(event.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-[#6B597F]">
+              {debouncedSearch || selectedCategory !== "All"
+                ? "No events match your filters."
+                : "No events found"}
+            </p>
+          )}
+        </div>
+
+        {/* Pagination */}
+        {!listLoading && pagination && totalPages > 1 && (
+          <nav
+            aria-label="Events pagination"
+            className="max-w-6xl mx-auto mt-8 flex items-center justify-center gap-4"
+          >
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              aria-label="Previous page"
+              className="rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm font-medium text-[#522C5D] transition-colors hover:bg-[#C5BAC4] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <span aria-hidden="true">←</span> Prev
+            </button>
+            <span className="text-sm text-[#6B597F]" aria-current="page">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              aria-label="Next page"
+              className="rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm font-medium text-[#522C5D] transition-colors hover:bg-[#C5BAC4] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next <span aria-hidden="true">→</span>
+            </button>
+          </nav>
+        )}
       </main>
       <Footer />
     </div>
   );
 }
-

@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 export const signupSchema = z.object({
-  email: z.string().email("Invalid email"),
+  email: z
+    .string()
+    .max(254, "Email is too long")
+    .email("Invalid email"),
 
   password: z
     .string()
@@ -12,15 +15,39 @@ export const signupSchema = z.object({
     .regex(/[0-9]/, "Password must contain a number")
     .regex(/[^A-Za-z0-9]/, "Password must contain a special character"),
 
-  name: z.string().min(2, "Name must be at least 2 characters").optional(),
+  name: z
+    .string()
+    .min(2, "Name must be at least 2 characters")
+    .max(120, "Name is too long")
+    .optional(),
 
   // Student-specific: request to become editor for a fest (key provided by that fest's admin)
   wantsEditor: z.union([z.boolean(), z.literal("true"), z.literal("false")]).optional(),
-  festKey: z.string().min(1, "Fest key is required when requesting editor").optional(),
-  organizationName: z.string().min(2, "Organization must be at least 2 characters").optional()
+  festKey: z
+    .string()
+    .min(1, "Fest key is required when requesting editor")
+    .max(200, "Fest key is too long")
+    .optional(),
+  organizationName: z
+    .string()
+    .min(2, "Organization must be at least 2 characters")
+    .max(200, "Organization name is too long")
+    .optional(),
+
+  // Optional CAPTCHA token; passed through so verifyCaptcha() can validate it.
+  captchaToken: z.string().max(4000).optional()
 });
 
 export const signinSchema = z.object({
-  email: z.string().email("Invalid email"),
-  password: z.string().min(1, "Password required")
+  email: z
+    .string()
+    .max(254, "Email is too long")
+    .email("Invalid email"),
+  password: z
+    .string()
+    .min(1, "Password required")
+    .max(200, "Password is too long"),
+
+  // Optional CAPTCHA token; passed through so verifyCaptcha() can validate it.
+  captchaToken: z.string().max(4000).optional()
 });

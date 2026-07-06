@@ -3,3 +3,10 @@ node_modules
 .env
 
 /generated/prisma
+
+# never commit local databases (the app uses Postgres; dev.db held plaintext creds)
+prisma/*.db
+*.db
+
+# test coverage
+/coverage

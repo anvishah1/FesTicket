@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Footer from '@/components/Footer';
-import { getApiUrl, getAccessToken, getStoredUser, isAuthenticated } from '@/lib/auth';
+import { getApiUrl, getStoredUser, isAuthenticated, logout, apiFetch } from '@/lib/auth';
 
 interface TicketType {
   name: string;
@@ -65,7 +65,7 @@ function mapApiEventToHostEvent(e: any): HostEvent {
       e.image ||
       "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop",
     category: e.category || "Event",
-    status: statusMap[e.status] ?? "upcoming",
+    status: statusMap[e.effectiveStatus ?? e.status] ?? "upcoming",
     ticketTypes:
       e.ticketTypes?.map((t: any) => ({
         name: t.name,
@@ -108,8 +108,9 @@ export default function HostDashboard() {
   const createEventFestId = editorFestId;
 
   useEffect(() => {
-    // Only editors can access the host dashboard
-    if (!isAuthenticated() || !user || user.role !== "EDITOR") {
+    // Only EDITOR/HOST roles can access the host dashboard.
+    // (AuthForm routes both roles here on login, so the guard must admit both.)
+    if (!isAuthenticated() || !user || !["EDITOR", "HOST"].includes(user.role)) {
       router.replace("/signin");
     } else {
       setAuthChecked(true);
@@ -134,7 +135,7 @@ export default function HostDashboard() {
       }
       const fest = festJson.data;
       // Fetch all events for this fest (same fest id as the user's)
-      const eventsRes = await fetch(`${getApiUrl()}/api/events?festId=${editorFestId}`);
+      const eventsRes = await apiFetch(`${getApiUrl()}/api/events?festId=${editorFestId}`);
       const eventsJson = await eventsRes.json();
       const apiEvents = eventsJson.success ? (eventsJson.data ?? []) : [];
       const mappedEvents: HostEvent[] = apiEvents.map((e: any) => mapApiEventToHostEvent(e));
@@ -173,6 +174,11 @@ export default function HostDashboard() {
     );
   }
 
+  const handleSignOut = async () => {
+    await logout();
+    router.replace("/signin");
+  };
+
   const handleCreateFest = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreatingFest(true);
@@ -185,7 +191,7 @@ export default function HostDashboard() {
         : `${getApiUrl()}/api/fests`;
       const method = isEdit ? "PUT" : "POST";
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -302,11 +308,16 @@ export default function HostDashboard() {
               </svg>
               Create Event
             </button>
-            <div className="w-10 h-10 rounded-full bg-[#522C5D] flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            <button
+              onClick={handleSignOut}
+              title="Sign out"
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 border border-white/20"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
-            </div>
+              Sign Out
+            </button>
           </div>
         </div>
       </header>
@@ -318,7 +329,7 @@ export default function HostDashboard() {
             Welcome back, {user?.name?.trim() || user?.email?.split("@")[0] || "there"}! 👋
           </h2>
           <p className="text-[#6B597F]">
-            {fests.length > 0 ? "Here's an overview of your fest and events." : "Here's an overview of your fest and events."}
+            Here's an overview of your fest and events.
           </p>
         </div>
 
@@ -326,7 +337,7 @@ export default function HostDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white border border-[#C5BAC4] rounded-2xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[#6B597F] text-sm">Total Revenue</span>
+              <span className="text-[#6B597F] text-sm">Reserved Value</span>
               <div className="w-10 h-10 rounded-xl bg-[#522C5D]/10 flex items-center justify-center">
                 <svg className="w-5 h-5 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -334,11 +345,12 @@ export default function HostDashboard() {
               </div>
             </div>
             <p className="text-3xl font-bold text-[#29104A]">₹{totalRevenue.toLocaleString()}</p>
+            <p className="text-xs text-[#6B597F] mt-1">incl. pending holds</p>
           </div>
 
           <div className="bg-white border border-[#C5BAC4] rounded-2xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[#6B597F] text-sm">Tickets Sold</span>
+              <span className="text-[#6B597F] text-sm">Tickets Reserved</span>
               <div className="w-10 h-10 rounded-xl bg-[#522C5D]/10 flex items-center justify-center">
                 <svg className="w-5 h-5 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
@@ -346,6 +358,7 @@ export default function HostDashboard() {
               </div>
             </div>
             <p className="text-3xl font-bold text-[#29104A]">{totalTicketsSold.toLocaleString()}</p>
+            <p className="text-xs text-[#6B597F] mt-1">incl. pending holds</p>
           </div>
 
           <div className="bg-white border border-[#C5BAC4] rounded-2xl p-5 shadow-sm">
@@ -422,27 +435,10 @@ export default function HostDashboard() {
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingFestId(fest.id);
-                            setFestForm({
-                              name: fest.name,
-                              college: fest.college,
-                              description: fest.description || "",
-                              image: "",
-                              startDate: fest.startDate ? fest.startDate.slice(0, 10) : "",
-                              endDate: fest.endDate ? fest.endDate.slice(0, 10) : "",
-                            });
-                            setFestImagePreview(null);
-                            setFestError("");
-                            setFestSuccess(false);
-                            setShowCreateFest(true);
-                          }}
-                          className="hidden sm:inline-flex px-3 py-1.5 rounded-lg bg-[#C5BAC4]/40 hover:bg-[#C5BAC4] text-xs font-medium text-[#29104A] transition-colors"
-                        >
-                          Edit Fest
-                        </button>
+                        {/* Editing the fest is an ADMIN-only action (PUT /api/fests/:id).
+                            Hosts/editors can't perform it, so we don't show a control
+                            that would always fail — fest edits happen from the admin
+                            dashboard. */}
                         <div className="text-right hidden sm:block">
                           <p className="text-sm text-[#6B597F]">{formatDate(fest.startDate, fest.endDate)}</p>
                           <p className="text-sm font-medium text-[#522C5D]">
@@ -525,10 +521,10 @@ export default function HostDashboard() {
                               <tr className="bg-[#C5BAC4]/20">
                                 <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Event</th>
                                 <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Date & Time</th>
-                                <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Tickets Sold</th>
+                                <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Tickets Reserved</th>
                                 <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Ticket Types</th>
                                 <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Discount</th>
-                                <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Revenue</th>
+                                <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Reserved Value</th>
                                 <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Status</th>
                                 <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]"></th>
                               </tr>
@@ -563,7 +559,7 @@ export default function HostDashboard() {
                                       <div
                                         className="h-full bg-[#522C5D] rounded-full"
                                         style={{
-                                          width: `${(getTotalTicketsSold(event) / getTotalTickets(event)) * 100}%`,
+                                          width: `${Math.min(100, getTotalTickets(event) ? (getTotalTicketsSold(event) / getTotalTickets(event)) * 100 : 0)}%`,
                                         }}
                                       ></div>
                                     </div>
@@ -649,7 +645,7 @@ export default function HostDashboard() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-[#29104A]">Create New Fest</h2>
+              <h2 className="text-2xl font-bold text-[#29104A]">{editingFestId !== null ? "Edit Fest" : "Create New Fest"}</h2>
               <button
                 onClick={() => {
                   setShowCreateFest(false);
@@ -672,7 +668,7 @@ export default function HostDashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-bold text-[#29104A] mb-2">Fest Created!</h3>
+                <h3 className="text-xl font-bold text-[#29104A] mb-2">{editingFestId !== null ? "Fest Updated!" : "Fest Created!"}</h3>
                 <p className="text-[#6B597F]">You can now add events to your fest.</p>
               </div>
             ) : (

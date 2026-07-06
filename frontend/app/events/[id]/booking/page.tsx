@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import TicketSelector from "@/components/TicketSelector";
@@ -11,6 +11,7 @@ import AttendeeForm from "@/components/AttendeeForm";
 import Link from "next/link";
 import Footer from "@/components/Footer";
 import { getApiUrl } from "@/lib/auth";
+import { showToast } from "@/lib/toast";
 
 type TicketType = {
   id: string;
@@ -20,6 +21,15 @@ type TicketType = {
   available: number;
 };
 
+type EventQuestion = {
+  id: number;
+  label: string;
+  type: string; // "text" | "textarea" | "number" | "email" | ...
+  required: boolean;
+  options?: string;
+  order?: number;
+};
+
 interface EventData {
   id: number;
   name: string;
@@ -27,7 +37,9 @@ interface EventData {
   startDate: string;
   endDate: string;
   image: string;
+  discount?: number; // percentage 0..100 applied to the subtotal
   fest?: { name: string; college: string };
+  questions?: EventQuestion[]; // custom registration questions (C4)
   ticketTypes: Array<{
     id: number;
     name: string;
@@ -55,6 +67,9 @@ export default function BookingPage() {
 
   // Guest info
   const [guestInfo, setGuestInfo] = useState({ name: "", email: "", phone: "" });
+
+  // Answers to the event's custom registration questions, keyed by question id.
+  const [answers, setAnswers] = useState<Record<number, string>>({});
 
   // Fetch event data
   useEffect(() => {
@@ -108,6 +123,20 @@ export default function BookingPage() {
     available: t.quantity - t.sold,
   })) || [];
 
+  // Custom registration questions for this event (empty when none configured).
+  const questions: EventQuestion[] = [...(event?.questions || [])].sort(
+    (a, b) => (a.order ?? 0) - (b.order ?? 0)
+  );
+
+  function setAnswer(questionId: number, value: string) {
+    setAnswers((s) => ({ ...s, [questionId]: value }));
+  }
+
+  // Every required custom question must have a non-empty answer before submit.
+  const questionsValid = questions.every(
+    (q) => !q.required || (answers[q.id] ?? "").trim().length > 0
+  );
+
   function setQuantity(ticketId: string, qty: number) {
     const ticket = tickets.find((t) => t.id === ticketId);
     const maxAvailable = ticket?.available || 0;
@@ -119,9 +148,19 @@ export default function BookingPage() {
     0
   );
 
-  const platformFee = Math.round(subtotal * 0.02);
-  const tax = Math.round((subtotal + platformFee) * 0.18);
-  const total = subtotal + platformFee + tax;
+  // L9 / DISCOUNT: CANONICAL fee/tax/discount math — must stay byte-for-byte
+  // identical to the backend (backend/src/routes/bookings.js). Round every
+  // currency amount to 2 decimals (paise) so the total shown here equals the
+  // total the backend stores and Razorpay charges (Math.round(total * 100)).
+  // The discount percentage comes from the EVENT (never the client), and the
+  // platform fee + GST are computed on the DISCOUNTED base.
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const discountPct = event?.discount ?? 0;
+  const discountAmount = round2(subtotal * (discountPct / 100));
+  const discountedBase = round2(subtotal - discountAmount);
+  const platformFee = round2(discountedBase * 0.02);
+  const tax = round2((discountedBase + platformFee) * 0.18);
+  const total = round2(discountedBase + platformFee + tax);
 
   const totalTickets = Object.values(quantities).reduce((a, b) => a + b, 0);
   const requiredAttendees = totalTickets;
@@ -130,7 +169,8 @@ export default function BookingPage() {
     totalTickets > 0 &&
     attendees.length === requiredAttendees &&
     attendees.every((a) => a.name.trim().length > 0 && a.email.trim().length > 0) &&
-    guestInfo.email.trim().length > 0;
+    guestInfo.email.trim().length > 0 &&
+    questionsValid;
 
   const handleProceedToPayment = async () => {
     if (!isValid || submitting) return;
@@ -162,6 +202,13 @@ export default function BookingPage() {
         }
       }
 
+      // Answers to the event's custom questions ({ questionId, value }).
+      // Only send answered questions; required ones are guaranteed non-empty
+      // by the isValid gate above.
+      const answersPayload = questions
+        .map((q) => ({ questionId: q.id, value: (answers[q.id] ?? "").trim() }))
+        .filter((a) => a.value.length > 0);
+
       // Create booking
       const res = await fetch(`${getApiUrl()}/api/bookings`, {
         method: "POST",
@@ -173,12 +220,22 @@ export default function BookingPage() {
           guestPhone: guestInfo.phone,
           tickets: ticketsPayload,
           attendees: attendeesPayload,
+          answers: answersPayload,
         }),
       });
 
       const data = await res.json();
 
       if (data.success) {
+        // A free / fully-discounted booking is auto-completed on creation
+        // (status COMPLETED, no payment step) — skip payment and go straight to
+        // the confirmation view.
+        if (data.data.status === "COMPLETED") {
+          localStorage.removeItem("pendingBooking");
+          showToast("Booking confirmed!", "success");
+          router.push(`/booking-confirmation?bookingCode=${encodeURIComponent(data.data.bookingCode)}`);
+          return;
+        }
         // Store booking info and proceed to payment
         localStorage.setItem("pendingBooking", JSON.stringify({
           bookingId: data.data.id,
@@ -186,13 +243,13 @@ export default function BookingPage() {
           total: data.data.total,
           eventName: event?.name,
         }));
-        router.push(`/events/${eventId}/payment?bookingId=${data.data.id}`);
+        router.push(`/events/${eventId}/payment?bookingCode=${data.data.bookingCode}`);
       } else {
-        alert(data.error?.message || "Failed to create booking");
+        showToast(data.error?.message || "Failed to create booking", "error");
       }
     } catch (error) {
       console.error("Booking error:", error);
-      alert("Failed to create booking. Please try again.");
+      showToast("Failed to create booking. Please try again.", "error");
     } finally {
       setSubmitting(false);
     }
@@ -323,6 +380,59 @@ export default function BookingPage() {
             </div>
           </div>
 
+          {/* Custom registration questions (only when the host configured any) */}
+          {questions.length > 0 && (
+            <div className="rounded-lg p-6 bg-white border shadow-sm" data-testid="custom-questions">
+              <h2 className="text-lg font-semibold">Additional questions</h2>
+              <p className="text-sm text-slate-500 mt-1 mb-4">
+                The organiser would like a few more details.
+              </p>
+
+              <div className="space-y-4">
+                {questions.map((q) => {
+                  const value = answers[q.id] ?? "";
+                  const inputId = `question-${q.id}`;
+                  return (
+                    <div key={q.id}>
+                      <label
+                        htmlFor={inputId}
+                        className="block text-sm font-medium text-slate-700 mb-1"
+                      >
+                        {q.label}
+                        {q.required && <span className="text-red-500"> *</span>}
+                      </label>
+                      {q.type === "textarea" ? (
+                        <textarea
+                          id={inputId}
+                          value={value}
+                          required={q.required}
+                          onChange={(e) => setAnswer(q.id, e.target.value)}
+                          rows={3}
+                          className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        />
+                      ) : (
+                        <input
+                          id={inputId}
+                          type={
+                            q.type === "number"
+                              ? "number"
+                              : q.type === "email"
+                              ? "email"
+                              : "text"
+                          }
+                          value={value}
+                          required={q.required}
+                          onChange={(e) => setAnswer(q.id, e.target.value)}
+                          className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Attendees form */}
           {totalTickets > 0 && (
             <div className="rounded-lg p-6 bg-white border shadow-sm">
@@ -357,13 +467,60 @@ export default function BookingPage() {
 
         {/* Right: summary & payment */}
         <aside className="space-y-6">
-          <BookingSummary
-            subtotal={subtotal}
-            platformFee={platformFee}
-            tax={tax}
-            total={total}
-            items={tickets.map((t) => ({ ...t, qty: quantities[t.id] ?? 0 }))}
-          />
+          {discountPct > 0 ? (
+            // Itemized summary with the discount applied. The discounted total
+            // here matches exactly what the backend stores/charges.
+            <div className="rounded-lg p-5 border bg-white shadow-sm" data-testid="booking-summary-discount">
+              <h4 className="font-semibold mb-3">Summary</h4>
+
+              <div className="space-y-2">
+                {tickets
+                  .filter((t) => (quantities[t.id] ?? 0) > 0)
+                  .map((t) => (
+                    <div className="flex items-start justify-between text-sm" key={t.id}>
+                      <div>
+                        <div className="font-medium">{t.name}</div>
+                        <div className="text-xs text-slate-500">
+                          Qty {quantities[t.id] ?? 0} × ₹{t.price}
+                        </div>
+                      </div>
+                      <div className="font-medium">₹{(quantities[t.id] ?? 0) * t.price}</div>
+                    </div>
+                  ))}
+
+                <hr className="my-3" />
+                <div className="flex justify-between text-sm">
+                  <div className="text-slate-600">Subtotal</div>
+                  <div>₹{subtotal}</div>
+                </div>
+                <div className="flex justify-between text-sm text-green-700">
+                  <div>Discount ({discountPct}%)</div>
+                  <div>-₹{discountAmount}</div>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <div className="text-slate-600">Platform fee</div>
+                  <div>₹{platformFee}</div>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <div className="text-slate-600">Tax</div>
+                  <div>₹{tax}</div>
+                </div>
+
+                <div className="flex justify-between items-center mt-4">
+                  <div className="text-sm font-medium">Total</div>
+                  <div className="text-xl font-bold">₹{total}</div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <BookingSummary
+              subtotal={subtotal}
+              platformFee={platformFee}
+              tax={tax}
+              total={total}
+              items={tickets.map((t) => ({ ...t, qty: quantities[t.id] ?? 0 }))}
+            />
+          )}
 
           <div className="rounded-lg p-5 border bg-white shadow-sm">
             <h4 className="font-semibold mb-3">Payment</h4>
@@ -382,6 +539,10 @@ export default function BookingPage() {
                     attendees.every((a) => a.name.trim()) &&
                     attendees.some((a) => !a.email.trim()) &&
                     "⚠ Please fill in the EMAIL for all attendees"}
+                  {guestInfo.email.trim() &&
+                    attendees.every((a) => a.name.trim() && a.email.trim()) &&
+                    !questionsValid &&
+                    "⚠ Please answer all required questions"}
                 </div>
               )}
 

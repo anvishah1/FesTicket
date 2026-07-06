@@ -1,5 +1,4 @@
 // frontend/components/AttendeeForm.tsx
-import React from "react";
 
 export default function AttendeeForm({
   requiredCount,

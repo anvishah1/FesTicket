@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { getApiUrl, getStoredUser, getAccessToken, isAuthenticated, updateStoredUser } from "@/lib/auth";
+import { getApiUrl, getStoredUser, getAccessToken, isAuthenticated, updateStoredUser, apiFetch } from "@/lib/auth";
+import { showToast } from "@/lib/toast";
 
 import RoleRequests from "@/components/admin/RoleRequests";
 import FestEvents from "@/components/admin/FestEvents";
@@ -21,6 +22,15 @@ export default function AdminDashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [festName, setFestName] = useState<string | null>(null);
   const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null);
+  const [festKey, setFestKey] = useState<string | null>(null);
+  const [keyCopied, setKeyCopied] = useState(false);
+  const [analytics, setAnalytics] = useState<{
+    revenue: number;
+    ticketsSold: number;
+    eventsCount: number;
+    bookingsCount: number;
+  } | null>(null);
+  const [totalSpend, setTotalSpend] = useState<number | null>(null);
 
   const managedFestId = user?.managedFestId ?? null;
 
@@ -45,9 +55,9 @@ export default function AdminDashboardPage() {
     if (!mounted) return;
     const token = getAccessToken();
     if (!token) return;
-    fetch(`${getApiUrl()}/api/user/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    // Enrichment call: don't let a stale token bounce an admin who is already
+    // validly on the dashboard (via stored user) — fall through on auth failure.
+    apiFetch(`${getApiUrl()}/api/user/me`, {}, { redirectOnAuthFailure: false })
       .then((r) => r.ok ? r.json() : null)
       .then((me) => {
         if (!me) return;
@@ -55,6 +65,9 @@ export default function AdminDashboardPage() {
         const editorFestId = me.editorFestId != null ? Number(me.editorFestId) : null;
         updateStoredUser({ managedFestId, editorFestId });
         setUser((prev) => (prev ? { ...prev, managedFestId, editorFestId } : { ...me, managedFestId, editorFestId }));
+        // The student-facing fest key (adminKey) so the admin can share it. Per
+        // contract, /api/user/me includes managedFest.adminKey for admins.
+        if (me.managedFest?.adminKey) setFestKey(me.managedFest.adminKey);
       })
       .catch(() => {});
   }, [mounted]);
@@ -68,6 +81,56 @@ export default function AdminDashboardPage() {
       })
       .catch(() => {});
   }, [managedFestId]);
+
+  // Fest-scoped financials: income/tickets/events/bookings from analytics, and
+  // total spend from the fest-wide expenses (both fest-scoped, so the net is
+  // correct even on multi-editor fests).
+  useEffect(() => {
+    if (!managedFestId) return;
+    apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.success && data.data) {
+          setAnalytics({
+            revenue: data.data.revenue ?? 0,
+            ticketsSold: data.data.ticketsSold ?? 0,
+            eventsCount: data.data.eventsCount ?? 0,
+            bookingsCount: data.data.bookingsCount ?? 0,
+          });
+        }
+      })
+      .catch(() => {});
+
+    apiFetch(`${getApiUrl()}/api/events/marketing/fest/${managedFestId}/expenses`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.success && Array.isArray(data.data)) {
+          setTotalSpend(
+            data.data.reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
+          );
+        }
+      })
+      .catch(() => {});
+    // (The fest key comes from GET /api/user/me's managedFest.adminKey — there is
+    // no /api/fests/:id/key endpoint, so no fallback fetch here.)
+  }, [managedFestId]);
+
+  const handleCopyKey = async () => {
+    if (!festKey) return;
+    try {
+      await navigator.clipboard.writeText(festKey);
+      setKeyCopied(true);
+      showToast("Fest key copied to clipboard", "success");
+      setTimeout(() => setKeyCopied(false), 2000);
+    } catch {
+      showToast("Could not copy the fest key", "error");
+    }
+  };
+
+  const netBalance =
+    analytics != null || totalSpend != null
+      ? (analytics?.revenue ?? 0) - (totalSpend ?? 0)
+      : null;
 
   if (!mounted || !isAuthenticated()) {
     return (
@@ -90,7 +153,7 @@ export default function AdminDashboardPage() {
         <aside className="w-64 bg-white border-r border-[#C5BAC4] px-6 py-8">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#29104A] to-[#522C5D] flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
             </div>
@@ -106,7 +169,7 @@ export default function AdminDashboardPage() {
             <SidebarItem
               label="Role Approvals"
               icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               }
@@ -117,7 +180,7 @@ export default function AdminDashboardPage() {
             <SidebarItem
               label="Events"
               icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               }
@@ -128,7 +191,7 @@ export default function AdminDashboardPage() {
             <SidebarItem
               label="Sponsors"
               icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               }
@@ -139,7 +202,7 @@ export default function AdminDashboardPage() {
             <SidebarItem
               label="Expenses"
               icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
               }
@@ -151,6 +214,7 @@ export default function AdminDashboardPage() {
               label="Create Fest"
               icon={
                 <svg
+                  aria-hidden="true"
                   className="w-5 h-5"
                   fill="none"
                   stroke="currentColor"
@@ -207,6 +271,64 @@ export default function AdminDashboardPage() {
               </div>
             ) : (
               <>
+                {/* Fest key + financial overview (income/net alongside spend) */}
+                <div className="mb-8 space-y-4">
+                  <div className="bg-white rounded-2xl border border-[#C5BAC4] p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                      <p className="text-sm text-[#6B597F]">Fest Key (share with students)</p>
+                      <p className="text-2xl font-mono font-bold text-[#29104A] tracking-wide">
+                        {festKey ?? "—"}
+                      </p>
+                      <p className="text-xs text-[#6B597F] mt-1">
+                        Students enter this key at signup to join <strong>{festName || "your fest"}</strong>.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyKey}
+                      disabled={!festKey}
+                      className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-[#29104A] to-[#522C5D] text-white text-sm font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {keyCopied ? "Copied!" : "Copy key"}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
+                      <p className="text-sm text-[#6B597F]">Income</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        ₹{(analytics?.revenue ?? 0).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-[#6B597F] mt-1">from completed bookings</p>
+                    </div>
+                    <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
+                      <p className="text-sm text-[#6B597F]">Spend</p>
+                      <p className="text-2xl font-bold text-red-600">
+                        ₹{(totalSpend ?? 0).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-[#6B597F] mt-1">fest-wide expenses</p>
+                    </div>
+                    <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
+                      <p className="text-sm text-[#6B597F]">Net Balance</p>
+                      <p className={`text-2xl font-bold ${(netBalance ?? 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        {netBalance == null ? "—" : `${netBalance >= 0 ? "+" : ""}₹${netBalance.toLocaleString()}`}
+                      </p>
+                      <p className="text-xs text-[#6B597F] mt-1">income − spend</p>
+                    </div>
+                    <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
+                      <p className="text-sm text-[#6B597F]">Tickets / Events / Bookings</p>
+                      <p className="text-2xl font-bold text-[#29104A]">
+                        {(analytics?.ticketsSold ?? 0).toLocaleString()}
+                        <span className="text-[#C5BAC4] text-lg"> · </span>
+                        {analytics?.eventsCount ?? 0}
+                        <span className="text-[#C5BAC4] text-lg"> · </span>
+                        {analytics?.bookingsCount ?? 0}
+                      </p>
+                      <p className="text-xs text-[#6B597F] mt-1">sold · events · bookings</p>
+                    </div>
+                  </div>
+                </div>
+
                 {activeSection === "events" && <FestEvents festId={managedFestId} />}
                 {activeSection === "approvals" && <RoleRequests />}
                 {activeSection === "companies" && <Companies festId={managedFestId} />}

@@ -2,7 +2,6 @@
 import Header from "@/components/Header";
 import FeatureCard from "@/components/FeatureCard";
 import HeroIllustration from "@/components/HeroIllustration";
-import Button from "@/components/ui/Button";
 import Link from "next/link";
 import Footer from "@/components/Footer";
 
@@ -88,7 +87,7 @@ export default function Home() {
                 </svg>
               </div>
               <h4 className="font-bold text-[#29104A] text-lg">Sell tickets</h4>
-              <p className="text-[#522C5D] mt-2">Flexible ticket types, pricing and promo codes.</p>
+              <p className="text-[#522C5D] mt-2">Flexible ticket types, per-ticket pricing and discounts.</p>
             </div>
             <Link href="/admin/signin" className="block">
               <div className="p-6 rounded-2xl bg-[#C5BAC4] border border-[#6B597F] hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 group cursor-pointer">
@@ -98,7 +97,7 @@ export default function Home() {
                   </svg>
                 </div>
                 <h4 className="font-bold text-[#29104A] text-lg">Manage attendees</h4>
-                <p className="text-[#522C5D] mt-2">Check-in tools, exports, and email notifications.</p>
+                <p className="text-[#522C5D] mt-2">Track bookings and export your attendee list to CSV.</p>
                 <span className="inline-flex items-center gap-1 mt-3 text-sm font-medium text-[#522C5D] group-hover:text-[#29104A]">
                   Admin Portal
                   <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">

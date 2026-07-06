@@ -4,12 +4,55 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { getApiUrl, getStoredUser, isAuthenticated } from "@/lib/auth";
+import { getApiUrl, getStoredUser, isAuthenticated, apiFetch } from "@/lib/auth";
+import { showToast } from "@/lib/toast";
+import { downloadMarketingFile } from "@/lib/files";
 
 interface UploadedFile {
   name: string;
   size: number;
   type: string;
+  // Set for a freshly-picked file (base64 data URI sent to the backend to store).
+  dataUrl?: string;
+  // Set for a file already stored on the backend (public URL to open it).
+  url?: string;
+}
+
+// Open a stored marketing file. Uploaded files are served through the
+// authenticated, fest-scoped route (not a public /uploads mount), so we fetch
+// with the bearer token and open/download the resulting object URL.
+async function openMarketingFile(url?: string, name?: string) {
+  if (!url) return;
+  const ok = await downloadMarketingFile(url, name);
+  if (!ok) showToast("Could not open that file (you may not have access).", "error");
+}
+
+// Read a File as a base64 data URI so it can be uploaded in a JSON body.
+function readFileAsDataUrl(file: File): Promise<UploadedFile> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () =>
+      resolve({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        dataUrl: reader.result as string,
+      });
+    reader.readAsDataURL(file);
+  });
+}
+
+// Serialize an uploaded file for the API. New files carry a dataUrl (backend
+// decodes + stores); already-stored files carry a url (kept as-is).
+function toFilePayload(f: UploadedFile) {
+  return {
+    fileName: f.name,
+    name: f.name,
+    size: f.size,
+    type: f.type,
+    ...(f.dataUrl ? { dataUrl: f.dataUrl } : {}),
+    ...(f.url ? { url: f.url } : {}),
+  };
 }
 
 interface SponsorEntry {
@@ -22,6 +65,7 @@ interface SponsorEntry {
   receivedAmount: number;
   status: "confirmed" | "pending" | "negotiating";
   notes: string;
+  agreementUrl: string;
   createdAt: string;
 }
 
@@ -70,6 +114,14 @@ export default function MarketingPage() {
   const [sponsors, setSponsors] = useState<SponsorEntry[]>([]);
   const [expenses, setExpenses] = useState<ExpenseEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  // Fest-wide totals used for the summary/Net Balance so income and spend are
+  // both scoped to the whole fest (sponsors are fest-wide; expenses used to be
+  // summed per-host, which broke the balance on multi-editor fests).
+  const [festTotals, setFestTotals] = useState<{
+    sponsorship: number;
+    received: number;
+    expenses: number;
+  } | null>(null);
   
   // Modal states
   const [showSponsorForm, setShowSponsorForm] = useState(false);
@@ -88,6 +140,7 @@ export default function MarketingPage() {
     status: "pending" as "confirmed" | "pending" | "negotiating",
     notes: "",
   });
+  const [agreementFile, setAgreementFile] = useState<UploadedFile | null>(null);
 
   // Expense form state
   const [expenseForm, setExpenseForm] = useState({
@@ -163,12 +216,15 @@ export default function MarketingPage() {
   }, [router, user]);
 
   useEffect(() => {
-    if (!hostId) return;
+    if (editorFestId == null) return;
     const fetchData = async () => {
       try {
+        // Fest-scoped (not host-scoped) so the list matches the fest-wide totals —
+        // otherwise a fest sponsor not tied to THIS host's own events is counted in
+        // the totals but missing from the list, which is confusing + unmanageable.
         const [sRes, eRes] = await Promise.all([
-          fetch(`${getApiUrl()}/api/events/marketing/host/${hostId}/sponsors`),
-          fetch(`${getApiUrl()}/api/events/marketing/host/${hostId}/expenses`),
+          apiFetch(`${getApiUrl()}/api/events/marketing/fest/${editorFestId}/sponsors`),
+          apiFetch(`${getApiUrl()}/api/events/marketing/fest/${editorFestId}/expenses`),
         ]);
 
         const sponsorsJson = await sRes.json();
@@ -185,6 +241,7 @@ export default function MarketingPage() {
             receivedAmount: s.receivedAmount || 0,
             status: fromBackendSponsorStatus(s.status),
             notes: s.notes || "",
+            agreementUrl: s.agreementUrl || "",
             createdAt: s.createdAt,
           }));
           setSponsors(mappedSponsors);
@@ -196,11 +253,13 @@ export default function MarketingPage() {
               name: f.fileName,
               size: f.fileSize || 0,
               type: f.mimeType || "",
+              url: f.fileUrl || "",
             }));
             const billFiles = (ex.files || []).filter((f: any) => f.fileType === "BILL").map((f: any) => ({
               name: f.fileName,
               size: f.fileSize || 0,
               type: f.mimeType || "",
+              url: f.fileUrl || "",
             }));
 
             return {
@@ -227,21 +286,29 @@ export default function MarketingPage() {
     };
 
     fetchData();
-  }, [hostId]);
+  }, [editorFestId]);
+
+  // Fest-wide totals for the Net Balance, derived from the (now fest-scoped)
+  // sponsors + expenses state — no separate fetch needed, and always consistent
+  // with the list the user sees.
+  useEffect(() => {
+    setFestTotals({
+      sponsorship: sponsors.reduce((sum, s) => sum + (s.sponsorshipAmount || 0), 0),
+      received: sponsors.reduce((sum, s) => sum + (s.receivedAmount || 0), 0),
+      expenses: expenses.reduce((sum, e) => sum + (e.amount || 0), 0),
+    });
+  }, [sponsors, expenses]);
 
   // File handling
-  const handleFileUpload = (
+  const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     setFiles: React.Dispatch<React.SetStateAction<UploadedFile[]>>,
     currentFiles: UploadedFile[]
   ) => {
     const files = e.target.files;
-    if (files) {
-      const newFiles: UploadedFile[] = Array.from(files).map(file => ({
-        name: file.name,
-        size: file.size,
-        type: file.type,
-      }));
+    if (files && files.length > 0) {
+      // Read each picked file as a base64 data URI so the backend can store it.
+      const newFiles = await Promise.all(Array.from(files).map(readFileAsDataUrl));
       setFiles([...currentFiles, ...newFiles]);
     }
     e.target.value = '';
@@ -253,12 +320,6 @@ export default function MarketingPage() {
     currentFiles: UploadedFile[]
   ) => {
     setFiles(currentFiles.filter((_, i) => i !== index));
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
   // Sponsor handlers
@@ -273,6 +334,7 @@ export default function MarketingPage() {
       status: "pending",
       notes: "",
     });
+    setAgreementFile(null);
     setEditingSponsor(null);
   };
 
@@ -289,18 +351,23 @@ export default function MarketingPage() {
       status: toBackendSponsorStatus(sponsorForm.status),
       notes: sponsorForm.notes || null,
       ...(editorFestId != null && { festId: editorFestId }),
+      // Only send an agreement when the user picked a NEW file (has a dataUrl);
+      // an existing (url-only) file is left untouched on the server.
+      ...(agreementFile?.dataUrl
+        ? { agreementFile: { fileName: agreementFile.name, dataUrl: agreementFile.dataUrl } }
+        : {}),
     };
 
     try {
       if (editingSponsor) {
-        const res = await fetch(`${getApiUrl()}/api/events/marketing/sponsors/${editingSponsor.id}`, {
+        const res = await apiFetch(`${getApiUrl()}/api/events/marketing/sponsors/${editingSponsor.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
-          alert(data.error?.message || "Failed to update sponsor");
+          showToast(data.error?.message || "Failed to update sponsor", "error");
         } else {
           const updated: any = data.data;
           setSponsors(sponsors.map((s) =>
@@ -315,20 +382,21 @@ export default function MarketingPage() {
                   receivedAmount: updated.receivedAmount || 0,
                   status: fromBackendSponsorStatus(updated.status),
                   notes: updated.notes || "",
+                  agreementUrl: updated.agreementUrl || "",
                   createdAt: updated.createdAt,
                 }
               : s
           ));
         }
       } else {
-        const res = await fetch(`${getApiUrl()}/api/events/marketing/host/${hostId}/sponsors`, {
+        const res = await apiFetch(`${getApiUrl()}/api/events/marketing/host/${hostId}/sponsors`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
-          alert(data.error?.message || "Failed to create sponsor");
+          showToast(data.error?.message || "Failed to create sponsor", "error");
         } else {
           const s: any = data.data;
           const newSponsor: SponsorEntry = {
@@ -341,6 +409,7 @@ export default function MarketingPage() {
             receivedAmount: s.receivedAmount || 0,
             status: fromBackendSponsorStatus(s.status),
             notes: s.notes || "",
+            agreementUrl: s.agreementUrl || "",
             createdAt: s.createdAt,
           };
           setSponsors([newSponsor, ...sponsors]);
@@ -348,7 +417,7 @@ export default function MarketingPage() {
       }
     } catch (err) {
       console.error("Failed to save sponsor:", err);
-      alert("Failed to save sponsor. Please try again.");
+      showToast("Failed to save sponsor. Please try again.", "error");
     }
 
     setShowSponsorForm(false);
@@ -366,6 +435,7 @@ export default function MarketingPage() {
       status: sponsor.status,
       notes: sponsor.notes,
     });
+    setAgreementFile(sponsor.agreementUrl ? { name: "Current agreement", size: 0, type: "", url: sponsor.agreementUrl } : null);
     setEditingSponsor(sponsor);
     setShowSponsorForm(true);
   };
@@ -373,18 +443,19 @@ export default function MarketingPage() {
   const handleDeleteSponsor = async (id: number) => {
     if (confirm("Are you sure you want to delete this sponsor entry?")) {
       try {
-        const res = await fetch(`${getApiUrl()}/api/events/marketing/sponsors/${id}`, {
+        const res = await apiFetch(`${getApiUrl()}/api/events/marketing/sponsors/${id}`, {
           method: "DELETE",
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
-          alert(data.error?.message || "Failed to delete sponsor");
+          showToast(data.error?.message || "Failed to delete sponsor", "error");
           return;
         }
         setSponsors(sponsors.filter((s) => s.id !== id));
+        showToast("Sponsor deleted", "success");
       } catch (err) {
         console.error("Failed to delete sponsor:", err);
-        alert("Failed to delete sponsor. Please try again.");
+        showToast("Failed to delete sponsor. Please try again.", "error");
       }
     }
   };
@@ -417,30 +488,22 @@ export default function MarketingPage() {
       paymentMethod: expenseForm.paymentMethod || null,
       notes: expenseForm.notes || null,
       ...(editorFestId != null && { festId: editorFestId }),
-      proofFiles: proofFiles.map((f) => ({
-        name: f.name,
-        size: f.size,
-        type: f.type,
-        url: "", // plug in actual upload URL if you add storage
-      })),
-      billFiles: billFiles.map((f) => ({
-        name: f.name,
-        size: f.size,
-        type: f.type,
-        url: "",
-      })),
+      // Send freshly-picked files as { fileName, dataUrl } so the backend decodes
+      // and stores them; already-stored files pass their existing url through.
+      proofFiles: proofFiles.map(toFilePayload),
+      billFiles: billFiles.map(toFilePayload),
     };
 
     try {
       if (editingExpense) {
-        const res = await fetch(`${getApiUrl()}/api/events/marketing/expenses/${editingExpense.id}`, {
+        const res = await apiFetch(`${getApiUrl()}/api/events/marketing/expenses/${editingExpense.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
-          alert(data.error?.message || "Failed to update expense");
+          showToast(data.error?.message || "Failed to update expense", "error");
         } else {
           const ex: any = data.data;
           const updated: ExpenseEntry = {
@@ -456,25 +519,27 @@ export default function MarketingPage() {
               name: f.fileName,
               size: f.fileSize || 0,
               type: f.mimeType || "",
+              url: f.fileUrl || "",
             })),
             billFiles: (ex.files || []).filter((f: any) => f.fileType === "BILL").map((f: any) => ({
               name: f.fileName,
               size: f.fileSize || 0,
               type: f.mimeType || "",
+              url: f.fileUrl || "",
             })),
             createdAt: ex.createdAt,
           };
           setExpenses(expenses.map((e) => (e.id === editingExpense.id ? updated : e)));
         }
       } else {
-        const res = await fetch(`${getApiUrl()}/api/events/marketing/host/${hostId}/expenses`, {
+        const res = await apiFetch(`${getApiUrl()}/api/events/marketing/host/${hostId}/expenses`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
-          alert(data.error?.message || "Failed to create expense");
+          showToast(data.error?.message || "Failed to create expense", "error");
         } else {
           const ex: any = data.data;
           const newExpense: ExpenseEntry = {
@@ -490,11 +555,13 @@ export default function MarketingPage() {
               name: f.fileName,
               size: f.fileSize || 0,
               type: f.mimeType || "",
+              url: f.fileUrl || "",
             })),
             billFiles: (ex.files || []).filter((f: any) => f.fileType === "BILL").map((f: any) => ({
               name: f.fileName,
               size: f.fileSize || 0,
               type: f.mimeType || "",
+              url: f.fileUrl || "",
             })),
             createdAt: ex.createdAt,
           };
@@ -503,7 +570,7 @@ export default function MarketingPage() {
       }
     } catch (err) {
       console.error("Failed to save expense:", err);
-      alert("Failed to save expense. Please try again.");
+      showToast("Failed to save expense. Please try again.", "error");
     }
 
     setShowExpenseForm(false);
@@ -529,26 +596,31 @@ export default function MarketingPage() {
   const handleDeleteExpense = async (id: number) => {
     if (confirm("Are you sure you want to delete this expense entry?")) {
       try {
-        const res = await fetch(`${getApiUrl()}/api/events/marketing/expenses/${id}`, {
+        const res = await apiFetch(`${getApiUrl()}/api/events/marketing/expenses/${id}`, {
           method: "DELETE",
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
-          alert(data.error?.message || "Failed to delete expense");
+          showToast(data.error?.message || "Failed to delete expense", "error");
           return;
         }
         setExpenses(expenses.filter((ex) => ex.id !== id));
+        showToast("Expense deleted", "success");
       } catch (err) {
         console.error("Failed to delete expense:", err);
-        alert("Failed to delete expense. Please try again.");
+        showToast("Failed to delete expense. Please try again.", "error");
       }
     }
   };
 
-  // Stats
-  const totalSponsorshipAmount = sponsors.reduce((sum, s) => sum + s.sponsorshipAmount, 0);
-  const totalReceivedAmount = sponsors.reduce((sum, s) => sum + s.receivedAmount, 0);
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  // Stats — prefer fest-wide totals (correct on multi-editor fests); fall back to
+  // this host's own rows until the fest-wide fetch resolves.
+  const totalSponsorshipAmount =
+    festTotals?.sponsorship ?? sponsors.reduce((sum, s) => sum + s.sponsorshipAmount, 0);
+  const totalReceivedAmount =
+    festTotals?.received ?? sponsors.reduce((sum, s) => sum + s.receivedAmount, 0);
+  const totalExpenses =
+    festTotals?.expenses ?? expenses.reduce((sum, e) => sum + e.amount, 0);
   const netBalance = totalReceivedAmount - totalExpenses;
 
   const getStatusColor = (status: string) => {
@@ -590,9 +662,10 @@ export default function MarketingPage() {
             <div className="flex items-center gap-3 mb-1">
               <button
                 onClick={() => router.push("/host/dashboard")}
+                aria-label="Back to dashboard"
                 className="p-1.5 hover:bg-[#C5BAC4]/30 rounded-lg transition-colors"
               >
-                <svg className="w-5 h-5 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg aria-hidden="true" className="w-5 h-5 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
@@ -696,7 +769,7 @@ export default function MarketingPage() {
               }}
               className="px-4 py-2.5 bg-gradient-to-r from-[#29104A] via-[#3D1B5C] to-[#1A4B6E] text-white rounded-lg font-semibold hover:opacity-90 transition-all flex items-center gap-2"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               Add {activeTab === "sponsors" ? "Sponsor" : "Expense"}
@@ -709,12 +782,12 @@ export default function MarketingPage() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-[#C5BAC4]/20">
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Company</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Contact</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Amount</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Received</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Status</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Actions</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Company</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Contact</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Amount</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Received</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Status</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#C5BAC4]">
@@ -748,17 +821,19 @@ export default function MarketingPage() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleEditSponsor(sponsor)}
+                            aria-label={`Edit sponsor ${sponsor.companyName}`}
                             className="p-2 hover:bg-[#C5BAC4]/30 rounded-lg transition-colors"
                           >
-                            <svg className="w-4 h-4 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg aria-hidden="true" className="w-4 h-4 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
                           </button>
                           <button
                             onClick={() => handleDeleteSponsor(sponsor.id)}
+                            aria-label={`Delete sponsor ${sponsor.companyName}`}
                             className="p-2 hover:bg-red-100 rounded-lg transition-colors"
                           >
-                            <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg aria-hidden="true" className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                           </button>
@@ -782,13 +857,13 @@ export default function MarketingPage() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-[#C5BAC4]/20">
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Description</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Category</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Vendor</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Amount</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Date</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Files</th>
-                    <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Actions</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Description</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Category</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Vendor</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Amount</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Date</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Files</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#C5BAC4]">
@@ -831,17 +906,19 @@ export default function MarketingPage() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleEditExpense(expense)}
+                            aria-label={`Edit expense ${expense.description}`}
                             className="p-2 hover:bg-[#C5BAC4]/30 rounded-lg transition-colors"
                           >
-                            <svg className="w-4 h-4 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg aria-hidden="true" className="w-4 h-4 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
                           </button>
                           <button
                             onClick={() => handleDeleteExpense(expense.id)}
+                            aria-label={`Delete expense ${expense.description}`}
                             className="p-2 hover:bg-red-100 rounded-lg transition-colors"
                           >
-                            <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg aria-hidden="true" className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                           </button>
@@ -864,16 +941,17 @@ export default function MarketingPage() {
       {/* Add/Edit Sponsor Modal */}
       {showSponsorForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div role="dialog" aria-modal="true" aria-labelledby="sponsor-modal-title" className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-[#C5BAC4] flex items-center justify-between sticky top-0 bg-white">
-              <h2 className="text-xl font-bold text-[#29104A]">
+              <h2 id="sponsor-modal-title" className="text-xl font-bold text-[#29104A]">
                 {editingSponsor ? "Edit Sponsor" : "Add Sponsor"}
               </h2>
               <button
                 onClick={() => { setShowSponsorForm(false); resetSponsorForm(); }}
+                aria-label="Close dialog"
                 className="p-2 hover:bg-[#C5BAC4]/30 rounded-lg transition-colors"
               >
-                <svg className="w-5 h-5 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg aria-hidden="true" className="w-5 h-5 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -881,8 +959,9 @@ export default function MarketingPage() {
 
             <form onSubmit={handleSponsorSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Company Name *</label>
+                <label htmlFor="sponsor-company" className="block text-sm font-medium text-[#6B597F] mb-1.5">Company Name *</label>
                 <input
+                  id="sponsor-company"
                   type="text"
                   required
                   value={sponsorForm.companyName}
@@ -892,8 +971,9 @@ export default function MarketingPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Contact Person *</label>
+                  <label htmlFor="sponsor-contact" className="block text-sm font-medium text-[#6B597F] mb-1.5">Contact Person *</label>
                   <input
+                    id="sponsor-contact"
                     type="text"
                     required
                     value={sponsorForm.contactPerson}
@@ -902,8 +982,9 @@ export default function MarketingPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Phone</label>
+                  <label htmlFor="sponsor-phone" className="block text-sm font-medium text-[#6B597F] mb-1.5">Phone</label>
                   <input
+                    id="sponsor-phone"
                     type="tel"
                     value={sponsorForm.phone}
                     onChange={(e) => setSponsorForm({ ...sponsorForm, phone: e.target.value })}
@@ -912,8 +993,9 @@ export default function MarketingPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Email</label>
+                <label htmlFor="sponsor-email" className="block text-sm font-medium text-[#6B597F] mb-1.5">Email</label>
                 <input
+                  id="sponsor-email"
                   type="email"
                   value={sponsorForm.email}
                   onChange={(e) => setSponsorForm({ ...sponsorForm, email: e.target.value })}
@@ -922,8 +1004,9 @@ export default function MarketingPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Sponsorship Amount (₹) *</label>
+                  <label htmlFor="sponsor-amount" className="block text-sm font-medium text-[#6B597F] mb-1.5">Sponsorship Amount (₹) *</label>
                   <input
+                    id="sponsor-amount"
                     type="number"
                     required
                     min="0"
@@ -933,8 +1016,9 @@ export default function MarketingPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Amount Received (₹)</label>
+                  <label htmlFor="sponsor-received" className="block text-sm font-medium text-[#6B597F] mb-1.5">Amount Received (₹)</label>
                   <input
+                    id="sponsor-received"
                     type="number"
                     min="0"
                     value={sponsorForm.receivedAmount}
@@ -944,8 +1028,9 @@ export default function MarketingPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Status *</label>
+                <label htmlFor="sponsor-status" className="block text-sm font-medium text-[#6B597F] mb-1.5">Status *</label>
                 <select
+                  id="sponsor-status"
                   required
                   value={sponsorForm.status}
                   onChange={(e) => setSponsorForm({ ...sponsorForm, status: e.target.value as "confirmed" | "pending" | "negotiating" })}
@@ -957,14 +1042,51 @@ export default function MarketingPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Notes</label>
+                <label htmlFor="sponsor-notes" className="block text-sm font-medium text-[#6B597F] mb-1.5">Notes</label>
                 <textarea
+                  id="sponsor-notes"
                   value={sponsorForm.notes}
                   onChange={(e) => setSponsorForm({ ...sponsorForm, notes: e.target.value })}
                   className="w-full px-4 py-2.5 border border-[#C5BAC4] rounded-lg focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] outline-none bg-[#F9F7FA] resize-none"
                   rows={2}
                 />
               </div>
+
+              {/* Agreement document upload */}
+              <div>
+                <label htmlFor="agreement-upload" className="block text-sm font-medium text-[#6B597F] mb-1.5">Agreement Document</label>
+                <div className="border-2 border-dashed border-[#C5BAC4] rounded-lg p-4 text-center hover:border-[#522C5D] transition-colors bg-[#F9F7FA]">
+                  <input
+                    type="file"
+                    id="agreement-upload"
+                    aria-label="Upload agreement document (PDF or image)"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) setAgreementFile(await readFileAsDataUrl(file));
+                      e.target.value = "";
+                    }}
+                    className="hidden"
+                    accept="image/*,.pdf"
+                  />
+                  <label htmlFor="agreement-upload" className="cursor-pointer">
+                    <svg className="w-8 h-8 mx-auto text-[#522C5D] mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p className="text-sm text-[#6B597F]">Click to upload the signed agreement (PDF or image)</p>
+                  </label>
+                </div>
+                {agreementFile && (
+                  <div className="mt-2 flex items-center justify-between p-2 bg-[#522C5D]/5 rounded text-sm">
+                    {agreementFile.url ? (
+                      <button type="button" onClick={() => openMarketingFile(agreementFile.url, agreementFile.name)} className="text-[#522C5D] truncate underline text-left">{agreementFile.name}</button>
+                    ) : (
+                      <span className="text-[#522C5D] truncate">{agreementFile.name}</span>
+                    )}
+                    <button type="button" aria-label={`Remove agreement file ${agreementFile.name}`} onClick={() => setAgreementFile(null)} className="text-red-500 hover:text-red-700">×</button>
+                  </div>
+                )}
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
@@ -988,16 +1110,17 @@ export default function MarketingPage() {
       {/* Add/Edit Expense Modal */}
       {showExpenseForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div role="dialog" aria-modal="true" aria-labelledby="expense-modal-title" className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-[#C5BAC4] flex items-center justify-between sticky top-0 bg-white">
-              <h2 className="text-xl font-bold text-[#29104A]">
+              <h2 id="expense-modal-title" className="text-xl font-bold text-[#29104A]">
                 {editingExpense ? "Edit Expense" : "Add Expense"}
               </h2>
               <button
                 onClick={() => { setShowExpenseForm(false); resetExpenseForm(); }}
+                aria-label="Close dialog"
                 className="p-2 hover:bg-[#C5BAC4]/30 rounded-lg transition-colors"
               >
-                <svg className="w-5 h-5 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg aria-hidden="true" className="w-5 h-5 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -1005,8 +1128,9 @@ export default function MarketingPage() {
 
             <form onSubmit={handleExpenseSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Description *</label>
+                <label htmlFor="expense-description" className="block text-sm font-medium text-[#6B597F] mb-1.5">Description *</label>
                 <input
+                  id="expense-description"
                   type="text"
                   required
                   value={expenseForm.description}
@@ -1017,8 +1141,9 @@ export default function MarketingPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Category *</label>
+                  <label htmlFor="expense-category" className="block text-sm font-medium text-[#6B597F] mb-1.5">Category *</label>
                   <select
+                    id="expense-category"
                     required
                     value={expenseForm.category}
                     onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
@@ -1031,8 +1156,9 @@ export default function MarketingPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Vendor *</label>
+                  <label htmlFor="expense-vendor" className="block text-sm font-medium text-[#6B597F] mb-1.5">Vendor *</label>
                   <input
+                    id="expense-vendor"
                     type="text"
                     required
                     value={expenseForm.vendor}
@@ -1044,8 +1170,9 @@ export default function MarketingPage() {
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Amount (₹) *</label>
+                  <label htmlFor="expense-amount" className="block text-sm font-medium text-[#6B597F] mb-1.5">Amount (₹) *</label>
                   <input
+                    id="expense-amount"
                     type="number"
                     required
                     min="0"
@@ -1055,8 +1182,9 @@ export default function MarketingPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Payment Date *</label>
+                  <label htmlFor="expense-date" className="block text-sm font-medium text-[#6B597F] mb-1.5">Payment Date *</label>
                   <input
+                    id="expense-date"
                     type="date"
                     required
                     value={expenseForm.paymentDate}
@@ -1065,8 +1193,9 @@ export default function MarketingPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Payment Method *</label>
+                  <label htmlFor="expense-method" className="block text-sm font-medium text-[#6B597F] mb-1.5">Payment Method *</label>
                   <select
+                    id="expense-method"
                     required
                     value={expenseForm.paymentMethod}
                     onChange={(e) => setExpenseForm({ ...expenseForm, paymentMethod: e.target.value })}
@@ -1082,18 +1211,19 @@ export default function MarketingPage() {
 
               {/* Proof of Payment Upload */}
               <div>
-                <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Proof of Payment</label>
+                <label htmlFor="proof-upload" className="block text-sm font-medium text-[#6B597F] mb-1.5">Proof of Payment</label>
                 <div className="border-2 border-dashed border-[#C5BAC4] rounded-lg p-4 text-center hover:border-[#522C5D] transition-colors bg-[#F9F7FA]">
                   <input
                     type="file"
                     id="proof-upload"
+                    aria-label="Upload payment proof (screenshots, receipts)"
                     multiple
                     onChange={(e) => handleFileUpload(e, setProofFiles, proofFiles)}
                     className="hidden"
                     accept="image/*,.pdf"
                   />
                   <label htmlFor="proof-upload" className="cursor-pointer">
-                    <svg className="w-8 h-8 mx-auto text-[#522C5D] mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg aria-hidden="true" className="w-8 h-8 mx-auto text-[#522C5D] mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
                     <p className="text-sm text-[#6B597F]">Click to upload payment proof (screenshots, receipts)</p>
@@ -1103,8 +1233,12 @@ export default function MarketingPage() {
                   <div className="mt-2 space-y-1">
                     {proofFiles.map((file, i) => (
                       <div key={i} className="flex items-center justify-between p-2 bg-green-50 rounded text-sm">
-                        <span className="text-green-700 truncate">{file.name}</span>
-                        <button type="button" onClick={() => removeFile(i, setProofFiles, proofFiles)} className="text-red-500 hover:text-red-700">×</button>
+                        {file.url ? (
+                          <button type="button" onClick={() => openMarketingFile(file.url, file.name)} className="text-green-700 truncate underline hover:text-green-900 text-left">{file.name}</button>
+                        ) : (
+                          <span className="text-green-700 truncate">{file.name}</span>
+                        )}
+                        <button type="button" aria-label={`Remove proof file ${file.name}`} onClick={() => removeFile(i, setProofFiles, proofFiles)} className="text-red-500 hover:text-red-700">×</button>
                       </div>
                     ))}
                   </div>
@@ -1113,18 +1247,19 @@ export default function MarketingPage() {
 
               {/* Bill Upload */}
               <div>
-                <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Upload Bill/Invoice</label>
+                <label htmlFor="bill-upload" className="block text-sm font-medium text-[#6B597F] mb-1.5">Upload Bill/Invoice</label>
                 <div className="border-2 border-dashed border-[#C5BAC4] rounded-lg p-4 text-center hover:border-[#522C5D] transition-colors bg-[#F9F7FA]">
                   <input
                     type="file"
                     id="bill-upload"
+                    aria-label="Upload bill or invoice"
                     multiple
                     onChange={(e) => handleFileUpload(e, setBillFiles, billFiles)}
                     className="hidden"
                     accept="image/*,.pdf,.doc,.docx"
                   />
                   <label htmlFor="bill-upload" className="cursor-pointer">
-                    <svg className="w-8 h-8 mx-auto text-[#522C5D] mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg aria-hidden="true" className="w-8 h-8 mx-auto text-[#522C5D] mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     <p className="text-sm text-[#6B597F]">Click to upload bill/invoice</p>
@@ -1134,8 +1269,12 @@ export default function MarketingPage() {
                   <div className="mt-2 space-y-1">
                     {billFiles.map((file, i) => (
                       <div key={i} className="flex items-center justify-between p-2 bg-blue-50 rounded text-sm">
-                        <span className="text-blue-700 truncate">{file.name}</span>
-                        <button type="button" onClick={() => removeFile(i, setBillFiles, billFiles)} className="text-red-500 hover:text-red-700">×</button>
+                        {file.url ? (
+                          <button type="button" onClick={() => openMarketingFile(file.url, file.name)} className="text-blue-700 truncate underline hover:text-blue-900 text-left">{file.name}</button>
+                        ) : (
+                          <span className="text-blue-700 truncate">{file.name}</span>
+                        )}
+                        <button type="button" aria-label={`Remove bill file ${file.name}`} onClick={() => removeFile(i, setBillFiles, billFiles)} className="text-red-500 hover:text-red-700">×</button>
                       </div>
                     ))}
                   </div>
@@ -1143,8 +1282,9 @@ export default function MarketingPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#6B597F] mb-1.5">Notes</label>
+                <label htmlFor="expense-notes" className="block text-sm font-medium text-[#6B597F] mb-1.5">Notes</label>
                 <textarea
+                  id="expense-notes"
                   value={expenseForm.notes}
                   onChange={(e) => setExpenseForm({ ...expenseForm, notes: e.target.value })}
                   className="w-full px-4 py-2.5 border border-[#C5BAC4] rounded-lg focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] outline-none bg-[#F9F7FA] resize-none"

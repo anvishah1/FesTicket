@@ -1,12 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getApiUrl } from "@/lib/auth";
+import { getApiUrl, apiFetch } from "@/lib/auth";
+import { downloadMarketingFile } from "@/lib/files";
 
 interface UploadedFile {
   name: string;
   size: number;
   type: string;
+  url: string;
+}
+
+// Escape a value for a CSV cell (quote if it contains a comma/quote/newline).
+function csvCell(value: unknown): string {
+  const s = value == null ? "" : String(value);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 interface Expense {
@@ -25,18 +33,31 @@ interface Expense {
   createdAt: string;
 }
 
-const expenseCategories = [
-  "Infrastructure",
-  "Marketing",
-  "Artist Fees",
-  "Catering",
-  "Transportation",
-  "Security",
-  "Decoration",
-  "Sound & AV",
-  "Prizes",
-  "Miscellaneous",
-];
+// The backend stores category as a Prisma enum (e.g. INFRASTRUCTURE, ARTIST_FEES,
+// SOUND_AV). Map each enum value to the human label used everywhere in this
+// component (filter dropdown, colors, breakdown) so they all key off the SAME
+// normalized value instead of silently mismatching the raw enum.
+const CATEGORY_LABELS: Record<string, string> = {
+  INFRASTRUCTURE: "Infrastructure",
+  MARKETING: "Marketing",
+  ARTIST_FEES: "Artist Fees",
+  CATERING: "Catering",
+  TRANSPORTATION: "Transportation",
+  SECURITY: "Security",
+  DECORATION: "Decoration",
+  SOUND_AV: "Sound & AV",
+  PRIZES: "Prizes",
+  MISCELLANEOUS: "Miscellaneous",
+};
+
+// Normalize a raw backend category to its display label. Falls back to the raw
+// value so an already-labeled or unknown category still renders (rather than
+// disappearing from the filter/breakdown).
+function categoryLabel(raw: string): string {
+  return CATEGORY_LABELS[raw] ?? raw;
+}
+
+const expenseCategories = Object.values(CATEGORY_LABELS);
 
 interface ExpensesProps {
   festId: number;
@@ -52,7 +73,7 @@ export default function Expenses({ festId }: ExpensesProps) {
   useEffect(() => {
     const fetchExpenses = async () => {
       try {
-        const res = await fetch(
+        const res = await apiFetch(
           `${getApiUrl()}/api/events/marketing/fest/${festId}/expenses`
         );
         const json = await res.json();
@@ -62,34 +83,29 @@ export default function Expenses({ festId }: ExpensesProps) {
           const hostName =
             ex.host?.name ||
             ex.host?.email ||
-            ex.hostId
-              ? `Host #${ex.hostId}`
-              : "Unknown host";
+            (ex.hostId ? `Host #${ex.hostId}` : "Unknown host");
 
           const festName = ex.fest?.name || ex.event?.fest?.name || "Fest";
 
-          const proofFiles: UploadedFile[] = (ex.files || [])
-            .filter((f: any) => f.fileType === "PROOF")
-            .map((f: any) => ({
-              name: f.fileName,
-              size: f.fileSize || 0,
-              type: f.mimeType || "",
-            }));
+          const filesOfType = (fileType: string): UploadedFile[] =>
+            (ex.files || [])
+              .filter((f: any) => f.fileType === fileType)
+              .map((f: any) => ({
+                name: f.fileName,
+                size: f.fileSize || 0,
+                type: f.mimeType || "",
+                url: f.fileUrl || "",
+              }));
 
-          const billFiles: UploadedFile[] = (ex.files || [])
-            .filter((f: any) => f.fileType === "BILL")
-            .map((f: any) => ({
-              name: f.fileName,
-              size: f.fileSize || 0,
-              type: f.mimeType || "",
-            }));
+          const proofFiles = filesOfType("PROOF");
+          const billFiles = filesOfType("BILL");
 
           return {
             id: ex.id,
             hostName,
             festName,
             description: ex.description,
-            category: ex.category, // backend already uses enum-like strings
+            category: categoryLabel(ex.category), // normalize enum -> display label
             vendor: ex.vendor,
             amount: ex.amount || 0,
             paymentDate: ex.paymentDate
@@ -114,11 +130,12 @@ export default function Expenses({ festId }: ExpensesProps) {
 
   const uniqueHosts = Array.from(new Set(allExpenses.map((e) => e.hostName)));
 
+  const searchTerm = search.toLowerCase();
   const filteredExpenses = allExpenses.filter((expense) => {
     const matchesSearch =
-      expense.description.toLowerCase().includes(search.toLowerCase()) ||
-      expense.vendor.toLowerCase().includes(search.toLowerCase()) ||
-      expense.hostName.toLowerCase().includes(search.toLowerCase());
+      expense.description.toLowerCase().includes(searchTerm) ||
+      expense.vendor.toLowerCase().includes(searchTerm) ||
+      expense.hostName.toLowerCase().includes(searchTerm);
     const matchesHost = filterHost === "all" || expense.hostName === filterHost;
     const matchesCategory = filterCategory === "all" || expense.category === filterCategory;
     return matchesSearch && matchesHost && matchesCategory;
@@ -145,6 +162,44 @@ export default function Expenses({ festId }: ExpensesProps) {
       case "Prizes": return "bg-amber-100 text-amber-700";
       default: return "bg-gray-100 text-gray-700";
     }
+  };
+
+  // Generate + download a CSV of the currently-filtered rows.
+  const handleExportCsv = () => {
+    const headers = [
+      "Host",
+      "Fest",
+      "Description",
+      "Category",
+      "Vendor",
+      "Amount",
+      "Payment Date",
+      "Payment Method",
+      "Notes",
+    ];
+    const rows = filteredExpenses.map((e) => [
+      e.hostName,
+      e.festName,
+      e.description,
+      e.category,
+      e.vendor,
+      e.amount,
+      e.paymentDate,
+      e.paymentMethod,
+      e.notes,
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) => row.map(csvCell).join(","))
+      .join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fest-${festId}-expenses.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -181,6 +236,7 @@ export default function Expenses({ festId }: ExpensesProps) {
           {/* Search */}
           <div className="relative flex-1 min-w-[200px]">
             <svg
+              aria-hidden="true"
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B597F]"
               fill="none"
               stroke="currentColor"
@@ -194,6 +250,7 @@ export default function Expenses({ festId }: ExpensesProps) {
               />
             </svg>
             <input
+              aria-label="Search expenses by description, vendor, or host"
               placeholder="Search by description, vendor, or host..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -203,6 +260,7 @@ export default function Expenses({ festId }: ExpensesProps) {
 
           {/* Host Filter */}
           <select
+            aria-label="Filter by host"
             value={filterHost}
             onChange={(e) => setFilterHost(e.target.value)}
             className="px-4 py-2.5 rounded-lg border border-[#C5BAC4] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#522C5D]/20"
@@ -217,6 +275,7 @@ export default function Expenses({ festId }: ExpensesProps) {
 
           {/* Category Filter */}
           <select
+            aria-label="Filter by category"
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
             className="px-4 py-2.5 rounded-lg border border-[#C5BAC4] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#522C5D]/20"
@@ -236,8 +295,13 @@ export default function Expenses({ festId }: ExpensesProps) {
         <div className="lg:col-span-2 bg-white rounded-2xl border border-[#C5BAC4] overflow-hidden shadow-sm">
           <div className="px-6 py-5 border-b border-[#C5BAC4] flex items-center justify-between">
             <h3 className="text-lg font-bold text-[#29104A]">All Host Expenses</h3>
-            <button className="px-4 py-2 bg-[#C5BAC4]/30 hover:bg-[#C5BAC4] rounded-lg text-sm font-medium transition-colors flex items-center gap-2 text-[#29104A]">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              disabled={filteredExpenses.length === 0}
+              className="px-4 py-2 bg-[#C5BAC4]/30 hover:bg-[#C5BAC4] rounded-lg text-sm font-medium transition-colors flex items-center gap-2 text-[#29104A] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -253,12 +317,12 @@ export default function Expenses({ festId }: ExpensesProps) {
             <table className="w-full">
               <thead className="sticky top-0 bg-[#C5BAC4]/20">
                 <tr>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Host</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Description</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Category</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Amount</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Date</th>
-                  <th className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Files</th>
+                  <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Host</th>
+                  <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Description</th>
+                  <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Category</th>
+                  <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Amount</th>
+                  <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Date</th>
+                  <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Files</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#C5BAC4]">
@@ -273,6 +337,14 @@ export default function Expenses({ festId }: ExpensesProps) {
                     <tr
                       key={expense.id}
                       onClick={() => setSelectedExpense(expense)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedExpense(expense);
+                        }
+                      }}
+                      tabIndex={0}
+                      aria-label={`View details for expense ${expense.description}`}
                       className={`hover:bg-[#C5BAC4]/10 transition-colors cursor-pointer ${
                         selectedExpense?.id === expense.id ? "bg-[#522C5D]/5" : ""
                       }`}
@@ -326,9 +398,10 @@ export default function Expenses({ festId }: ExpensesProps) {
                 <h3 className="font-bold text-[#29104A] text-lg">Expense Details</h3>
                 <button
                   onClick={() => setSelectedExpense(null)}
+                  aria-label="Close expense details"
                   className="p-1 hover:bg-[#C5BAC4]/30 rounded transition"
                 >
-                  <svg className="w-5 h-5 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg aria-hidden="true" className="w-5 h-5 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -393,15 +466,21 @@ export default function Expenses({ festId }: ExpensesProps) {
                     <p className="text-xs text-[#6B597F] mb-2">Payment Proof</p>
                     <div className="space-y-1">
                       {selectedExpense.proofFiles.map((file, i) => (
-                        <div key={i} className="flex items-center justify-between p-2 bg-green-50 rounded text-sm">
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => file.url && downloadMarketingFile(file.url, file.name)}
+                          disabled={!file.url}
+                          className={`w-full flex items-center justify-between p-2 bg-green-50 rounded text-sm text-left ${file.url ? "hover:bg-green-100" : "cursor-default"}`}
+                        >
                           <div className="flex items-center gap-2">
                             <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            <span className="text-green-700 truncate max-w-[150px]">{file.name}</span>
+                            <span className="text-green-700 truncate max-w-[150px] underline">{file.name}</span>
                           </div>
                           <span className="text-xs text-green-600">{formatFileSize(file.size)}</span>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -413,15 +492,21 @@ export default function Expenses({ festId }: ExpensesProps) {
                     <p className="text-xs text-[#6B597F] mb-2">Bills/Invoices</p>
                     <div className="space-y-1">
                       {selectedExpense.billFiles.map((file, i) => (
-                        <div key={i} className="flex items-center justify-between p-2 bg-blue-50 rounded text-sm">
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => file.url && downloadMarketingFile(file.url, file.name)}
+                          disabled={!file.url}
+                          className={`w-full flex items-center justify-between p-2 bg-blue-50 rounded text-sm text-left ${file.url ? "hover:bg-blue-100" : "cursor-default"}`}
+                        >
                           <div className="flex items-center gap-2">
                             <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            <span className="text-blue-700 truncate max-w-[150px]">{file.name}</span>
+                            <span className="text-blue-700 truncate max-w-[150px] underline">{file.name}</span>
                           </div>
                           <span className="text-xs text-blue-600">{formatFileSize(file.size)}</span>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>

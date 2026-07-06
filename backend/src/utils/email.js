@@ -4,6 +4,20 @@ import nodemailer from "nodemailer";
 const MAIL_FROM = process.env.MAIL_FROM || process.env.SMTP_USER || "noreply@tiqr.events";
 const APP_NAME = process.env.APP_NAME || "tiqr";
 
+/**
+ * Escape a string for safe interpolation into HTML. User/organizer-controlled
+ * values (event name/venue/date strings, buyer name, ticket item names) must be
+ * escaped so a value like `<script>` cannot inject markup into the receipt email.
+ */
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function getTransport() {
   const host = process.env.SMTP_HOST;
   const port = parseInt(process.env.SMTP_PORT || "587", 10);
@@ -14,7 +28,7 @@ function getTransport() {
     host,
     port,
     secure: port === 465,
-    requireTLS: port === 587,
+    requireTLS: port !== 465,
     auth: { user, pass },
   });
 }
@@ -91,16 +105,16 @@ export async function sendBookingConfirmation(booking) {
       <p style="margin:8px 0 0; opacity:0.9;">Booking Confirmed</p>
     </div>
     <div style="padding:24px;">
-      <p style="margin:0 0 16px; font-size:16px; color:#333;">Hi ${buyerName},</p>
+      <p style="margin:0 0 16px; font-size:16px; color:#333;">Hi ${escapeHtml(buyerName)},</p>
       <p style="margin:0 0 24px; color:#555;">Your booking is confirmed. Keep this email as your receipt.</p>
 
       <p style="margin:0 0 8px; font-weight:600; color:#333;">Booking ID</p>
       <p style="margin:0 0 20px; font-family:monospace; font-size:18px; color:#522C5D;">${booking.bookingCode}</p>
 
       <div style="border:1px solid #eee; border-radius:8px; padding:16px; margin-bottom:20px; background:#fafafa;">
-        <p style="margin:0 0 8px; font-weight:600; color:#333;">${eventName}</p>
-        <p style="margin:0; font-size:14px; color:#666;">${eventDate} · ${eventTime}</p>
-        <p style="margin:4px 0 0; font-size:14px; color:#666;">${venue}</p>
+        <p style="margin:0 0 8px; font-weight:600; color:#333;">${escapeHtml(eventName)}</p>
+        <p style="margin:0; font-size:14px; color:#666;">${escapeHtml(eventDate)} · ${escapeHtml(eventTime)}</p>
+        <p style="margin:4px 0 0; font-size:14px; color:#666;">${escapeHtml(venue)}</p>
       </div>
 
       <table style="width:100%; border-collapse:collapse; margin-bottom:16px;">
@@ -115,7 +129,7 @@ export async function sendBookingConfirmation(booking) {
         <tbody>
           ${rows.map((r) => `
           <tr style="border-bottom:1px solid #f0f0f0;">
-            <td style="padding:10px 8px;">${r.name}</td>
+            <td style="padding:10px 8px;">${escapeHtml(r.name)}</td>
             <td style="text-align:center; padding:10px 8px;">${r.qty}</td>
             <td style="text-align:right; padding:10px 8px;">₹${Number(r.unit).toLocaleString("en-IN")}</td>
             <td style="text-align:right; padding:10px 8px;">₹${Number(r.total).toLocaleString("en-IN")}</td>

@@ -17,7 +17,30 @@ export default function SignUpPage() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [captchaOk, setCaptchaOk] = React.useState(false); // demo checkbox for reCAPTCHA
+  const [captchaToken, setCaptchaToken] = React.useState(""); // real Turnstile token (when configured)
   const [submitted, setSubmitted] = React.useState(false);
+
+  // CAPTCHA: graceful degradation. When NEXT_PUBLIC_CAPTCHA_SITE_KEY is unset
+  // (dev / E2E / tests) we keep the demo "I'm not a robot" checkbox gating and
+  // send a placeholder token — the backend accepts any token when CAPTCHA_SECRET
+  // is unset. When a site key IS set, we render a real Cloudflare Turnstile
+  // widget and gate on the token it produces.
+  const captchaSiteKey = process.env.NEXT_PUBLIC_CAPTCHA_SITE_KEY;
+  const captchaSatisfied = captchaSiteKey ? captchaToken.length > 0 : captchaOk;
+
+  React.useEffect(() => {
+    if (!captchaSiteKey) return;
+    const w = window as unknown as { __tiqrCaptchaCb?: (t: string) => void };
+    w.__tiqrCaptchaCb = (token: string) => setCaptchaToken(token || "");
+    if (!document.getElementById("cf-turnstile-script")) {
+      const s = document.createElement("script");
+      s.id = "cf-turnstile-script";
+      s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+      s.async = true;
+      s.defer = true;
+      document.head.appendChild(s);
+    }
+  }, [captchaSiteKey]);
 
   // password visibility toggles
   const [showPassword, setShowPassword] = React.useState(false);
@@ -26,13 +49,34 @@ export default function SignUpPage() {
   // match check: exact equality and non-empty
   const passwordsMatch = password.length > 0 && password === confirm;
 
+  // Live password-complexity checks — these mirror the backend authValidator
+  // policy exactly (8–30 chars, upper, lower, number, special char) so the
+  // client enables submit only for passwords the server will accept.
+  const pwHasLength = password.length >= 8 && password.length <= 30;
+  const pwHasUpper = /[A-Z]/.test(password);
+  const pwHasLower = /[a-z]/.test(password);
+  const pwHasNumber = /[0-9]/.test(password);
+  const pwHasSpecial = /[^A-Za-z0-9]/.test(password);
+  const passwordValid =
+    pwHasLength && pwHasUpper && pwHasLower && pwHasNumber && pwHasSpecial;
+
+  const passwordRules = [
+    { label: "8–30 characters", ok: pwHasLength },
+    { label: "One uppercase letter", ok: pwHasUpper },
+    { label: "One lowercase letter", ok: pwHasLower },
+    { label: "One number", ok: pwHasNumber },
+    { label: "One special character", ok: pwHasSpecial },
+    { label: "Passwords match", ok: passwordsMatch },
+  ];
+
   const festKeyValid = !wantsEditor || festKey.trim().length >= 1;
 
   // The button should only be clickable when all requirements satisfied:
   const canSubmit =
     email.trim().length > 3 &&
+    passwordValid &&
     passwordsMatch &&
-    captchaOk &&
+    captchaSatisfied &&
     festKeyValid &&
     !loading;
 
@@ -55,6 +99,7 @@ export default function SignUpPage() {
           name: fullName || undefined,
           wantsEditor: !!wantsEditor,
           festKey: wantsEditor ? festKey.trim() : undefined,
+          captchaToken: captchaSiteKey ? captchaToken : "dev",
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -139,17 +184,16 @@ export default function SignUpPage() {
             <div className="w-full max-w-md bg-[#29104A] rounded-2xl shadow-md p-8 border border-[#3D1B5C]">
               <h2 className="text-2xl font-bold text-center mb-4 text-white">Sign Up</h2>
 
-              {/* Google placeholder */}
+              {/* Google sign-up — not implemented yet, shown disabled ("Coming soon"). */}
               <button
                 type="button"
-                onClick={() => {
-                  // TODO: Implement Google OAuth
-                  router.push("/host/onboarding");
-                }}
-                className="w-full flex items-center justify-center gap-3 border border-[#6B597F] bg-[#DEDCDC] rounded-lg px-4 py-3 hover:bg-[#6B597F]/20 transition"
+                disabled
+                aria-disabled="true"
+                title="Coming soon"
+                className="w-full flex items-center justify-center gap-3 border border-[#6B597F] bg-[#DEDCDC] rounded-lg px-4 py-3 opacity-60 cursor-not-allowed"
               >
                 <img src="/google-icon.svg" alt="Google" className="w-5 h-5" />
-                <span className="text-sm font-medium text-[#29104A]">Sign Up with Google</span>
+                <span className="text-sm font-medium text-[#29104A]">Sign Up with Google (coming soon)</span>
               </button>
 
               <div className="flex items-center gap-3 mt-4">
@@ -158,12 +202,17 @@ export default function SignUpPage() {
                 <div className="flex-grow border-t border-white/30" />
               </div>
 
-              {error && <div className="mt-4 text-sm text-red-600">{error}</div>}
+              {error && (
+                <div id="signup-error" role="alert" className="mt-4 text-sm text-red-600">
+                  {error}
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} className="mt-4 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-white/90">Full Name (optional)</label>
+                  <label htmlFor="signup-fullname" className="block text-sm font-medium text-white/90">Full Name (optional)</label>
                   <input
+                    id="signup-fullname"
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
@@ -173,10 +222,14 @@ export default function SignUpPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/90">Email</label>
+                  <label htmlFor="signup-email" className="block text-sm font-medium text-white/90">Email</label>
                   <input
+                    id="signup-email"
                     type="email"
                     required
+                    aria-required="true"
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? "signup-error" : undefined}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@school.edu"
@@ -186,12 +239,16 @@ export default function SignUpPage() {
 
                 {/* Password field with eye toggle */}
                 <div>
-                    <label className="block text-sm font-medium text-white/90">Password</label>
+                    <label htmlFor="signup-password" className="block text-sm font-medium text-white/90">Password</label>
 
                     {/* Wrap input + eye in its own relative box */}
                     <div className="relative mt-2">
                         <input
+                        id="signup-password"
                         type={showPassword ? "text" : "password"}
+                        required
+                        aria-required="true"
+                        aria-describedby="signup-password-rules"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         className="w-full border border-[#6B597F] rounded-lg px-3 py-2 pr-12 focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D]"
@@ -221,17 +278,20 @@ export default function SignUpPage() {
 
                 {/* Confirm password with eye toggle */}
                 <div>
-                    <label className="block text-sm font-medium text-white/90">Confirm Password</label>
+                    <label htmlFor="signup-confirm" className="block text-sm font-medium text-white/90">Confirm Password</label>
 
                     {/* Input + Eye Icon Wrapper */}
                     <div className="relative mt-2">
                         <input
+                        id="signup-confirm"
                         type={showConfirm ? "text" : "password"}
                         value={confirm}
                         onChange={(e) => setConfirm(e.target.value)}
                         placeholder="Confirm password"
                         className="w-full border border-[#6B597F] rounded-lg px-3 py-2 pr-12 focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D]"
                         required
+                        aria-required="true"
+                        aria-invalid={confirm.length > 0 && !passwordsMatch ? true : undefined}
                         />
 
                         {/* Eye Button */}
@@ -258,6 +318,27 @@ export default function SignUpPage() {
                     </div>
                 </div>
 
+                {/* Live password requirements checklist. Each rule flips to a
+                    satisfied (green) state as the user types, so the full policy
+                    is visible up-front instead of being discovered one error at
+                    a time after submit. */}
+                <ul id="signup-password-rules" className="space-y-1 text-xs" aria-label="Password requirements">
+                  {passwordRules.map((rule) => (
+                    <li
+                      key={rule.label}
+                      data-testid={`pw-rule-${rule.ok ? "ok" : "todo"}`}
+                      className={`flex items-center gap-2 ${
+                        rule.ok ? "text-green-400" : "text-white/60"
+                      }`}
+                    >
+                      <span aria-hidden className="inline-flex w-4 justify-center">
+                        {rule.ok ? "✓" : "○"}
+                      </span>
+                      <span>{rule.label}</span>
+                    </li>
+                  ))}
+                </ul>
+
 
                 {/* Editor request toggle */}
                 <div className="mt-2">
@@ -276,35 +357,47 @@ export default function SignUpPage() {
 
                 {wantsEditor && (
                   <div>
-                    <label className="block text-sm font-medium text-white/90 mt-2">
+                    <label htmlFor="signup-festkey" className="block text-sm font-medium text-white/90 mt-2">
                       Fest key <span className="text-red-400">*</span>
                     </label>
                     <input
+                      id="signup-festkey"
                       type="text"
+                      required
+                      aria-required="true"
                       value={festKey}
                       onChange={(e) => setFestKey(e.target.value)}
                       placeholder="Enter the key provided by your fest admin"
+                      aria-describedby="signup-festkey-hint"
                       className="mt-2 w-full border border-[#6B597F] rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D]"
                     />
-                    <p className="text-xs text-white/70 mt-1">
+                    <p id="signup-festkey-hint" className="text-xs text-white/70 mt-1">
                       Get this key from your fest admin (professor) after they are approved.
                     </p>
                   </div>
                 )}
 
-                {/* reCAPTCHA placeholder */}
+                {/* CAPTCHA: real Turnstile widget when configured, else demo checkbox */}
                 <div className="mt-2">
-                  <div className="border border-[#6B597F] rounded-md p-4 bg-[#DEDCDC] text-[#522C5D] text-sm">
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={captchaOk}
-                        onChange={(e) => setCaptchaOk(e.target.checked)}
-                        className="w-5 h-5 accent-[#522C5D]"
-                      />
-                      <span>I'm not a robot (demo checkbox)</span>
-                    </label>
-                  </div>
+                  {captchaSiteKey ? (
+                    <div
+                      className="cf-turnstile"
+                      data-sitekey={captchaSiteKey}
+                      data-callback="__tiqrCaptchaCb"
+                    />
+                  ) : (
+                    <div className="border border-[#6B597F] rounded-md p-4 bg-[#DEDCDC] text-[#522C5D] text-sm">
+                      <label className="inline-flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={captchaOk}
+                          onChange={(e) => setCaptchaOk(e.target.checked)}
+                          className="w-5 h-5 accent-[#522C5D]"
+                        />
+                        <span>I'm not a robot (demo checkbox)</span>
+                      </label>
+                    </div>
+                  )}
                 </div>
 
                 {/* Sign Up button:
@@ -316,7 +409,7 @@ export default function SignUpPage() {
                     type="submit"
                     disabled={!canSubmit}
                     className={`w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium transition ${
-                      passwordsMatch && captchaOk && !loading
+                      canSubmit
                         ? "bg-gradient-to-r from-[#29104A] to-[#522C5D] text-[#DEDCDC] hover:from-[#522C5D] hover:to-[#6B597F]"
                         : "bg-[#6B597F]/50 text-[#DEDCDC]/70 cursor-not-allowed"
                     }`}

@@ -1,17 +1,20 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import PaymentSidebar from "@/components/payment/PaymentSidebar";
 import { getApiUrl } from "@/lib/auth";
+import { showToast } from "@/lib/toast";
 
 interface BookingData {
   id: number;
   bookingCode: string;
+  status?: string;
   total: number;
   subtotal: number;
+  discount?: number;
   platformFee: number;
   tax: number;
   event: {
@@ -30,7 +33,7 @@ export default function PaymentPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const eventId = params.id as string;
-  const bookingId = searchParams.get("bookingId");
+  const bookingCode = searchParams.get("bookingCode");
 
   const [booking, setBooking] = useState<BookingData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,14 +41,15 @@ export default function PaymentPage() {
 
   useEffect(() => {
     const fetchBooking = async () => {
-      if (!bookingId) {
+      if (!bookingCode) {
         // Try to get from localStorage
         const pending = localStorage.getItem("pendingBooking");
         if (pending) {
           const data = JSON.parse(pending);
-          // Fetch full booking details
+          // Fetch full booking details via the public guest-confirmation endpoint
+          // (bookingCode is an unguessable cuid, so this stays unauthenticated).
           try {
-            const res = await fetch(`${getApiUrl()}/api/bookings/${data.bookingId}`);
+            const res = await fetch(`${getApiUrl()}/api/bookings/code/${data.bookingCode}`);
             const result = await res.json();
             if (result.success) {
               setBooking(result.data);
@@ -59,7 +63,8 @@ export default function PaymentPage() {
       }
 
       try {
-        const res = await fetch(`${getApiUrl()}/api/bookings/${bookingId}`);
+        // Public guest endpoint keyed by the unguessable bookingCode (no auth).
+        const res = await fetch(`${getApiUrl()}/api/bookings/code/${bookingCode}`);
         const data = await res.json();
         if (data.success) {
           setBooking(data.data);
@@ -72,12 +77,12 @@ export default function PaymentPage() {
     };
 
     fetchBooking();
-  }, [bookingId]);
+  }, [bookingCode]);
 
   const completeBookingAndRedirect = (bookingCode: string) => {
     localStorage.removeItem("pendingBooking");
-    alert(`Payment successful! Your booking code is: ${bookingCode}`);
-    router.push(`/fests`);
+    showToast("Payment successful! Redirecting to your confirmation…", "success");
+    router.push(`/booking-confirmation?bookingCode=${encodeURIComponent(bookingCode)}`);
   };
 
   const handlePaymentComplete = async (paymentMethod: string) => {
@@ -94,10 +99,10 @@ export default function PaymentPage() {
       });
       const data = await res.json();
       if (data.success) completeBookingAndRedirect(booking.bookingCode);
-      else alert(data.error?.message || "Payment failed. Please try again.");
+      else showToast(data.error?.message || "Payment failed. Please try again.", "error");
     } catch (error) {
       console.error("Payment error:", error);
-      alert("Payment failed. Please try again.");
+      showToast("Payment failed. Please try again.", "error");
     } finally {
       setProcessing(false);
     }
@@ -116,7 +121,7 @@ export default function PaymentPage() {
             await handlePaymentComplete("CARD");
           }
         } else {
-          alert(orderData?.error?.message || "Could not create order.");
+          showToast(orderData?.error?.message || "Could not create order.", "error");
         }
         setProcessing(false);
         return;
@@ -159,10 +164,10 @@ export default function PaymentPage() {
               });
               const verifyData = await verifyRes.json();
               if (verifyData.success) completeBookingAndRedirect(booking.bookingCode);
-              else alert(verifyData.error?.message || "Payment verification failed.");
+              else showToast(verifyData.error?.message || "Payment verification failed.", "error");
             } catch (e) {
               console.error(e);
-              alert("Verification failed. Please contact support with your booking code.");
+              showToast("Verification failed. Please contact support with your booking code.", "error");
             } finally {
               setProcessing(false);
             }
@@ -175,12 +180,12 @@ export default function PaymentPage() {
 
       script.onload = loadCheckout;
       script.onerror = () => {
-        alert("Could not load payment. Try again or use another method.");
+        showToast("Could not load payment. Try again or use another method.", "error");
         setProcessing(false);
       };
     } catch (error) {
       console.error("Razorpay error:", error);
-      alert("Payment failed. Please try again.");
+      showToast("Payment failed. Please try again.", "error");
       setProcessing(false);
     }
   };
@@ -259,6 +264,17 @@ export default function PaymentPage() {
                 <span>Subtotal</span>
                 <span>₹{booking.subtotal?.toLocaleString()}</span>
               </div>
+              {booking.discount != null && booking.discount > 0 && (
+                <div className="flex justify-between text-green-700" data-testid="payment-discount-line">
+                  <span>
+                    Discount
+                    {booking.subtotal
+                      ? ` (${Math.round((booking.discount / booking.subtotal) * 100)}%)`
+                      : ""}
+                  </span>
+                  <span>-₹{booking.discount.toLocaleString()}</span>
+                </div>
+              )}
               <div className="flex justify-between text-slate-600">
                 <span>Platform Fee (2%)</span>
                 <span>₹{booking.platformFee?.toLocaleString()}</span>

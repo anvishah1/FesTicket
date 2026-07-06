@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface EventLocationProps {
   onNext: (data: EventLocationData) => void;
+  /** Fires on every edit so the wizard persists in-progress input (H11). */
+  onChange?: (data: EventLocationData) => void;
   initialData?: EventLocationData;
 }
 
@@ -14,13 +16,18 @@ export interface EventLocationData {
   meetingLink: string;
 }
 
-export default function EventLocation({ onNext, initialData }: EventLocationProps) {
+export default function EventLocation({ onNext, onChange, initialData }: EventLocationProps) {
   const [formData, setFormData] = useState<EventLocationData>(initialData || {
     locationType: "OFFLINE",
     venue: "",
     address: "",
     meetingLink: "",
   });
+
+  useEffect(() => {
+    onChange?.(formData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData]);
 
   const handleSubmit = () => {
     if (formData.locationType === "OFFLINE" && !formData.venue.trim()) {
@@ -43,11 +50,11 @@ export default function EventLocation({ onNext, initialData }: EventLocationProp
       <div className="space-y-6">
         {/* Mode */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-[#29104A]">
+          <span id="location-type-label" className="mb-2 block text-sm font-medium text-[#29104A]">
             Location Type
-          </label>
+          </span>
 
-          <div className="flex gap-4">
+          <div className="flex gap-4" role="group" aria-labelledby="location-type-label">
             <ToggleButton
               label="Offline"
               active={formData.locationType === "OFFLINE"}
@@ -65,10 +72,11 @@ export default function EventLocation({ onNext, initialData }: EventLocationProp
         {formData.locationType === "OFFLINE" && (
           <>
             <div>
-              <label className="block text-sm font-medium text-[#29104A]">
+              <label htmlFor="location-venue" className="block text-sm font-medium text-[#29104A]">
                 Venue Name <span className="text-[#522C5D]">*</span>
               </label>
               <input
+                id="location-venue"
                 value={formData.venue}
                 onChange={(e) => setFormData({ ...formData, venue: e.target.value })}
                 placeholder="eg: Kerala Startup Mission"
@@ -77,10 +85,11 @@ export default function EventLocation({ onNext, initialData }: EventLocationProp
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#29104A]">
+              <label htmlFor="location-address" className="block text-sm font-medium text-[#29104A]">
                 Address
               </label>
               <textarea
+                id="location-address"
                 rows={3}
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
@@ -99,10 +108,11 @@ export default function EventLocation({ onNext, initialData }: EventLocationProp
         {/* Online Fields */}
         {formData.locationType === "ONLINE" && (
           <div>
-            <label className="block text-sm font-medium text-[#29104A]">
+            <label htmlFor="location-meeting-link" className="block text-sm font-medium text-[#29104A]">
               Meeting Link <span className="text-[#522C5D]">*</span>
             </label>
             <input
+              id="location-meeting-link"
               value={formData.meetingLink}
               onChange={(e) => setFormData({ ...formData, meetingLink: e.target.value })}
               placeholder="https://zoom.us / https://meet.google.com"
@@ -135,6 +145,7 @@ function ToggleButton({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition
         ${

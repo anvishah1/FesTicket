@@ -1,7 +1,5 @@
 "use client";
 
-import React from "react";
-
 interface CardProps {
   title: string;
   description?: string;
@@ -9,20 +7,50 @@ interface CardProps {
   subtitle?: string;
   onClick?: () => void;
   hoverText?: string; // Optional hover overlay text (e.g., "Register Now")
+  discount?: number; // Percentage discount; when > 0 a "X% OFF" badge is shown
 }
 
-export default function Card({ title, description, image, subtitle, onClick, hoverText }: CardProps) {
+export default function Card({ title, description, image, subtitle, onClick, hoverText, discount }: CardProps) {
+  const hasDiscount = typeof discount === "number" && discount > 0;
+  const isInteractive = typeof onClick === "function";
+
+  // When the card acts as a control, expose real button semantics so it is
+  // keyboard-focusable (Tab), activates on Enter/Space, and has an accessible name.
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!isInteractive) return;
+    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+      e.preventDefault();
+      onClick?.();
+    }
+  };
+
   return (
     <div
       onClick={onClick}
-      className="
+      onKeyDown={isInteractive ? handleKeyDown : undefined}
+      role={isInteractive ? "button" : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
+      aria-label={isInteractive ? title : undefined}
+      className={`
         group relative
         bg-white border border-[#C5BAC4] rounded-xl overflow-hidden
-        transition-all duration-200 cursor-pointer
+        transition-all duration-200
         hover:shadow-lg hover:-translate-y-1
         flex flex-col
-      "
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-[#522C5D] focus-visible:ring-offset-2
+        ${isInteractive ? "cursor-pointer" : ""}
+      `}
     >
+      {/* Discount badge */}
+      {hasDiscount && (
+        <span
+          data-testid="discount-badge"
+          className="absolute top-2 right-2 z-10 rounded-full bg-[#E11D48] px-2.5 py-1 text-xs font-bold text-white shadow-md"
+        >
+          {discount}% OFF
+        </span>
+      )}
+
       {/* Image */}
       {image && (
         <div className="relative w-full h-80 bg-[#C5BAC4]/20 overflow-hidden">

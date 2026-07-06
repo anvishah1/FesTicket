@@ -2,20 +2,74 @@ import express from "express";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../prisma.js";
 import { authenticateUser } from "../middleware/authMiddleware.js";
 
 import { signupSchema, signinSchema } from "../validators/authValidator.js";
 import { validate } from "../middleware/validate.js";
-import { loginLimiter } from "../middleware/rateLimiter.js";
+import { loginLimiter, signupLimiter, writeLimiter } from "../middleware/rateLimiter.js";
+import { verifyCaptcha } from "../utils/captcha.js";
 
-const prisma = new PrismaClient();
 const router = express.Router();
 
+/*
+ * Tokens (refresh, password-reset, email-verify) are stored HASHED at rest so a
+ * DB read can't be replayed as a live credential. The client always receives the
+ * plaintext; we persist only sha256(plaintext) and look up by the same hash.
+ */
+function hashToken(t) {
+  return crypto.createHash("sha256").update(String(t)).digest("hex");
+}
+
+/*
+ * Fixed bcrypt hash used to burn a comparable amount of CPU when an email is not
+ * found, so sign-in response time doesn't reveal whether an account exists.
+ */
+const DUMMY_PASSWORD_HASH =
+  "$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
+/*
+ * Cap live refresh tokens per user and prune expired ones. Best-effort: any
+ * failure here must never block issuing a token.
+ */
+const MAX_REFRESH_TOKENS_PER_USER = 5;
+
+async function cleanupRefreshTokens(userId) {
+  try {
+    // Purge expired rows AND expired revoked tombstones so they can't
+    // accumulate unbounded. A revoked tombstone is only useful for replay
+    // detection until its original expiry, after which a replay is rejected as
+    // an unknown token anyway.
+    await prisma.refreshToken.deleteMany({
+      where: { userId, expiresAt: { lt: new Date() } }
+    });
+
+    const live = (await prisma.refreshToken.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true }
+    })) || [];
+
+    if (live.length > MAX_REFRESH_TOKENS_PER_USER) {
+      const stale = live.slice(MAX_REFRESH_TOKENS_PER_USER).map((t) => t.id);
+      await prisma.refreshToken.deleteMany({
+        where: { id: { in: stale } }
+      });
+    }
+  } catch (err) {
+    console.error("[auth] refresh token cleanup failed:", err);
+  }
+}
+
 /* ================= SIGNUP ================= */
-router.post("/signup", validate(signupSchema), async (req, res) => {
+router.post("/signup", signupLimiter, validate(signupSchema), async (req, res) => {
 
   try {
+
+    // CAPTCHA gate (graceful no-op when CAPTCHA_SECRET is unset).
+    if (!(await verifyCaptcha(req.body.captchaToken, req.ip))) {
+      return res.status(400).json({ message: "Captcha verification failed" });
+    }
 
     const {
       email,
@@ -69,7 +123,7 @@ router.post("/signup", validate(signupSchema), async (req, res) => {
         password: hashedPassword,
         name,
         organizationName: organizationName || null,
-        emailVerifyToken: verifyToken,
+        emailVerifyToken: hashToken(verifyToken),
         emailVerified: true
       }
     });
@@ -98,10 +152,9 @@ router.post("/signup", validate(signupSchema), async (req, res) => {
       );
     }
 
-    const verifyLink =
-      `${process.env.BACKEND_URL || "http://localhost:4000"}/api/auth/verify-email?token=${verifyToken}`;
-
     if (process.env.NODE_ENV !== "development") {
+      const verifyLink =
+        `${process.env.BACKEND_URL || "http://localhost:4000"}/api/auth/verify-email?token=${verifyToken}`;
       console.log("Email verification link:", verifyLink);
     }
 
@@ -110,7 +163,7 @@ router.post("/signup", validate(signupSchema), async (req, res) => {
         ? "Signup successful. You can sign in."
         : "Signup successful. Please verify your email.",
       userId: user.id,
-      createdRoleRequest: !!wantEditor
+      createdRoleRequest: wantEditor
     });
 
   } catch (error) {
@@ -133,20 +186,23 @@ router.post("/signin", loginLimiter, validate(signinSchema), async (req, res) =>
 
     const { email, password } = req.body;
 
+    // CAPTCHA gate BEFORE any password/lockout logic: without this an attacker
+    // could weaponise the failed-attempt lockout to DoS an account. Graceful
+    // no-op when CAPTCHA_SECRET is unset.
+    if (!(await verifyCaptcha(req.body.captchaToken, req.ip))) {
+      return res.status(400).json({ message: "Captcha verification failed" });
+    }
+
     const user = await prisma.user.findUnique({
       where: { email }
     });
 
     if (!user || !user.password) {
+      // Constant-time guard: run a dummy bcrypt compare so an unknown email
+      // takes roughly the same time as a wrong password, and return the SAME
+      // generic message so timing/wording can't be used to enumerate accounts.
+      await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
       return res.status(401).json({ message: "Invalid credentials" });
-    }
-
-    /* Ensure user can sign in: email verification is not used for now */
-    if (!user.emailVerified) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { emailVerified: true },
-      });
     }
 
     /* ACCOUNT LOCK CHECK */
@@ -202,28 +258,34 @@ router.post("/signin", loginLimiter, validate(signinSchema), async (req, res) =>
       }
     });
 
-    /* ACCESS TOKEN */
+    /* ACCESS TOKEN — carries tokenVersion so a later password/role change can
+       invalidate this token without a per-request DB lookup. */
     const accessToken = jwt.sign(
       {
         userId: user.id,
-        role: user.role
+        role: user.role,
+        tokenVersion: user.tokenVersion ?? 0
       },
       process.env.JWT_SECRET,
       { expiresIn: "15m" }
     );
 
-    /* REFRESH TOKEN */
+    /* REFRESH TOKEN (plaintext to client, hash at rest). A fresh login starts a
+       NEW family lineage; rotations inherit this familyId for replay detection. */
     const refreshToken = crypto.randomBytes(40).toString("hex");
 
     await prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        token: hashToken(refreshToken),
         userId: user.id,
+        familyId: crypto.randomUUID(),
         userAgent: req.headers["user-agent"],
         ipAddress: req.ip,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       }
     });
+
+    await cleanupRefreshTokens(user.id);
 
     res.json({
       message: "Signin successful",
@@ -266,20 +328,36 @@ router.post("/refresh-token", async (req, res) => {
       });
     }
 
+    const hashedToken = hashToken(refreshToken);
+
     const storedToken = await prisma.refreshToken.findUnique({
-      where: { token: refreshToken }
+      where: { token: hashedToken }
     });
 
     if (!storedToken) {
-      return res.status(403).json({
+      return res.status(401).json({
         message: "Invalid refresh token"
+      });
+    }
+
+    // REPLAY DETECTION: a match on an already-revoked tombstone means a rotated
+    // (superseded) token is being presented again -> the whole lineage is
+    // compromised. Revoke the entire family and reject.
+    if (storedToken.revokedAt) {
+      await prisma.refreshToken.deleteMany(
+        storedToken.familyId
+          ? { where: { familyId: storedToken.familyId } }
+          : { where: { id: storedToken.id } }
+      );
+      return res.status(401).json({
+        message: "Refresh token reuse detected"
       });
     }
 
     if (storedToken.expiresAt < new Date()) {
 
       await prisma.refreshToken.delete({
-        where: { token: refreshToken }
+        where: { token: hashedToken }
       });
 
       return res.status(403).json({
@@ -298,27 +376,35 @@ router.post("/refresh-token", async (req, res) => {
       });
     }
 
-    /* ROTATION */
-    await prisma.refreshToken.delete({
-      where: { token: refreshToken }
+    /* ROTATION: mark the presented token as a revoked tombstone (kept so a
+       later replay is caught) and mint a new token that INHERITS the family. */
+    await prisma.refreshToken.update({
+      where: { token: hashedToken },
+      data: { revokedAt: new Date() }
     });
 
     const newRefreshToken = crypto.randomBytes(40).toString("hex");
 
     await prisma.refreshToken.create({
       data: {
-        token: newRefreshToken,
+        token: hashToken(newRefreshToken),
         userId: user.id,
+        familyId: storedToken.familyId ?? crypto.randomUUID(),
         userAgent: req.headers["user-agent"],
         ipAddress: req.ip,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       }
     });
 
+    await cleanupRefreshTokens(user.id);
+
+    /* Re-sign with the CURRENT role + tokenVersion so a refreshed access token
+       always reflects the live role (and clears once a bump has occurred). */
     const accessToken = jwt.sign(
       {
         userId: user.id,
-        role: user.role
+        role: user.role,
+        tokenVersion: user.tokenVersion ?? 0
       },
       process.env.JWT_SECRET,
       { expiresIn: "15m" }
@@ -356,7 +442,13 @@ router.post("/logout", async (req, res) => {
     }
 
     await prisma.refreshToken.deleteMany({
-      where: { token: refreshToken }
+      where: { token: hashToken(refreshToken) }
+    });
+
+    // Opportunistically purge expired rows / tombstones so they don't
+    // accumulate unbounded.
+    await prisma.refreshToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } }
     });
 
     res.json({
@@ -379,9 +471,17 @@ router.get("/sessions", authenticateUser, async (req, res) => {
 
   try {
 
+    // Never expose the raw refresh-token secret; return only session metadata.
     const sessions = await prisma.refreshToken.findMany({
       where: { userId: req.user.userId },
-      orderBy: { createdAt: "desc" }
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        userAgent: true,
+        ipAddress: true,
+        createdAt: true,
+        expiresAt: true,
+      },
     });
 
     res.json({
@@ -456,7 +556,7 @@ router.delete("/sessions", authenticateUser, async (req, res) => {
 });
 
 /* ================= FORGOT PASSWORD ================= */
-router.post("/forgot-password", async (req, res) => {
+router.post("/forgot-password", writeLimiter, async (req, res) => {
 
   try {
 
@@ -479,13 +579,13 @@ router.post("/forgot-password", async (req, res) => {
     await prisma.user.update({
       where: { email },
       data: {
-        resetPasswordToken: resetToken,
+        resetPasswordToken: hashToken(resetToken),
         resetPasswordExpiry: expiry
       }
     });
 
     const resetLink =
-      `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`;
+      `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset?token=${resetToken}`;
 
     console.log("Password reset link:", resetLink);
 
@@ -513,6 +613,16 @@ router.post("/reset-password", async (req, res) => {
 
     const { token, newPassword } = req.body;
 
+    // Token MUST be a non-empty string. Without this guard, Express/qs lets an
+    // attacker pass a Prisma filter object (e.g. {"not":null}) or omit the token
+    // entirely (undefined => Prisma drops the filter), matching an arbitrary
+    // user's reset row and taking over the account without the token.
+    if (typeof token !== "string" || token.length < 1) {
+      return res.status(400).json({
+        message: "Invalid or expired token"
+      });
+    }
+
     if (!newPassword || newPassword.length < 8 || newPassword.length > 30) {
       return res.status(400).json({
         message: "Password must be 8–30 characters"
@@ -521,7 +631,7 @@ router.post("/reset-password", async (req, res) => {
 
     const user = await prisma.user.findFirst({
       where: {
-        resetPasswordToken: token,
+        resetPasswordToken: hashToken(token),
         resetPasswordExpiry: {
           gte: new Date()
         }
@@ -541,9 +651,16 @@ router.post("/reset-password", async (req, res) => {
       data: {
         password: hashedPassword,
         resetPasswordToken: null,
-        resetPasswordExpiry: null
+        resetPasswordExpiry: null,
+        // Bump tokenVersion so any live access token minted before the reset is
+        // rejected (see authMiddleware / refresh re-sign).
+        tokenVersion: { increment: 1 }
       }
     });
+
+    // Revoke all existing sessions so a compromised account cannot stay logged in
+    // after a password reset.
+    await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
 
     res.json({
       message: "Password reset successful"
@@ -569,9 +686,17 @@ router.get("/verify-email", async (req, res) => {
 
     const { token } = req.query;
 
+    // Guard against a non-string token (?token[not]=null => object) or a missing
+    // token (undefined => Prisma drops the filter and verifies an arbitrary user).
+    if (typeof token !== "string" || !token) {
+      return res.status(400).json({
+        message: "Invalid verification token"
+      });
+    }
+
     const user = await prisma.user.findFirst({
       where: {
-        emailVerifyToken: token
+        emailVerifyToken: hashToken(token)
       }
     });
 

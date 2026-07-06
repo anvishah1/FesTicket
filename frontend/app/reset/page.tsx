@@ -4,6 +4,7 @@ import React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { getApiUrl } from "@/lib/auth";
 
 export default function ResetPage() {
   const params = useSearchParams();
@@ -33,10 +34,24 @@ export default function ResetPage() {
 
     setStatus("submitting");
 
-    // Mock backend
-    await new Promise((res) => setTimeout(res, 900));
-    setStatus("done");
-    setTimeout(() => router.push("/signin?reset=1"), 900);
+    try {
+      const res = await fetch(`${getApiUrl()}/api/auth/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, newPassword: password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.message || "Invalid or expired token. Request a new reset link.");
+        setStatus("error");
+        return;
+      }
+      setStatus("done");
+      setTimeout(() => router.push("/signin?reset=1"), 900);
+    } catch {
+      setError("Could not reach server. Try again.");
+      setStatus("error");
+    }
   }
 
   return (

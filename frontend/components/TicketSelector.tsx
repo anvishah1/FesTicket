@@ -1,5 +1,4 @@
 // frontend/components/TicketSelector.tsx
-import React from "react";
 
 export default function TicketSelector({
   ticket,

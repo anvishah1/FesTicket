@@ -1,5 +1,4 @@
 // frontend/components/BookingSummary.tsx
-import React from "react";
 
 export default function BookingSummary({
   subtotal,

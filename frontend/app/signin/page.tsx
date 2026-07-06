@@ -1,7 +1,6 @@
 // frontend/app/signin/page.tsx
 "use client";
 
-import React from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import AuthForm from "@/components/AuthForm";
@@ -17,7 +16,7 @@ export default function SignInPage() {
               {/* logo / brand */}
               <div className="w-28 h-28 flex items-center justify-center">
                 {/* Replace with your logo SVG if desired */}
-                <img src="/logo.png" alt="tiqrdupe logo" className="w-28 h-auto" />
+                <img src="/logo.png" alt="tiqr logo" className="w-28 h-auto" />
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-extrabold text-[#29104A]">Sign In</h1>

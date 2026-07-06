@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface TicketsProps {
   onNext: (data: TicketsData) => void;
+  /** Fires on every edit so the wizard persists in-progress input (H11). */
+  onChange?: (data: TicketsData) => void;
   initialData?: TicketsData;
 }
 
@@ -12,6 +14,7 @@ export type TicketType = {
   name: string;
   price: number;
   quantity: number;
+  description: string;
 };
 
 export interface TicketsData {
@@ -19,16 +22,22 @@ export interface TicketsData {
   tickets: TicketType[];
 }
 
-export default function Tickets({ onNext, initialData }: TicketsProps) {
+export default function Tickets({ onNext, onChange, initialData }: TicketsProps) {
   const [isPaid, setIsPaid] = useState(initialData?.isPaid ?? true);
   const [tickets, setTickets] = useState<TicketType[]>(
-    initialData?.tickets || [{ id: 1, name: "General Admission", price: 0, quantity: 100 }]
+    initialData?.tickets || [{ id: 1, name: "General Admission", price: 0, quantity: 100, description: "" }]
   );
+
+  // Report every edit up so switching steps via the Sidebar never loses input.
+  useEffect(() => {
+    onChange?.({ isPaid, tickets });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPaid, tickets]);
 
   function addTicket() {
     setTickets([
       ...tickets,
-      { id: Date.now(), name: "", price: 0, quantity: 100 },
+      { id: Date.now(), name: "", price: 0, quantity: 100, description: "" },
     ]);
   }
 
@@ -50,6 +59,16 @@ export default function Tickets({ onNext, initialData }: TicketsProps) {
       alert("Please add at least one ticket type");
       return;
     }
+    for (const t of validTickets) {
+      if (isPaid && (!Number.isFinite(t.price) || t.price < 0)) {
+        alert(`Ticket "${t.name}" has an invalid price. Price cannot be negative.`);
+        return;
+      }
+      if (!Number.isFinite(t.quantity) || t.quantity <= 0) {
+        alert(`Ticket "${t.name}" needs a quantity of at least 1.`);
+        return;
+      }
+    }
     onNext({
       isPaid,
       tickets: validTickets.map((t) => ({
@@ -68,11 +87,11 @@ export default function Tickets({ onNext, initialData }: TicketsProps) {
       <div className="space-y-6">
         {/* Ticket Type */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-[#29104A]">
+          <span id="ticket-type-label" className="mb-2 block text-sm font-medium text-[#29104A]">
             Ticket Type
-          </label>
+          </span>
 
-          <div className="flex gap-4">
+          <div className="flex gap-4" role="group" aria-labelledby="ticket-type-label">
             <ToggleButton
               label="Paid"
               active={isPaid}
@@ -100,6 +119,8 @@ export default function Tickets({ onNext, initialData }: TicketsProps) {
 
                 {tickets.length > 1 && (
                   <button
+                    type="button"
+                    aria-label={`Remove ticket ${index + 1}`}
                     onClick={() => removeTicket(ticket.id)}
                     className="text-sm text-red-500 hover:underline"
                   >
@@ -109,47 +130,90 @@ export default function Tickets({ onNext, initialData }: TicketsProps) {
               </div>
 
               <div className="grid grid-cols-3 gap-4">
-                <input
-                  placeholder="Ticket Name"
-                  value={ticket.name}
-                  onChange={(e) =>
-                    updateTicket(ticket.id, "name", e.target.value)
-                  }
-                  className="rounded-lg border border-[#C5BAC4] px-3 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
-                />
+                <div>
+                  <label htmlFor={`ticket-name-${ticket.id}`} className="sr-only">
+                    Ticket {index + 1} name
+                  </label>
+                  <input
+                    id={`ticket-name-${ticket.id}`}
+                    placeholder="Ticket Name"
+                    value={ticket.name}
+                    onChange={(e) =>
+                      updateTicket(ticket.id, "name", e.target.value)
+                    }
+                    className="w-full rounded-lg border border-[#C5BAC4] px-3 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
+                  />
+                </div>
 
                 {isPaid ? (
-                  <input
-                    type="number"
-                    placeholder="Price (₹)"
-                    value={ticket.price || ""}
-                    onChange={(e) =>
-                      updateTicket(ticket.id, "price", parseInt(e.target.value) || 0)
-                    }
-                    className="rounded-lg border border-[#C5BAC4] px-3 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
-                  />
+                  <div>
+                    <label htmlFor={`ticket-price-${ticket.id}`} className="sr-only">
+                      Ticket {index + 1} price in rupees
+                    </label>
+                    <input
+                      id={`ticket-price-${ticket.id}`}
+                      type="number"
+                      min={0}
+                      placeholder="Price (₹)"
+                      value={ticket.price || ""}
+                      onChange={(e) =>
+                        updateTicket(
+                          ticket.id,
+                          "price",
+                          Math.max(0, parseInt(e.target.value) || 0)
+                        )
+                      }
+                      className="w-full rounded-lg border border-[#C5BAC4] px-3 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
+                    />
+                  </div>
                 ) : (
                   <div className="flex items-center justify-center rounded-lg border border-[#C5BAC4] bg-[#C5BAC4]/30 text-sm text-[#6B597F]">
                     Free
                   </div>
                 )}
 
-                <input
-                  type="number"
-                  placeholder="Quantity"
-                  value={ticket.quantity || ""}
-                  onChange={(e) =>
-                    updateTicket(ticket.id, "quantity", parseInt(e.target.value) || 0)
-                  }
-                  className="rounded-lg border border-[#C5BAC4] px-3 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
-                />
+                <div>
+                  <label htmlFor={`ticket-quantity-${ticket.id}`} className="sr-only">
+                    Ticket {index + 1} quantity
+                  </label>
+                  <input
+                    id={`ticket-quantity-${ticket.id}`}
+                    type="number"
+                    min={1}
+                    placeholder="Quantity"
+                    value={ticket.quantity || ""}
+                    onChange={(e) =>
+                      updateTicket(
+                        ticket.id,
+                        "quantity",
+                        Math.max(0, parseInt(e.target.value) || 0)
+                      )
+                    }
+                    className="w-full rounded-lg border border-[#C5BAC4] px-3 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
+                  />
+                </div>
               </div>
+
+              <label htmlFor={`ticket-description-${ticket.id}`} className="sr-only">
+                Ticket {index + 1} description
+              </label>
+              <textarea
+                id={`ticket-description-${ticket.id}`}
+                rows={2}
+                placeholder="Description (optional)"
+                value={ticket.description}
+                onChange={(e) =>
+                  updateTicket(ticket.id, "description", e.target.value)
+                }
+                className="w-full rounded-lg border border-[#C5BAC4] px-3 py-2 text-sm focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
+              />
             </div>
           ))}
         </div>
 
         {/* Add Ticket */}
         <button
+          type="button"
           onClick={addTicket}
           className="w-full rounded-lg border-2 border-dashed border-[#C5BAC4] py-4 text-[#6B597F] hover:border-[#522C5D] hover:text-[#522C5D] transition"
         >
@@ -158,6 +222,7 @@ export default function Tickets({ onNext, initialData }: TicketsProps) {
 
         {/* Save */}
         <button
+          type="button"
           onClick={handleSubmit}
           className="mt-6 w-full rounded-lg bg-[#522C5D] py-3 text-white font-medium hover:bg-[#29104A] transition"
         >
@@ -180,6 +245,7 @@ function ToggleButton({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition
         ${

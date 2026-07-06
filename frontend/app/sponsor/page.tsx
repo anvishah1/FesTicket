@@ -4,25 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-
-// Sample fests and events for dropdown
-const sampleFests = [
-  { id: 1, name: "Tathva 2025" },
-  { id: 2, name: "Ragam 2025" },
-  { id: 3, name: "Incident 2025" },
-];
-
-const sampleEvents = [
-  { id: 1, festId: 1, name: "Proshow Day 1" },
-  { id: 2, festId: 1, name: "Proshow Day 2" },
-  { id: 3, festId: 1, name: "Robowars" },
-  { id: 4, festId: 1, name: "Hackathon 2025" },
-  { id: 5, festId: 2, name: "Cultural Night" },
-  { id: 6, festId: 2, name: "Battle of Bands" },
-  { id: 7, festId: 2, name: "Dance Competition" },
-  { id: 8, festId: 3, name: "Tech Talk Series" },
-  { id: 9, festId: 3, name: "Startup Expo" },
-];
+import { getApiUrl } from "@/lib/auth";
 
 const paymentMethods = [
   "Bank Transfer - NEFT/RTGS",
@@ -43,8 +25,9 @@ export default function SponsorRegistrationPage() {
   const router = useRouter();
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  
+
   // Form state
   const [formData, setFormData] = useState({
     companyName: "",
@@ -53,18 +36,11 @@ export default function SponsorRegistrationPage() {
     email: "",
     phone: "",
     website: "",
-    festId: "",
-    eventId: "",
     amount: "",
     movDetails: "",
     transactionId: "",
     notes: "",
   });
-
-  // Filter events based on selected fest
-  const filteredEvents = formData.festId 
-    ? sampleEvents.filter(event => event.festId === parseInt(formData.festId))
-    : [];
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -115,14 +91,36 @@ export default function SponsorRegistrationPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
-    // TODO: Replace with actual API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    console.log("Sponsor registration:", formData);
-    console.log("Uploaded files:", uploadedFiles);
-    setLoading(false);
-    setSubmitted(true);
+    setError("");
+
+    try {
+      const res = await fetch(`${getApiUrl()}/api/sponsor-leads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyName: formData.companyName,
+          contactPerson: formData.contactPerson,
+          email: formData.email,
+          phone: formData.phone,
+          message: formData.notes,
+        }),
+      });
+
+      if (res.ok) {
+        setSubmitted(true);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(
+          data?.error?.message ||
+            data?.message ||
+            "Something went wrong. Please try again."
+        );
+      }
+    } catch {
+      setError("Could not reach the server. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (submitted) {
@@ -188,12 +186,14 @@ export default function SponsorRegistrationPage() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">
+                  <label htmlFor="sponsor-company-name" className="block text-sm font-medium text-[#6B597F] mb-1.5">
                     Company Name <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="sponsor-company-name"
                     type="text"
                     required
+                    aria-required="true"
                     value={formData.companyName}
                     onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                     className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] outline-none transition-all bg-[#F9F7FA]"
@@ -201,12 +201,14 @@ export default function SponsorRegistrationPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">
+                  <label htmlFor="sponsor-contact-person" className="block text-sm font-medium text-[#6B597F] mb-1.5">
                     Contact Person <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="sponsor-contact-person"
                     type="text"
                     required
+                    aria-required="true"
                     value={formData.contactPerson}
                     onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
                     className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] outline-none transition-all bg-[#F9F7FA]"
@@ -214,10 +216,11 @@ export default function SponsorRegistrationPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">
+                  <label htmlFor="sponsor-designation" className="block text-sm font-medium text-[#6B597F] mb-1.5">
                     Designation
                   </label>
                   <input
+                    id="sponsor-designation"
                     type="text"
                     value={formData.designation}
                     onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
@@ -226,12 +229,14 @@ export default function SponsorRegistrationPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">
+                  <label htmlFor="sponsor-email" className="block text-sm font-medium text-[#6B597F] mb-1.5">
                     Email <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="sponsor-email"
                     type="email"
                     required
+                    aria-required="true"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] outline-none transition-all bg-[#F9F7FA]"
@@ -239,12 +244,14 @@ export default function SponsorRegistrationPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">
+                  <label htmlFor="sponsor-phone" className="block text-sm font-medium text-[#6B597F] mb-1.5">
                     Phone Number <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="sponsor-phone"
                     type="tel"
                     required
+                    aria-required="true"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] outline-none transition-all bg-[#F9F7FA]"
@@ -252,10 +259,11 @@ export default function SponsorRegistrationPage() {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">
+                  <label htmlFor="sponsor-website" className="block text-sm font-medium text-[#6B597F] mb-1.5">
                     Company Website
                   </label>
                   <input
+                    id="sponsor-website"
                     type="url"
                     value={formData.website}
                     onChange={(e) => setFormData({ ...formData, website: e.target.value })}
@@ -272,49 +280,13 @@ export default function SponsorRegistrationPage() {
                 <span className="w-7 h-7 rounded-full bg-gradient-to-r from-[#29104A] to-[#522C5D] text-white flex items-center justify-center text-xs font-bold">2</span>
                 Sponsorship Details
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">
-                    Fest <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    required
-                    value={formData.festId}
-                    onChange={(e) => setFormData({ ...formData, festId: e.target.value, eventId: "" })}
-                    className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] outline-none transition-all bg-[#F9F7FA]"
-                  >
-                    <option value="">Select a fest</option>
-                    {sampleFests.map((fest) => (
-                      <option key={fest.id} value={fest.id}>
-                        {fest.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">
-                    Event to Sponsor <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    required
-                    value={formData.eventId}
-                    onChange={(e) => setFormData({ ...formData, eventId: e.target.value })}
-                    disabled={!formData.festId}
-                    className={`w-full px-4 py-3 border border-[#C5BAC4] rounded-xl focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] outline-none transition-all bg-[#F9F7FA] ${!formData.festId ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    <option value="">{formData.festId ? "Select an event" : "Select a fest first"}</option>
-                    {filteredEvents.map((event) => (
-                      <option key={event.id} value={event.id}>
-                        {event.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">
+                  <label htmlFor="sponsor-notes" className="block text-sm font-medium text-[#6B597F] mb-1.5">
                     Additional Notes / Requirements
                   </label>
                   <textarea
+                    id="sponsor-notes"
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] outline-none transition-all bg-[#F9F7FA] resize-none"
@@ -333,12 +305,14 @@ export default function SponsorRegistrationPage() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">
+                  <label htmlFor="sponsor-amount" className="block text-sm font-medium text-[#6B597F] mb-1.5">
                     Sponsorship Amount (₹) <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="sponsor-amount"
                     type="number"
                     required
+                    aria-required="true"
                     min="0"
                     value={formData.amount}
                     onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
@@ -347,11 +321,13 @@ export default function SponsorRegistrationPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">
+                  <label htmlFor="sponsor-payment-mode" className="block text-sm font-medium text-[#6B597F] mb-1.5">
                     Mode of Payment <span className="text-red-500">*</span>
                   </label>
                   <select
+                    id="sponsor-payment-mode"
                     required
+                    aria-required="true"
                     value={formData.movDetails}
                     onChange={(e) => setFormData({ ...formData, movDetails: e.target.value })}
                     className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] outline-none transition-all bg-[#F9F7FA]"
@@ -365,17 +341,19 @@ export default function SponsorRegistrationPage() {
                   </select>
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-[#6B597F] mb-1.5">
+                  <label htmlFor="sponsor-transaction-id" className="block text-sm font-medium text-[#6B597F] mb-1.5">
                     Transaction ID / Reference Number
                   </label>
                   <input
+                    id="sponsor-transaction-id"
                     type="text"
                     value={formData.transactionId}
                     onChange={(e) => setFormData({ ...formData, transactionId: e.target.value })}
                     className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] outline-none transition-all bg-[#F9F7FA]"
                     placeholder="Enter transaction ID (if payment already made)"
+                    aria-describedby="sponsor-transaction-hint"
                   />
-                  <p className="text-xs text-[#6B597F] mt-1.5">Leave blank if payment will be made later</p>
+                  <p id="sponsor-transaction-hint" className="text-xs text-[#6B597F] mt-1.5">Leave blank if payment will be made later</p>
                 </div>
               </div>
             </div>
@@ -447,6 +425,11 @@ export default function SponsorRegistrationPage() {
 
             {/* Submit Button */}
             <div className="pt-4 border-t border-[#C5BAC4]">
+              {error && (
+                <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                  {error}
+                </div>
+              )}
               <button
                 type="submit"
                 disabled={loading}

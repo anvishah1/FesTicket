@@ -1,7 +1,7 @@
 import express from "express";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../prisma.js";
+import { writeLimiter } from "../middleware/rateLimiter.js";
 
-const prisma = new PrismaClient();
 const router = express.Router();
 
 /**
@@ -9,7 +9,7 @@ const router = express.Router();
  * Professor (or anyone) requests admin access. Creates a PENDING entry.
  * You verify manually and then run: node src/scripts/approveAdminRequest.js <id> <email> <password> <festId> <key>
  */
-router.post("/", async (req, res) => {
+router.post("/", writeLimiter, async (req, res) => {
   try {
     const { email, name, organization, festName, phone } = req.body || {};
     if (!email || typeof email !== "string" || !email.trim()) {
@@ -42,8 +42,7 @@ router.post("/", async (req, res) => {
     });
   } catch (err) {
     console.error("Admin request create error:", err);
-    const message = process.env.NODE_ENV !== "production" ? (err?.message || "Server error") : "Server error";
-    res.status(500).json({ message: "Server error", error: message });
+    res.status(500).json({ message: "Server error" });
   }
 });
 

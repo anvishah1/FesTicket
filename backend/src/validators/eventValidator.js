@@ -1,0 +1,103 @@
+import { z } from "zod";
+
+// Numbers that may arrive as JS number or numeric string (routes parseInt/parseFloat these).
+const intLike = z.union([
+  z.number().int("Must be an integer"),
+  z.string().regex(/^\d+$/, "Must be a positive integer id"),
+]);
+const numberLike = z.union([z.number(), z.string()]);
+
+// A non-negative money amount: JS number >= 0 OR a numeric string like "100" /
+// "99.50". Rejects negatives and non-numeric strings (the route parseFloat's it).
+const priceLike = z.union([
+  z.number().nonnegative("price must be >= 0"),
+  z.string().trim().regex(/^\d+(\.\d+)?$/, "price must be a non-negative number"),
+]);
+
+// A non-negative integer count: JS integer >= 0 OR a digit string like "5".
+// Rejects negatives, decimals, blank/empty, and non-numeric strings.
+const quantityLike = z.union([
+  z.number().int("quantity must be an integer").nonnegative("quantity must be >= 0"),
+  z.string().trim().regex(/^\d+$/, "quantity must be a non-negative integer"),
+]);
+
+// Whitelist the mutable enum-ish fields (mirrors prisma EventStatus / Visibility).
+const eventStatus = z.enum([
+  "DRAFT",
+  "PUBLISHED",
+  "UPCOMING",
+  "LIVE",
+  "PAST",
+  "CANCELLED",
+]);
+const visibility = z.enum(["PUBLIC", "PRIVATE"]);
+
+// A ticket type supplied inline when creating an event. price may be a number or
+// numeric string (the route parseFloat's it) and must be >= 0. `quantity` is
+// REQUIRED on create (a non-negative integer) — a create must not silently
+// default a missing/blank quantity to some magic number.
+const inlineTicketTypeSchema = z
+  .object({
+    name: z.string().max(200, "Ticket name is too long").optional().nullable(),
+    price: priceLike.optional().nullable(),
+    quantity: quantityLike,
+    description: z.string().max(2000, "Description is too long").optional().nullable(),
+  })
+  .passthrough();
+
+// A registration question attached to an event at create time. `label` is
+// required; type/required/order have route-applied defaults; options is a free
+// string (e.g. comma-separated choices). Extra keys pass through unused.
+const eventQuestionSchema = z
+  .object({
+    label: z.string().min(1, "Question label is required").max(500, "Question label is too long"),
+    type: z.string().max(50, "Question type is too long").optional().nullable(),
+    required: z.boolean().optional(),
+    order: z.number().int("order must be an integer").optional().nullable(),
+    options: z.string().max(5000, "Options are too long").optional().nullable(),
+  })
+  .passthrough();
+
+// POST /api/events. `name` is optional here so the route's own "Event name is
+// required" check (which returns the {success,error} envelope) stays the gate;
+// zod adds type/length caps + enum whitelisting on top. Unlisted fields pass
+// through unchanged (the route reads many optional fields).
+export const createEventSchema = z
+  .object({
+    name: z.string().max(200, "Event name is too long").optional().nullable(),
+    shortDescription: z.string().max(1000).optional().nullable(),
+    description: z.string().max(20000).optional().nullable(),
+    aboutEvent: z.string().max(20000).optional().nullable(),
+    image: z.string().max(2000).optional().nullable(),
+    category: z.string().max(100).optional().nullable(),
+    audience: z.string().max(200).optional().nullable(),
+    startDate: z.string().max(100).optional().nullable(),
+    endDate: z.string().max(100).optional().nullable(),
+    startTime: z.string().max(50).optional().nullable(),
+    endTime: z.string().max(50).optional().nullable(),
+    venue: z.string().max(300).optional().nullable(),
+    venueAddress: z.string().max(500).optional().nullable(),
+    address: z.string().max(500).optional().nullable(),
+    onlineLink: z.string().max(2000).optional().nullable(),
+    meetingLink: z.string().max(2000).optional().nullable(),
+    eventType: z.string().max(50).optional().nullable(),
+    festId: intLike.optional().nullable(),
+    discount: numberLike.optional().nullable(),
+    status: eventStatus.optional(),
+    visibility: visibility.optional(),
+    ticketTypes: z.array(inlineTicketTypeSchema).optional().nullable(),
+    questions: z.array(eventQuestionSchema).optional().nullable(),
+  })
+  .passthrough();
+
+// POST /api/events/:id/ticket-types and PUT .../ticket-types/:ticketId.
+// All fields optional/permissive: the route's inline "name/price/quantity
+// required" + "price>=0 / quantity>=0" checks remain the authoritative gate.
+export const ticketTypeSchema = z
+  .object({
+    name: z.string().max(200, "Ticket name is too long").optional().nullable(),
+    price: priceLike.optional().nullable(),
+    quantity: quantityLike.optional().nullable(),
+    description: z.string().max(2000, "Description is too long").optional().nullable(),
+  })
+  .passthrough();

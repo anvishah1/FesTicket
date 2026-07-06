@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getApiUrl, getAccessToken } from "@/lib/auth";
+import { getApiUrl, getAccessToken, getStoredUser } from "@/lib/auth";
 import Sidebar from "@/components/event-create/Sidebar";
 import EventBasics, { EventBasicsData } from "@/components/event-create/EventBasics";
 import DescribeEvent, { DescribeEventData } from "@/components/event-create/DescribeEvent";
@@ -28,6 +28,8 @@ export default function EventCreatePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // undefined = not yet checked, false = denied (redirecting), true = allowed
+  const [authorized, setAuthorized] = useState<boolean | undefined>(undefined);
 
   // Store all form data
   const [eventData, setEventData] = useState<{
@@ -37,6 +39,20 @@ export default function EventCreatePage() {
     tickets?: TicketsData;
     form?: RegistrationFormData;
   }>({});
+
+  // AUTH GUARD: block the whole wizard for non-hosts up front, instead of
+  // letting them fill every step and only failing at submit.
+  useEffect(() => {
+    const token = getAccessToken();
+    const user = getStoredUser();
+    const allowed = ["EDITOR", "HOST", "ADMIN"];
+    if (!token || !user || !allowed.includes(user.role)) {
+      setAuthorized(false);
+      router.replace("/signin");
+      return;
+    }
+    setAuthorized(true);
+  }, [router]);
 
   useEffect(() => {
     const fetchFest = async () => {
@@ -60,33 +76,143 @@ export default function EventCreatePage() {
     }
   }, [festId]);
 
+  // --- Continuous persistence (H11): every step reports edits here so
+  // navigating away via the Sidebar (without "Save & Continue") keeps them. ---
+  const handleBasicsChange = (data: EventBasicsData) =>
+    setEventData((prev) => ({ ...prev, basics: data }));
+  const handleDescribeChange = (data: DescribeEventData) =>
+    setEventData((prev) => ({ ...prev, describe: data }));
+  const handleLocationChange = (data: EventLocationData) =>
+    setEventData((prev) => ({ ...prev, location: data }));
+  const handleTicketsChange = (data: TicketsData) =>
+    setEventData((prev) => ({ ...prev, tickets: data }));
+  const handleFormChange = (data: RegistrationFormData) =>
+    setEventData((prev) => ({ ...prev, form: data }));
+
   const handleBasicsSubmit = (data: EventBasicsData) => {
-    setEventData({ ...eventData, basics: data });
+    setEventData((prev) => ({ ...prev, basics: data }));
     setStep("describe");
   };
 
   const handleDescribeSubmit = (data: DescribeEventData) => {
-    setEventData({ ...eventData, describe: data });
+    setEventData((prev) => ({ ...prev, describe: data }));
     setStep("location");
   };
 
   const handleLocationSubmit = (data: EventLocationData) => {
-    setEventData({ ...eventData, location: data });
+    setEventData((prev) => ({ ...prev, location: data }));
     setStep("tickets");
   };
 
   const handleTicketsSubmit = (data: TicketsData) => {
-    setEventData({ ...eventData, tickets: data });
+    setEventData((prev) => ({ ...prev, tickets: data }));
     setStep("form");
   };
 
+  // --- Derived completion state, used to gate Sidebar jumps (H12) ---
+  const basicsComplete = !!eventData.basics?.name?.trim();
+
+  const ticketsComplete = (() => {
+    const list = (eventData.tickets?.tickets || []).filter((t) => t.name.trim());
+    return (
+      list.length > 0 &&
+      list.every(
+        (t) =>
+          Number.isFinite(t.price) &&
+          t.price >= 0 &&
+          Number.isFinite(t.quantity) &&
+          t.quantity > 0
+      )
+    );
+  })();
+
+  const locationComplete = (() => {
+    const loc = eventData.location;
+    if (!loc) return false;
+    return loc.locationType === "ONLINE"
+      ? !!loc.meetingLink.trim()
+      : !!loc.venue.trim();
+  })();
+
+  // Can't jump to "form" (which publishes) until tickets + location are valid;
+  // everything past basics unlocks once basics has a name.
+  const isStepEnabled = (target: Step): boolean => {
+    if (target === "basics") return true;
+    if (!basicsComplete) return false;
+    if (target === "form") return ticketsComplete && locationComplete;
+    return true;
+  };
+
   const handleFinalSubmit = async (data: RegistrationFormData) => {
+    // --- Guard against publishing an event with no venue / no tickets (H12) ---
+    if (!basicsComplete) {
+      alert("Please add an event name in Event Basics before publishing.");
+      setStep("basics");
+      return;
+    }
+
+    const validTickets = (eventData.tickets?.tickets || []).filter((t) =>
+      t.name.trim()
+    );
+    if (validTickets.length === 0) {
+      alert("Add at least one ticket type (with a name) before publishing.");
+      setStep("tickets");
+      return;
+    }
+    for (const t of validTickets) {
+      if (!Number.isFinite(t.price) || t.price < 0) {
+        alert(`Ticket "${t.name}" has an invalid price. Price cannot be negative.`);
+        setStep("tickets");
+        return;
+      }
+      if (!Number.isFinite(t.quantity) || t.quantity <= 0) {
+        alert(`Ticket "${t.name}" needs a quantity of at least 1.`);
+        setStep("tickets");
+        return;
+      }
+    }
+
+    const loc = eventData.location;
+    if (!loc) {
+      alert("Please complete the Event Location step before publishing.");
+      setStep("location");
+      return;
+    }
+    const isOnline = loc.locationType === "ONLINE";
+    if (isOnline && !loc.meetingLink.trim()) {
+      alert("Please add a meeting link for your online event.");
+      setStep("location");
+      return;
+    }
+    if (!isOnline && !loc.venue.trim()) {
+      alert("Please add a venue for your offline event.");
+      setStep("location");
+      return;
+    }
+
     setIsSubmitting(true);
-    
+
     const fullEventData = {
       ...eventData,
       form: data,
     };
+
+    // Location type is authoritative for online/offline (H). Send both the
+    // canonical fields (isOnline/onlineLink/venue) and the legacy aliases the
+    // backend also accepts, mutually exclusive so nothing conflicts.
+    const isPaid = fullEventData.tickets?.isPaid ?? true;
+
+    // Map the wizard's custom questions to the persisted shape
+    // ({ label, type, required, order, options? }). Blank-label questions are
+    // already dropped by RegistrationForm on submit; filter again defensively.
+    const questions = (fullEventData.form?.questions || [])
+      .filter((q) => q.label?.trim())
+      .map((q, index) => ({
+        label: q.label.trim(),
+        type: q.type || "text",
+        required: !!q.required,
+        order: index,
+      }));
 
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -106,16 +232,26 @@ export default function EventCreatePage() {
           image: fullEventData.basics?.image,
           startDate: fullEventData.basics?.startDate || null,
           endDate: fullEventData.basics?.endDate || null,
+          // startDate/endDate are datetime-local strings ("YYYY-MM-DDTHH:MM");
+          // carry the time-of-day through to Event.startTime/endTime (String? cols).
+          startTime: fullEventData.basics?.startDate?.split("T")[1] || null,
+          endTime: fullEventData.basics?.endDate?.split("T")[1] || null,
           visibility: fullEventData.basics?.visibility,
-          eventType: fullEventData.basics?.eventType,
-          venue: fullEventData.location?.venue,
-          address: fullEventData.location?.address,
-          meetingLink: fullEventData.location?.meetingLink,
-          ticketTypes: fullEventData.tickets?.tickets.map((t) => ({
+          // Location type — not EventBasics.eventType — decides online/offline.
+          isOnline,
+          eventType: isOnline ? "ONLINE" : "OFFLINE",
+          venue: isOnline ? null : loc.venue || null,
+          address: isOnline ? null : loc.address || null,
+          venueAddress: isOnline ? null : loc.address || null,
+          onlineLink: isOnline ? loc.meetingLink || null : null,
+          meetingLink: isOnline ? loc.meetingLink || null : null,
+          ticketTypes: validTickets.map((t) => ({
             name: t.name,
-            price: t.price,
+            price: isPaid ? t.price : 0,
             quantity: t.quantity,
+            description: t.description,
           })),
+          questions,
         }),
       });
 
@@ -133,6 +269,28 @@ export default function EventCreatePage() {
       setIsSubmitting(false);
     }
   };
+
+  // Block render until the auth guard resolves; if denied we're redirecting.
+  if (authorized === undefined) {
+    return (
+      <div className="min-h-screen bg-[#fbf9f6] flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-[#522C5D] border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  if (authorized === false) {
+    return (
+      <div className="min-h-screen bg-[#fbf9f6] flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-[#29104A] mb-2">Sign in required</h2>
+          <p className="text-[#6B597F]">
+            You need a host account to create events. Redirecting to sign in…
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -189,36 +347,41 @@ export default function EventCreatePage() {
 
       {/* BODY */}
       <div className="mx-auto flex max-w-7xl gap-6 px-6 py-6">
-        <Sidebar current={step} onChange={setStep} />
+        <Sidebar current={step} onChange={setStep} isStepEnabled={isStepEnabled} />
 
         <div className="flex-1">
           {step === "basics" && (
-            <EventBasics 
-              onNext={handleBasicsSubmit} 
+            <EventBasics
+              onNext={handleBasicsSubmit}
+              onChange={handleBasicsChange}
               initialData={eventData.basics}
             />
           )}
           {step === "describe" && (
-            <DescribeEvent 
+            <DescribeEvent
               onNext={handleDescribeSubmit}
+              onChange={handleDescribeChange}
               initialData={eventData.describe}
             />
           )}
           {step === "location" && (
-            <EventLocation 
+            <EventLocation
               onNext={handleLocationSubmit}
+              onChange={handleLocationChange}
               initialData={eventData.location}
             />
           )}
           {step === "tickets" && (
-            <Tickets 
+            <Tickets
               onNext={handleTicketsSubmit}
+              onChange={handleTicketsChange}
               initialData={eventData.tickets}
             />
           )}
           {step === "form" && (
-            <RegistrationForm 
+            <RegistrationForm
               onSubmit={handleFinalSubmit}
+              onChange={handleFormChange}
               isSubmitting={isSubmitting}
               initialData={eventData.form}
             />

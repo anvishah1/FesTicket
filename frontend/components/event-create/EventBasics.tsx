@@ -1,10 +1,77 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 interface EventBasicsProps {
   onNext: (data: EventBasicsData) => void;
+  /** Fires on every edit so the wizard can persist in-progress input (H11). */
+  onChange?: (data: EventBasicsData) => void;
   initialData?: EventBasicsData;
+}
+
+// The backend caps `image` at 2000 chars (validators/eventValidator.js), so an
+// uploaded data URI must be compressed hard to fit. We downscale/re-encode and,
+// if it still won't fit, reject inline instead of failing at final submit (H10).
+const MAX_IMAGE_DATA_URL = 2000;
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // reject huge files before decoding
+
+function readFileAsDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("read-failed"));
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("decode-failed"));
+    img.src = src;
+  });
+}
+
+/** Draw the image into a JPEG data URL scaled so its longest side <= maxDim. */
+function drawToJpeg(img: HTMLImageElement, maxDim: number, quality: number): string {
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  if (!w || !h) return "";
+  const scale = Math.min(1, maxDim / Math.max(w, h));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(w * scale));
+  canvas.height = Math.max(1, Math.round(h * scale));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+/**
+ * Compress client-side, progressively shrinking until it fits MAX_IMAGE_DATA_URL.
+ * Returns the smallest attempt if nothing fits (caller reports an inline error).
+ */
+async function compressImage(file: File): Promise<string> {
+  const original = await readFileAsDataURL(file);
+  const img = await loadImage(original);
+  const attempts: { dim: number; q: number }[] = [
+    { dim: 1200, q: 0.8 },
+    { dim: 900, q: 0.75 },
+    { dim: 700, q: 0.7 },
+    { dim: 500, q: 0.6 },
+    { dim: 400, q: 0.55 },
+    { dim: 320, q: 0.5 },
+  ];
+  let smallest = "";
+  for (const a of attempts) {
+    const out = drawToJpeg(img, a.dim, a.q);
+    if (!out) continue;
+    if (!smallest || out.length < smallest.length) smallest = out;
+    if (out.length <= MAX_IMAGE_DATA_URL) return out;
+  }
+  if (!smallest) throw new Error("encode-failed");
+  return smallest;
 }
 
 export interface EventBasicsData {
@@ -60,7 +127,7 @@ const defaultImages = [
   },
 ];
 
-export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
+export default function EventBasics({ onNext, onChange, initialData }: EventBasicsProps) {
   const [formData, setFormData] = useState<EventBasicsData>(initialData || {
     name: "",
     shortDescription: "",
@@ -70,8 +137,16 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
     visibility: "PRIVATE",
     eventType: "OFFLINE",
   });
-  
+
+  // Report every edit up so switching steps via the Sidebar never loses input.
+  useEffect(() => {
+    onChange?.(formData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData]);
+
   const [showDefaultImages, setShowDefaultImages] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [imageBusy, setImageBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
@@ -99,6 +174,18 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
     if (selected < now) {
       alert("Start date cannot be in the past.");
       return;
+    }
+
+    // Re-validate the end date against the *new* start: if an end date was
+    // already chosen and now sits on/before the start, drop it so we never
+    // keep an end-before-start pair (previously only checked on end change).
+    if (formData.endDate) {
+      const end = new Date(formData.endDate);
+      if (end <= selected) {
+        alert("End date must be after the start date — please pick it again.");
+        setFormData({ ...formData, startDate: value, endDate: "" });
+        return;
+      }
     }
 
     setFormData({ ...formData, startDate: value });
@@ -131,19 +218,45 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
     setFormData({ ...formData, endDate: value });
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({ ...formData, image: reader.result as string });
-        setShowDefaultImages(false);
-      };
-      reader.readAsDataURL(file);
+    // Reset the input so re-selecting the same file re-triggers onChange.
+    e.target.value = "";
+    if (!file) return;
+
+    setImageError(null);
+
+    // --- Early, inline validation (no silent late failure at submit) ---
+    if (!file.type.startsWith("image/")) {
+      setImageError("Please choose an image file (JPG, PNG, WEBP, etc.).");
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setImageError("That image is over 8MB. Please pick a smaller file.");
+      return;
+    }
+
+    setImageBusy(true);
+    try {
+      const dataUrl = await compressImage(file);
+      if (dataUrl.length > MAX_IMAGE_DATA_URL) {
+        // Even fully downscaled it won't fit the server's image field.
+        setImageError(
+          "This image is too large to store. Please choose a simpler/smaller image, or pick a default image below."
+        );
+        return;
+      }
+      setFormData((prev) => ({ ...prev, image: dataUrl }));
+      setShowDefaultImages(false);
+    } catch {
+      setImageError("Could not process this image. Please try another file or pick a default image.");
+    } finally {
+      setImageBusy(false);
     }
   };
 
   const handleSelectDefaultImage = (url: string) => {
+    setImageError(null);
     setFormData({ ...formData, image: url });
     setShowDefaultImages(false);
   };
@@ -230,7 +343,16 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
             onChange={handleFileUpload}
             className="hidden"
           />
-          
+
+          {imageBusy && (
+            <p className="mt-2 text-xs text-[#6B597F]">Optimizing image…</p>
+          )}
+          {imageError && (
+            <p className="mt-2 text-xs text-red-600" role="alert">
+              {imageError}
+            </p>
+          )}
+
           {showDefaultImages && (
             <div className="mt-4 p-4 bg-[#C5BAC4]/20 rounded-xl">
               <p className="text-sm text-[#6B597F] mb-3">Select a default image (all sized for event cards):</p>
@@ -272,10 +394,11 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
 
         {/* Event Name */}
         <div>
-          <label className="block text-sm font-medium text-[#29104A]">
+          <label htmlFor="event-name" className="block text-sm font-medium text-[#29104A]">
             Event Name <span className="text-[#522C5D]">*</span>
           </label>
           <input
+            id="event-name"
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -286,10 +409,11 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
 
         {/* Short Description */}
         <div>
-          <label className="block text-sm font-medium text-[#29104A]">
+          <label htmlFor="event-short-description" className="block text-sm font-medium text-[#29104A]">
             Short Description
           </label>
           <textarea
+            id="event-short-description"
             rows={2}
             value={formData.shortDescription}
             onChange={(e) => setFormData({ ...formData, shortDescription: e.target.value })}
@@ -302,17 +426,24 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
         <div className="grid grid-cols-2 gap-4">
 
           <div>
-            <label className="block text-sm font-medium text-[#29104A]">
+            <label htmlFor="event-start-date" className="block text-sm font-medium text-[#29104A]">
               Event Starts From
             </label>
 
+            {/*
+              The real <input type="datetime-local"> is layered over the whole
+              control (inset-0, opacity-0 but pointer-events enabled) so it is
+              both click- AND keyboard-operable (Tab to focus, type/arrow keys or
+              Space/Enter open the native picker). The formatted text below is a
+              purely visual proxy. Fixes WCAG 2.1.1 (previously the input was
+              pointer-events:none and only a click handler on the div worked).
+            */}
             <div
-              onClick={() => startDateRef.current?.showPicker()}
-              className="mt-2 flex items-center justify-between w-full rounded-lg border border-[#C5BAC4] px-4 py-3 cursor-pointer
+              className="relative mt-2 flex items-center justify-between w-full rounded-lg border border-[#C5BAC4] px-4 py-3
                         focus-within:border-[#522C5D] focus-within:ring-2 focus-within:ring-[#522C5D]/20
                         hover:border-[#522C5D] transition"
             >
-              <span className="text-[#29104A]">
+              <span className="text-[#29104A]" aria-hidden="true">
                 {formData.startDate
                   ? new Date(formData.startDate).toLocaleString()
                   : "Select date & time"}
@@ -323,6 +454,7 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M8 7V3m8 4V3m-9 8h10m-11 9h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v11a2 2 0 002 2z"
@@ -331,27 +463,28 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
 
               <input
                 ref={startDateRef}
+                id="event-start-date"
                 type="datetime-local"
                 value={formData.startDate}
                 min={getMinDateTime()}
                 onChange={(e) => handleStartDateChange(e.target.value)}
-                className="absolute opacity-0 pointer-events-none"
+                onClick={() => startDateRef.current?.showPicker?.()}
+                className="absolute inset-0 h-full w-full cursor-pointer rounded-lg opacity-0"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#29104A]">
+            <label htmlFor="event-end-date" className="block text-sm font-medium text-[#29104A]">
               Event Ends On
             </label>
 
             <div
-              onClick={() => endDateRef.current?.showPicker()}
-              className="mt-2 flex items-center justify-between w-full rounded-lg border border-[#C5BAC4] px-4 py-3 cursor-pointer
+              className="relative mt-2 flex items-center justify-between w-full rounded-lg border border-[#C5BAC4] px-4 py-3
                         focus-within:border-[#522C5D] focus-within:ring-2 focus-within:ring-[#522C5D]/20
                         hover:border-[#522C5D] transition"
             >
-              <span className="text-[#29104A]">
+              <span className="text-[#29104A]" aria-hidden="true">
                 {formData.endDate
                   ? new Date(formData.endDate).toLocaleString()
                   : "Select date & time"}
@@ -362,6 +495,7 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M8 7V3m8 4V3m-9 8h10m-11 9h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v11a2 2 0 002 2z"
@@ -370,11 +504,13 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
 
               <input
                 ref={endDateRef}
+                id="event-end-date"
                 type="datetime-local"
                 value={formData.endDate}
                 min={formData.startDate || getMinDateTime()}
                 onChange={(e) => handleEndDateChange(e.target.value)}
-                className="absolute opacity-0 pointer-events-none"
+                onClick={() => endDateRef.current?.showPicker?.()}
+                className="absolute inset-0 h-full w-full cursor-pointer rounded-lg opacity-0"
               />
             </div>
           </div>
@@ -383,11 +519,11 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
 
         {/* Visibility */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-[#29104A]">
+          <span id="event-visibility-label" className="mb-2 block text-sm font-medium text-[#29104A]">
             Event Visibility
-          </label>
-          <div className="flex gap-4">
-            <OptionButton 
+          </span>
+          <div className="flex gap-4" role="group" aria-labelledby="event-visibility-label">
+            <OptionButton
               label="Private" 
               active={formData.visibility === "PRIVATE"} 
               onClick={() => setFormData({ ...formData, visibility: "PRIVATE" })}
@@ -402,11 +538,11 @@ export default function EventBasics({ onNext, initialData }: EventBasicsProps) {
 
         {/* Event Type */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-[#29104A]">
+          <span id="event-type-label" className="mb-2 block text-sm font-medium text-[#29104A]">
             Event Type
-          </label>
-          <div className="flex gap-4">
-            <OptionButton 
+          </span>
+          <div className="flex gap-4" role="group" aria-labelledby="event-type-label">
+            <OptionButton
               label="Offline" 
               active={formData.eventType === "OFFLINE"} 
               onClick={() => setFormData({ ...formData, eventType: "OFFLINE" })}
@@ -443,6 +579,7 @@ function OptionButton({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition
         ${

@@ -1,6 +1,7 @@
+-- ARCH-08: DB CHECK constraints folded from backend/prisma/constraints.sql.
+-- Not expressible in the Prisma schema; applied here so they are versioned.
+
 -- Database CHECK constraints not expressible in the Prisma schema.
--- Re-apply after every `prisma db push` (db push does not manage these).
--- Run:  psql "$DATABASE_URL" -f backend/prisma/constraints.sql
 
 -- Inventory invariant: a ticket type can never sell more than its quantity.
 -- Backs up the atomic guarded updateMany in POST /api/bookings (defence in depth).

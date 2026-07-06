@@ -24,6 +24,7 @@ The code is environment-agnostic (no hardcoded machine paths). You only need to 
    cd backend
    npm install
    npx prisma generate
+   npx prisma migrate deploy   # apply migrations to your database (schema + CHECK constraints)
    npm run dev
    ```
    In another terminal:
@@ -40,7 +41,11 @@ The code is environment-agnostic (no hardcoded machine paths). You only need to 
 
 Frontend talks to the backend via `getApiUrl()` (defaults to `http://localhost:4000`). To use another backend (e.g. deployed API), set `NEXT_PUBLIC_API_URL` in `frontend/.env.local`. For Razorpay Checkout (real payments), set `NEXT_PUBLIC_RAZORPAY_KEY_ID` in `frontend/.env.local` to the same Key ID as the backend (optional; the backend can also return it when creating an order).
 
-The database is **PostgreSQL** (Neon in production), configured via `DATABASE_URL` in `backend/.env` — the app refuses to start if it is unset. There are no migration files; the schema in `backend/prisma/schema.prisma` is applied directly. From `backend`, run `npx prisma db push` to sync the schema to your database (and `npx prisma generate` after any schema change). Use `npx prisma studio` to inspect/edit data. (A stale `backend/prisma/dev.db` SQLite file may still be present in the repo; it is unused.)
+The database is **PostgreSQL** (Neon in production), configured via `DATABASE_URL` in `backend/.env` — the app refuses to start if it is unset. When a pooled connection is used (e.g. Neon's PgBouncer), also set `DIRECT_URL` to the unpooled connection string; Prisma uses it for migrations and schema introspection. From `backend`:
+
+- **Apply the schema** to a database with `npx prisma migrate deploy` (production/CI) — it runs the committed migrations under `backend/prisma/migrations/`, including the folded CHECK constraints (inventory `sold <= quantity`, non-negative money).
+- **Change the schema:** edit `backend/prisma/schema.prisma`, then `npm run migrate:dev` (`prisma migrate dev`) to generate a new migration and apply it locally. Run `npx prisma generate` after any schema change so `@prisma/client` matches.
+- Check state with `npm run migrate:status`, and inspect/edit data with `npx prisma studio`.
 
 See `backend/SETUP-CHECKLIST.md` for admin/editor setup (fest keys, approval script).
 
@@ -57,4 +62,4 @@ Automated on every push and pull request via GitHub Actions ([.github/workflows/
   npx playwright install --with-deps chromium
   E2E_HAS_DB=1 npx playwright test
   ```
-  This needs a running Postgres with `DATABASE_URL` set and the schema pushed (`cd backend && npx prisma db push`). Playwright boots both dev servers itself. In CI the e2e job spins up a throwaway Postgres 16 service container and is marked `continue-on-error` so a flaky run does not block the build.
+  This needs a running Postgres with `DATABASE_URL` set and the schema applied (`cd backend && npx prisma migrate deploy`). Playwright boots both dev servers itself. In CI the e2e job spins up a throwaway Postgres 16 service container and is marked `continue-on-error` so a flaky run does not block the build.

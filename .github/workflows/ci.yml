@@ -133,11 +133,11 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
-      - name: Push schema
-        run: npx prisma db push --skip-generate
-
-      - name: Apply DB CHECK constraints
-        run: psql "$DATABASE_URL" -f prisma/constraints.sql
+      # ARCH-08: migrate deploy applies the committed migrations (schema + the
+      # folded CHECK constraints), replacing the old `db push` + raw-SQL step. This
+      # exercises the exact same migration path a real deploy uses.
+      - name: Apply migrations (schema + CHECK constraints)
+        run: npx prisma migrate deploy
 
       - name: Run integration tests (real Postgres)
         run: npm run test:integration
@@ -205,15 +205,12 @@ jobs:
         working-directory: backend
         run: npx prisma generate
 
-      - name: Push schema to the throwaway Postgres
+      # ARCH-08: apply committed migrations (schema + folded CHECK constraints) via
+      # migrate deploy — the same path a real deploy uses — instead of `db push`
+      # plus a separate raw-SQL constraints step.
+      - name: Apply migrations (schema + CHECK constraints)
         working-directory: backend
-        run: npx prisma db push --skip-generate
-
-      # db push does not manage raw CHECK constraints; apply them explicitly so the
-      # e2e stack exercises the same inventory invariant production should have.
-      - name: Apply DB CHECK constraints
-        working-directory: backend
-        run: psql "$DATABASE_URL" -f prisma/constraints.sql
+        run: npx prisma migrate deploy
 
       - name: Install frontend deps
         working-directory: frontend

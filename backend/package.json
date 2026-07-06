@@ -7,6 +7,9 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:status": "prisma migrate status",
     "test": "vitest run",
     "test:integration": "INTEGRATION_DB=1 vitest run test/integration",
     "test:watch": "vitest",

@@ -1,5 +1,7 @@
 // frontend/components/BookingSummary.tsx
 
+import { formatCurrency } from "@/lib/format";
+
 export default function BookingSummary({
   subtotal,
   platformFee,
@@ -22,29 +24,29 @@ export default function BookingSummary({
           <div className="flex items-start justify-between text-sm" key={it.id}>
             <div>
               <div className="font-medium">{it.name}</div>
-              <div className="text-xs text-slate-500">Qty {it.qty} × ₹{it.price}</div>
+              <div className="text-xs text-slate-500">Qty {it.qty} × {formatCurrency(it.price)}</div>
             </div>
-            <div className="font-medium">₹{it.qty * it.price}</div>
+            <div className="font-medium">{formatCurrency(it.qty * it.price)}</div>
           </div>
         ))}
 
         <hr className="my-3" />
         <div className="flex justify-between text-sm">
           <div className="text-slate-600">Subtotal</div>
-          <div>₹{subtotal}</div>
+          <div>{formatCurrency(subtotal)}</div>
         </div>
         <div className="flex justify-between text-sm">
           <div className="text-slate-600">Platform fee</div>
-          <div>₹{platformFee}</div>
+          <div>{formatCurrency(platformFee)}</div>
         </div>
         <div className="flex justify-between text-sm">
           <div className="text-slate-600">Tax</div>
-          <div>₹{tax}</div>
+          <div>{formatCurrency(tax)}</div>
         </div>
 
         <div className="flex justify-between items-center mt-4">
           <div className="text-sm font-medium">Total</div>
-          <div className="text-xl font-bold">₹{total}</div>
+          <div className="text-xl font-bold">{formatCurrency(total)}</div>
         </div>
       </div>
     </div>

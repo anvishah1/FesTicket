@@ -90,7 +90,7 @@ router.get("/", async (req, res) => {
       data: fests.map(({ adminKey, ...rest }) => rest),
     });
   } catch (error) {
-    console.error("Error fetching fests:", error);
+    req.log.error({ err: error }, "Error fetching fests");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch fests" },
@@ -142,7 +142,7 @@ router.get("/:id", async (req, res) => {
       data: festSafe,
     });
   } catch (error) {
-    console.error("Error fetching fest:", error);
+    req.log.error({ err: error }, "Error fetching fest");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch fest" },
@@ -234,7 +234,7 @@ router.post("/", authenticateUser, authorizeRoles("ADMIN"), validate(createFestS
       message: "Fest created successfully",
     });
   } catch (error) {
-    console.error("Error creating fest:", error);
+    req.log.error({ err: error }, "Error creating fest");
     res.status(500).json({
       success: false,
       error: { code: "CREATE_ERROR", message: "Failed to create fest" },
@@ -344,7 +344,7 @@ router.put("/:id", authenticateUser, authorizeRoles("ADMIN"), validate(updateFes
       message: "Fest updated successfully",
     });
   } catch (error) {
-    console.error("Error updating fest:", error);
+    req.log.error({ err: error }, "Error updating fest");
     if (error.code === "P2025") {
       return res.status(404).json({
         success: false,
@@ -387,7 +387,7 @@ router.delete("/:id", authenticateUser, authorizeRoles("ADMIN"), async (req, res
       message: "Fest archived successfully",
     });
   } catch (error) {
-    console.error("Error deleting fest:", error);
+    req.log.error({ err: error }, "Error deleting fest");
     if (error.code === "P2025") {
       return res.status(404).json({
         success: false,
@@ -441,7 +441,7 @@ router.get("/:festId/events", async (req, res) => {
       data: events,
     });
   } catch (error) {
-    console.error("Error fetching fest events:", error);
+    req.log.error({ err: error }, "Error fetching fest events");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch events" },

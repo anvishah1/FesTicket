@@ -12,6 +12,7 @@ import Link from "next/link";
 import Footer from "@/components/Footer";
 import { apiFetch, getApiUrl } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
+import { formatCurrency } from "@/lib/format";
 
 type TicketType = {
   id: string;
@@ -491,34 +492,34 @@ export default function BookingPage() {
                       <div>
                         <div className="font-medium">{t.name}</div>
                         <div className="text-xs text-slate-500">
-                          Qty {quantities[t.id] ?? 0} × ₹{t.price}
+                          Qty {quantities[t.id] ?? 0} × {formatCurrency(t.price)}
                         </div>
                       </div>
-                      <div className="font-medium">₹{(quantities[t.id] ?? 0) * t.price}</div>
+                      <div className="font-medium">{formatCurrency((quantities[t.id] ?? 0) * t.price)}</div>
                     </div>
                   ))}
 
                 <hr className="my-3" />
                 <div className="flex justify-between text-sm">
                   <div className="text-slate-600">Subtotal</div>
-                  <div>₹{subtotal}</div>
+                  <div>{formatCurrency(subtotal)}</div>
                 </div>
                 <div className="flex justify-between text-sm text-green-700">
                   <div>Discount ({discountPct}%)</div>
-                  <div>-₹{discountAmount}</div>
+                  <div>-{formatCurrency(discountAmount)}</div>
                 </div>
                 <div className="flex justify-between text-sm">
                   <div className="text-slate-600">Platform fee</div>
-                  <div>₹{platformFee}</div>
+                  <div>{formatCurrency(platformFee)}</div>
                 </div>
                 <div className="flex justify-between text-sm">
                   <div className="text-slate-600">Tax</div>
-                  <div>₹{tax}</div>
+                  <div>{formatCurrency(tax)}</div>
                 </div>
 
                 <div className="flex justify-between items-center mt-4">
                   <div className="text-sm font-medium">Total</div>
-                  <div className="text-xl font-bold">₹{total}</div>
+                  <div className="text-xl font-bold">{formatCurrency(total)}</div>
                 </div>
               </div>
             </div>
@@ -537,7 +538,7 @@ export default function BookingPage() {
 
             <div className="space-y-3">
               <div className="text-sm text-slate-600">Total to pay</div>
-              <div className="text-2xl font-bold text-slate-900">₹{total.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-slate-900">{formatCurrency(total)}</div>
 
               {/* Validation message */}
               {!isValid && totalTickets > 0 && (

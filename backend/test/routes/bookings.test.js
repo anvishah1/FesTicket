@@ -1755,7 +1755,8 @@ describe("expireStalePendingBookings", () => {
     const before = Date.now();
     const result = await expireStalePendingBookings(15 * 60 * 1000);
 
-    expect(result).toEqual({ expired: 2 });
+    expect(result.expired).toBe(2);
+    expect(typeof result.durationMs).toBe("number");
 
     // Only PENDING bookings older than the cutoff are swept.
     expect(prismaMock.booking.findMany).toHaveBeenCalledTimes(1);
@@ -1792,7 +1793,7 @@ describe("expireStalePendingBookings", () => {
   it("no-ops (no writes) when there are no stale bookings", async () => {
     prismaMock.booking.findMany.mockResolvedValue([]);
     const result = await expireStalePendingBookings();
-    expect(result).toEqual({ expired: 0 });
+    expect(result.expired).toBe(0);
     expect(prismaMock.ticketType.update).not.toHaveBeenCalled();
     expect(prismaMock.booking.update).not.toHaveBeenCalled();
   });
@@ -1822,7 +1823,7 @@ describe("expireStalePendingBookings", () => {
 
     const result = await expireStalePendingBookings();
 
-    expect(result).toEqual({ expired: 1 });
+    expect(result.expired).toBe(1);
     // Only the unpaid booking's inventory is restored and it alone is cancelled.
     expect(prismaMock.ticketType.updateMany).toHaveBeenCalledTimes(1);
     expect(prismaMock.ticketType.updateMany).toHaveBeenCalledWith({
@@ -1834,5 +1835,33 @@ describe("expireStalePendingBookings", () => {
       where: { id: 1, status: "PENDING" },
       data: { status: "CANCELLED" },
     });
+  });
+});
+
+// ==================== POST /admin/sweep-stale (ARCH-05) ====================
+describe("POST /api/bookings/admin/sweep-stale", () => {
+  it("returns 401 without a token", async () => {
+    const res = await request(app).post("/api/bookings/admin/sweep-stale").send({});
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for a non-admin", async () => {
+    const res = await request(app)
+      .post("/api/bookings/admin/sweep-stale")
+      .set("Authorization", auth({ userId: 2, role: "VIEWER" }))
+      .send({});
+    expect(res.status).toBe(403);
+  });
+
+  it("lets an ADMIN trigger the sweep and returns the expired count + durationMs", async () => {
+    prismaMock.booking.findMany.mockResolvedValue([]);
+    const res = await request(app)
+      .post("/api/bookings/admin/sweep-stale")
+      .set("Authorization", auth({ userId: 1, role: "ADMIN" }))
+      .send({ olderThanMinutes: 30 });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.expired).toBe(0);
+    expect(typeof res.body.data.durationMs).toBe("number");
   });
 });

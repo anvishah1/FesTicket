@@ -1,4 +1,17 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// requestLogger now emits through the shared pino logger via a per-request child
+// (req.log), not console.log. Mock the logger so we can assert on the emitted line.
+// vi.hoisted so the spies exist before the (hoisted) vi.mock factory runs.
+const { infoSpy, childSpy } = vi.hoisted(() => {
+  const infoSpy = vi.fn();
+  const childSpy = vi.fn(() => ({ info: infoSpy }));
+  return { infoSpy, childSpy };
+});
+vi.mock("../../src/utils/logger.js", () => ({
+  default: { child: childSpy },
+}));
+
 import requestLogger from "../../src/middleware/requestLogger.js";
 
 function makeReqRes({ headers = {}, originalUrl = "/api/hello", method = "GET" } = {}) {
@@ -21,6 +34,11 @@ function makeReqRes({ headers = {}, originalUrl = "/api/hello", method = "GET" }
 }
 
 describe("requestLogger middleware", () => {
+  beforeEach(() => {
+    infoSpy.mockClear();
+    childSpy.mockClear();
+  });
+
   it("generates a request id and sets it on req and the response header", () => {
     const { req, res } = makeReqRes();
     const next = vi.fn();
@@ -40,57 +58,34 @@ describe("requestLogger middleware", () => {
     expect(res.headers["X-Request-Id"]).toBe("abc-123");
   });
 
-  it("does not log under NODE_ENV=test but still sets id/header", () => {
-    // vitest sets NODE_ENV=test
-    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+  it("attaches a per-request child logger bound to the request id", () => {
     const { req, res } = makeReqRes();
+    requestLogger(req, res, vi.fn());
+
+    expect(childSpy).toHaveBeenCalledWith({ requestId: req.id });
+    expect(req.log).toBeTruthy();
+    expect(typeof req.log.info).toBe("function");
+  });
+
+  it("emits one structured access line on finish with method/url/status/durationMs", () => {
+    const { req, res } = makeReqRes({ method: "POST", originalUrl: "/api/bookings" });
+    requestLogger(req, res, vi.fn());
+    res.statusCode = 201;
+    res.emit("finish");
+
+    expect(infoSpy).toHaveBeenCalledOnce();
+    const [obj, msg] = infoSpy.mock.calls[0];
+    expect(obj).toMatchObject({ method: "POST", url: "/api/bookings", status: 201 });
+    expect(typeof obj.durationMs).toBe("number");
+    expect(msg).toBe("request");
+  });
+
+  it("skips the access line for /uploads static requests but still sets id/header", () => {
+    const { req, res } = makeReqRes({ originalUrl: "/uploads/proof.png" });
     requestLogger(req, res, vi.fn());
     res.emit("finish");
 
-    expect(spy).not.toHaveBeenCalled();
+    expect(infoSpy).not.toHaveBeenCalled();
     expect(res.headers["X-Request-Id"]).toBe(req.id);
-    spy.mockRestore();
-  });
-
-  it("logs a structured JSON line on finish when not in test mode", () => {
-    const prev = process.env.NODE_ENV;
-    process.env.NODE_ENV = "development";
-    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
-    try {
-      const { req, res } = makeReqRes({ method: "POST", originalUrl: "/api/bookings" });
-      requestLogger(req, res, vi.fn());
-      res.statusCode = 201;
-      res.emit("finish");
-
-      expect(spy).toHaveBeenCalledOnce();
-      const logged = JSON.parse(spy.mock.calls[0][0]);
-      expect(logged).toMatchObject({
-        method: "POST",
-        url: "/api/bookings",
-        status: 201,
-        requestId: req.id,
-      });
-      expect(typeof logged.durationMs).toBe("number");
-    } finally {
-      spy.mockRestore();
-      process.env.NODE_ENV = prev;
-    }
-  });
-
-  it("skips logging for /uploads static requests", () => {
-    const prev = process.env.NODE_ENV;
-    process.env.NODE_ENV = "development";
-    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
-    try {
-      const { req, res } = makeReqRes({ originalUrl: "/uploads/proof.png" });
-      requestLogger(req, res, vi.fn());
-      res.emit("finish");
-
-      expect(spy).not.toHaveBeenCalled();
-      expect(res.headers["X-Request-Id"]).toBe(req.id);
-    } finally {
-      spy.mockRestore();
-      process.env.NODE_ENV = prev;
-    }
   });
 });

@@ -51,7 +51,7 @@ router.get("/me", authenticateUser, async (req, res) => {
 
   } catch (error) {
 
-    console.error("Get user error:", error);
+    req.log.error({ err: error }, "Get user error");
 
     res.status(500).json({
       message: "Server error"
@@ -92,7 +92,7 @@ router.post("/complete-profile", authenticateUser, validate(completeProfileSchem
 
     res.json(user);
   } catch (error) {
-    console.error("Complete profile error:", error);
+    req.log.error({ err: error }, "Complete profile error");
     res.status(500).json({ message: "Server error" });
   }
 });

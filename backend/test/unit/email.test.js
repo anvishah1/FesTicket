@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+// email.js now imports the Prisma singleton to write EmailLog rows — mock it so
+// the unit test never touches a real database.
+vi.mock("@prisma/client");
+import { resetPrismaMock } from "@prisma/client";
+
 // Mock nodemailer's default export. Use vi.hoisted so the mocks are constructed
 // before the (hoisted) vi.mock factory and before email.js is imported.
 const { sendMailMock, createTransportMock } = vi.hoisted(() => {
@@ -12,7 +17,15 @@ vi.mock("nodemailer", () => ({
   default: { createTransport: createTransportMock },
 }));
 
-import { sendMail, sendBookingConfirmation } from "../../src/utils/email.js";
+import { sendMail, sendBookingConfirmation, htmlToText, renderEmail } from "../../src/utils/email.js";
+
+beforeEach(() => {
+  resetPrismaMock();
+  sendMailMock.mockClear();
+  createTransportMock.mockClear();
+  sendMailMock.mockResolvedValue({ messageId: "msg_1" });
+  delete process.env.EMAIL_PROVIDER;
+});
 
 // Helper to enable/disable a working SMTP config for a test.
 function setSmtpConfigured() {
@@ -166,5 +179,32 @@ describe("sendBookingConfirmation", () => {
     });
     expect(result).toEqual({ sent: false, reason: "not_configured" });
     expect(sendMailMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("renderEmail / htmlToText (NOTIF-01)", () => {
+  it("htmlToText converts block boundaries to newlines and strips inline tags", () => {
+    expect(htmlToText("<p>Hello</p><p>World</p>")).toBe("Hello\nWorld");
+    expect(htmlToText("Line1<br>Line2")).toBe("Line1\nLine2");
+    expect(htmlToText("<b>Bold</b> text")).toBe("Bold text");
+  });
+
+  it("htmlToText decodes common HTML entities", () => {
+    expect(htmlToText("A &amp; B &lt;x&gt;")).toBe("A & B <x>");
+  });
+
+  it("renderEmail returns a table layout + plaintext, with the CTA as 'label (url)'", () => {
+    const { html, text } = renderEmail({
+      preheader: "pre",
+      heading: "Hi",
+      bodyHtml: "<tr><td>Body</td></tr>",
+      cta: { label: "Pay now", url: "https://x.test/pay" },
+      footerNote: "foot",
+    });
+    expect(html).toContain('role="presentation"');
+    expect(html).toContain("Body");
+    expect(html).toContain("https://x.test/pay");
+    expect(text).toContain("Body");
+    expect(text).toContain("Pay now (https://x.test/pay)");
   });
 });

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getApiUrl, apiFetch } from "@/lib/auth";
 import { downloadMarketingFile } from "@/lib/files";
+import { formatCurrency } from "@/lib/format";
 
 interface UploadedFile {
   name: string;
@@ -214,7 +215,7 @@ export default function Expenses({ festId }: ExpensesProps) {
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
           <p className="text-sm text-[#6B597F]">Total Expenses</p>
-          <p className="text-2xl font-bold text-red-600">₹{totalExpenses.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-red-600">{formatCurrency(totalExpenses)}</p>
         </div>
         <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
           <p className="text-sm text-[#6B597F]">Total Entries</p>
@@ -363,7 +364,7 @@ export default function Expenses({ festId }: ExpensesProps) {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-red-600 font-bold">₹{expense.amount.toLocaleString()}</span>
+                        <span className="text-red-600 font-bold">{formatCurrency(expense.amount)}</span>
                       </td>
                       <td className="px-6 py-4 text-sm text-[#6B597F]">
                         {new Date(expense.paymentDate).toLocaleDateString("en-GB")}
@@ -440,7 +441,7 @@ export default function Expenses({ festId }: ExpensesProps) {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-[#6B597F]">Amount</p>
-                    <p className="text-xl font-bold text-red-600">₹{selectedExpense.amount.toLocaleString()}</p>
+                    <p className="text-xl font-bold text-red-600">{formatCurrency(selectedExpense.amount)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-[#6B597F]">Payment Date</p>
@@ -537,7 +538,7 @@ export default function Expenses({ festId }: ExpensesProps) {
                 <span className={`px-2 py-1 rounded text-xs font-medium ${getCategoryColor(cat.category)}`}>
                   {cat.category}
                 </span>
-                <p className="text-lg font-bold text-[#29104A] mt-2">₹{cat.total.toLocaleString()}</p>
+                <p className="text-lg font-bold text-[#29104A] mt-2">{formatCurrency(cat.total)}</p>
                 <div className="w-full h-1.5 bg-[#C5BAC4] rounded-full mt-2 overflow-hidden">
                   <div
                     className="h-full bg-[#522C5D] rounded-full"

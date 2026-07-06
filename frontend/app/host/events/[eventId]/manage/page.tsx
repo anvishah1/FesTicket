@@ -8,6 +8,7 @@ import { useParams, useRouter } from "next/navigation";
 import Footer from "@/components/Footer";
 import { getApiUrl, getStoredUser, apiFetch } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
+import { formatCurrency } from "@/lib/format";
 
 interface TicketType {
   id: number;
@@ -765,7 +766,7 @@ export default function ManageEventPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-xl border border-[#C5BAC4] p-5 shadow-sm">
             <p className="text-[#6B597F] text-sm mb-1">Total Revenue</p>
-            <p className="text-2xl font-bold text-[#29104A]">₹{event.totalRevenue.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-[#29104A]">{formatCurrency(event.totalRevenue)}</p>
           </div>
           <div className="bg-white rounded-xl border border-[#C5BAC4] p-5 shadow-sm">
             <p className="text-[#6B597F] text-sm mb-1">Tickets Sold</p>
@@ -837,7 +838,7 @@ export default function ManageEventPage() {
                           />
                           <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-[#1A4B6E] border border-[#2E6B8A] rounded-lg px-3 py-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                             <p className="font-semibold text-white">{data.tickets} tickets</p>
-                            <p className="text-[#C5BAC4]">₹{data.revenue.toLocaleString()}</p>
+                            <p className="text-[#C5BAC4]">{formatCurrency(data.revenue)}</p>
                           </div>
                         </div>
                       </div>
@@ -920,7 +921,7 @@ export default function ManageEventPage() {
                         <div className="flex items-center justify-between mb-3">
                           <span className="font-semibold text-[#29104A]">{ticket.name}</span>
                           <div className="flex items-center gap-2">
-                            <span className="text-[#522C5D] font-bold">₹{ticket.price}</span>
+                            <span className="text-[#522C5D] font-bold">{formatCurrency(ticket.price)}</span>
                             <button
                               type="button"
                               onClick={() => startEditTicket(ticket)}
@@ -948,7 +949,7 @@ export default function ManageEventPage() {
                           <div className="flex justify-between text-sm">
                             <span className="text-[#6B597F]">Revenue</span>
                             <span className="text-[#29104A] font-medium">
-                              ₹{(ticket.sold * ticket.price * (1 - event.discount / 100)).toLocaleString()}
+                              {formatCurrency(ticket.sold * ticket.price * (1 - event.discount / 100))}
                             </span>
                           </div>
                         </div>
@@ -1025,7 +1026,7 @@ export default function ManageEventPage() {
                       </td>
                       <td className="px-6 py-4 text-[#29104A]">{buyer.quantity}</td>
                       <td className="px-6 py-4">
-                        <span className="text-[#29104A] font-bold">₹{buyer.amountPaid.toLocaleString()}</span>
+                        <span className="text-[#29104A] font-bold">{formatCurrency(buyer.amountPaid)}</span>
                       </td>
                       <td className="px-6 py-4 text-sm text-[#6B597F]">{buyer.purchaseDate}</td>
                     </tr>

@@ -17,7 +17,7 @@ describe("TicketSelector", () => {
     expect(screen.getByText("General")).toBeInTheDocument();
     expect(screen.getByText("(5 available)")).toBeInTheDocument();
     expect(screen.getByText("Standard entry")).toBeInTheDocument();
-    expect(screen.getByText("₹500")).toBeInTheDocument();
+    expect(screen.getByText("₹500.00")).toBeInTheDocument();
   });
 
   it("increments up to availability when + is clicked", async () => {

@@ -1,3 +1,5 @@
+import { formatCurrency } from "@/lib/format";
+
 type Props = {
   title: string;
   amount: number;
@@ -40,7 +42,7 @@ export default function PaymentSidebar({ title, amount, orderId, venue, date }: 
         <div className="border-t my-2 pt-2">
           <div className="flex items-center justify-between">
             <div className="font-semibold">Total Amount</div>
-            <div className="text-2xl font-bold text-primary-600">₹{amount.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-primary-600">{formatCurrency(amount)}</div>
           </div>
         </div>
       </div>

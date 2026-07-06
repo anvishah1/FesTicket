@@ -8,7 +8,10 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import fs from "node:fs";
 import prisma from "./src/prisma.js";
+import logger from "./src/utils/logger.js";
 import requestLogger from "./src/middleware/requestLogger.js";
+import respond from "./src/middleware/respond.js";
+import AppError from "./src/utils/AppError.js";
 import { UPLOADS_DIR } from "./src/utils/storage.js";
 
 // Import routes
@@ -34,8 +37,8 @@ import sponsorLeadsRouter from "./src/routes/sponsorLeads.js";
     errors.push("JWT_SECRET must be at least 32 characters for adequate security.");
   }
   if (errors.length) {
-    console.error("❌ Invalid environment configuration; refusing to start:");
-    for (const e of errors) console.error("   - " + e);
+    logger.error("❌ Invalid environment configuration; refusing to start:");
+    for (const e of errors) logger.error("   - " + e);
     process.exit(1);
   }
 })();
@@ -103,6 +106,10 @@ app.use(express.urlencoded({
 // ensure the directory exists for storage.js to write into.
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
+// Response-shape helpers (res.ok / res.fail) so every route can emit one
+// enveloped body with a requestId. Needs req.id (requestLogger, above).
+app.use(respond);
+
 // Auth API (login, signup, refresh, sessions, forgot/reset password, verify email)
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
@@ -134,7 +141,7 @@ app.get("/api/ready", async (req, res) => {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: "ready", requestId: req.id });
   } catch (err) {
-    console.error(`[${req.id}] readiness check failed:`, err?.message || err);
+    req.log.error({ err }, "readiness check failed");
     res.status(503).json({ status: "not-ready", requestId: req.id });
   }
 });
@@ -143,9 +150,9 @@ app.get("/api/ready", async (req, res) => {
 (async () => {
   try {
     await prisma.$connect();
-    console.log("✅ Prisma connected to database");
+    logger.info("✅ Prisma connected to database");
   } catch (err) {
-    console.error("❌ Prisma failed to connect at startup:", err?.message || err);
+    logger.error({ err }, "Prisma failed to connect at startup");
   }
 })();
 
@@ -188,7 +195,18 @@ app.use((err, req, res, next) => {
     });
   }
 
-  console.error(`[${req.id}] Unhandled Express Error:`, err);
+  // Typed application errors (AppError / bookingError) carry an explicit status,
+  // stable code, and a safe user-facing message — map them straight through so a
+  // handler can `throw` instead of hand-rolling res.status().json().
+  if (err instanceof AppError) {
+    return res.status(err.status).json({
+      success: false,
+      requestId: req.id,
+      error: { code: err.code, message: err.expose ? err.message : "Unexpected error" },
+    });
+  }
+
+  (req.log || logger).error({ err }, "Unhandled Express Error");
 
   res.status(500).json({
     success: false,
@@ -202,31 +220,46 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-const server = app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+const server = app.listen(PORT, () => logger.info({ port: PORT }, "Server running on port"));
 
 // Background job: release inventory held by PENDING bookings that were never paid
 // (sold is incremented at booking creation). Runs every 5 min; unref'd so it never
 // blocks graceful shutdown. Skipped under NODE_ENV=test.
+//
+// ARCH-05: guard each tick with a transaction-scoped Postgres advisory lock so
+// that with >1 replica exactly one instance sweeps per tick (the lock
+// auto-releases at transaction end, even on error, and is safe under pgbouncer).
+async function runStaleSweepTick() {
+  await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw`SELECT pg_try_advisory_xact_lock(hashtext('tiqr-stale-sweep')) AS locked`;
+    const locked = rows?.[0]?.locked === true;
+    if (!locked) {
+      logger.info({ job: "stale-sweep", skipped: true }, "stale-sweep skipped (lock held by another instance)");
+      return;
+    }
+    const { expired, durationMs } = await expireStalePendingBookings();
+    logger.info({ job: "stale-sweep", expired, durationMs, skipped: false }, "stale-sweep");
+  });
+}
+
 if (process.env.NODE_ENV !== "test") {
   const STALE_SWEEP_MS = 5 * 60 * 1000;
   const staleSweep = setInterval(() => {
-    expireStalePendingBookings().catch((e) =>
-      console.error("expireStalePendingBookings failed:", e?.message || e)
-    );
+    runStaleSweepTick().catch((e) => logger.error({ err: e }, "stale-sweep tick failed"));
   }, STALE_SWEEP_MS);
   staleSweep.unref();
 }
 
 // Graceful shutdown (important with Prisma)
 const shutdown = async () => {
-  console.log("Shutting down server...");
+  logger.info("Shutting down server...");
   server.close(async () => {
     try {
       await prisma.$disconnect();
-      console.log("Prisma disconnected, exiting.");
+      logger.info("Prisma disconnected, exiting.");
       process.exit(0);
     } catch (e) {
-      console.error("Error during Prisma disconnect:", e);
+      logger.error({ err: e }, "Error during Prisma disconnect");
       process.exit(1);
     }
   });
@@ -235,9 +268,9 @@ const shutdown = async () => {
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 process.on("unhandledRejection", (reason) => {
-  console.error("Unhandled Rejection:", reason);
+  logger.error({ err: reason }, "Unhandled Rejection");
 });
 process.on("uncaughtException", (err) => {
-  console.error("Uncaught Exception:", err);
+  logger.error({ err }, "Uncaught Exception");
   shutdown();
 });

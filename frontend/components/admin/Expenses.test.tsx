@@ -99,9 +99,7 @@ describe("Expenses", () => {
     render(<Expenses festId={9} />);
     await screen.findByText("Stage lights");
     // Total Expenses = 20000 + 5000
-    expect(
-      screen.getByText(`₹${(25000).toLocaleString()}`)
-    ).toBeInTheDocument();
+    expect(screen.getByText("₹25,000.00")).toBeInTheDocument();
     expect(screen.getByText("Total Entries").nextElementSibling).toHaveTextContent("2");
     expect(screen.getByText("Hosts Reporting").nextElementSibling).toHaveTextContent("2");
     expect(screen.getByText("Categories Used").nextElementSibling).toHaveTextContent("2");

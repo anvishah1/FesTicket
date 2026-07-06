@@ -7,6 +7,7 @@ import Footer from "@/components/Footer";
 import PaymentSidebar from "@/components/payment/PaymentSidebar";
 import { getApiUrl } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
+import { formatCurrency } from "@/lib/format";
 
 interface BookingData {
   id: number;
@@ -252,7 +253,7 @@ export default function PaymentPage() {
                 disabled={processing}
                 className="w-full py-3 px-4 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold"
               >
-                {processing ? "Opening…" : `Pay ₹${amount.toLocaleString()}`}
+                {processing ? "Opening…" : `Pay ${formatCurrency(amount)}`}
               </button>
               <p className="text-xs text-slate-500 mt-3 text-center">You’ll be redirected to a secure payment page.</p>
             </div>
@@ -265,13 +266,13 @@ export default function PaymentPage() {
               {booking.items?.map((item, idx) => (
                 <div key={idx} className="flex justify-between">
                   <span>{item.ticketType.name} × {item.quantity}</span>
-                  <span>₹{(item.ticketType.price * item.quantity).toLocaleString()}</span>
+                  <span>{formatCurrency(item.ticketType.price * item.quantity)}</span>
                 </div>
               ))}
               <hr className="my-2" />
               <div className="flex justify-between text-slate-600">
                 <span>Subtotal</span>
-                <span>₹{booking.subtotal?.toLocaleString()}</span>
+                <span>{formatCurrency(booking.subtotal)}</span>
               </div>
               {booking.discount != null && booking.discount > 0 && (
                 <div className="flex justify-between text-green-700" data-testid="payment-discount-line">
@@ -281,21 +282,21 @@ export default function PaymentPage() {
                       ? ` (${Math.round((booking.discount / booking.subtotal) * 100)}%)`
                       : ""}
                   </span>
-                  <span>-₹{booking.discount.toLocaleString()}</span>
+                  <span>-{formatCurrency(booking.discount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-slate-600">
                 <span>Platform Fee (2%)</span>
-                <span>₹{booking.platformFee?.toLocaleString()}</span>
+                <span>{formatCurrency(booking.platformFee)}</span>
               </div>
               <div className="flex justify-between text-slate-600">
                 <span>Tax (18% GST)</span>
-                <span>₹{booking.tax?.toLocaleString()}</span>
+                <span>{formatCurrency(booking.tax)}</span>
               </div>
               <hr className="my-2" />
               <div className="flex justify-between font-bold text-lg">
                 <span>Total</span>
-                <span>₹{booking.total?.toLocaleString()}</span>
+                <span>{formatCurrency(booking.total)}</span>
               </div>
             </div>
           </div>

@@ -56,7 +56,7 @@ router.get(
         }))
       );
     } catch (err) {
-      console.error("Role requests list error:", err);
+      req.log.error({ err }, "Role requests list error");
       res.status(500).json({ message: "Server error" });
     }
   }
@@ -83,7 +83,7 @@ router.get("/mine", authenticateUser, async (req, res) => {
       }))
     );
   } catch (err) {
-    console.error("My role requests error:", err);
+    req.log.error({ err }, "My role requests error");
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -139,14 +139,14 @@ router.post("/", writeLimiter, authenticateUser, async (req, res) => {
         user: { select: { email: true, name: true } },
       },
     });
-    console.log("[role-requests] Created request id:", created.id, "user:", created.user.email);
+    req.log.info({ roleRequestId: created.id, email: created.user.email }, "[role-requests] Created request");
     res.status(201).json({
       message: "Role request submitted",
       id: created.id,
       status: created.status,
     });
   } catch (err) {
-    console.error("Role request create error:", err);
+    req.log.error({ err }, "Role request create error");
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -215,7 +215,7 @@ router.patch(
         status,
       });
     } catch (err) {
-      console.error("Role request update error:", err);
+      req.log.error({ err }, "Role request update error");
       res.status(500).json({ message: "Server error" });
     }
   }

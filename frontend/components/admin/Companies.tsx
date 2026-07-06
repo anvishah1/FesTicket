@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getApiUrl, apiFetch } from "@/lib/auth";
 import { resolveMarketingFile } from "@/lib/files";
+import { formatCurrency } from "@/lib/format";
 
 interface Company {
   id: number;
@@ -107,7 +108,7 @@ export default function Companies({ festId }: CompaniesProps) {
         </div>
         <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
           <p className="text-sm text-[#6B597F]">Total Sponsorship</p>
-          <p className="text-2xl font-bold text-[#29104A]">₹{totalSponsorship.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-[#29104A]">{formatCurrency(totalSponsorship)}</p>
         </div>
         <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
           <p className="text-sm text-[#6B597F]">Confirmed</p>
@@ -190,7 +191,7 @@ export default function Companies({ festId }: CompaniesProps) {
                   {new Date(company.uploadedAt).toLocaleDateString("en-GB")}
                 </span>
                 <span className="text-sm font-medium text-[#522C5D]">
-                  ₹{company.amount.toLocaleString()}
+                  {formatCurrency(company.amount)}
                 </span>
               </div>
             </button>
@@ -258,7 +259,7 @@ export default function Companies({ festId }: CompaniesProps) {
               <div className="mt-4 pt-4 border-t border-[#C5BAC4] flex items-center justify-between">
                 <div>
                   <p className="text-sm text-[#6B597F]">Sponsorship Amount</p>
-                  <p className="text-xl font-bold text-[#29104A]">₹{selected.amount.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-[#29104A]">{formatCurrency(selected.amount)}</p>
                 </div>
                 {selected.agreementUrl && agreementSrc && (
                   <a

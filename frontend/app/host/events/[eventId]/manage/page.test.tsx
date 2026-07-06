@@ -160,6 +160,6 @@ describe("ManageEventPage", () => {
     expect(showToastMock).toHaveBeenCalledWith("Ticket type updated", "success");
     // The breakdown card reflects the new price.
     const breakdown = screen.getByText("Ticket Types Breakdown").closest("div")!;
-    expect(within(breakdown).getByText("₹250")).toBeInTheDocument();
+    expect(within(breakdown).getByText("₹250.00")).toBeInTheDocument();
   });
 });

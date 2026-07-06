@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import prisma from "../prisma.js";
+import logger from "../utils/logger.js";
 import { authenticateUser } from "../middleware/authMiddleware.js";
 
 import { signupSchema, signinSchema } from "../validators/authValidator.js";
@@ -57,7 +58,7 @@ async function cleanupRefreshTokens(userId) {
       });
     }
   } catch (err) {
-    console.error("[auth] refresh token cleanup failed:", err);
+    logger.error({ err }, "[auth] refresh token cleanup failed");
   }
 }
 
@@ -128,7 +129,7 @@ router.post("/signup", signupLimiter, validate(signupSchema), async (req, res) =
       }
     });
 
-    console.log("[auth] Created user id:", user.id, "email:", user.email);
+    req.log.info({ userId: user.id, email: user.email }, "[auth] Created user");
 
     if (wantEditor && festForRequest) {
       const roleRequest = await prisma.roleRequest.create({
@@ -140,22 +141,21 @@ router.post("/signup", signupLimiter, validate(signupSchema), async (req, res) =
         }
       });
 
-      console.log(
-        "[auth] Created RoleRequest id:",
-        roleRequest.id,
-        "for user:",
-        user.email,
-        "festId:",
-        festForRequest.id,
-        "fest:",
-        festForRequest.name
+      req.log.info(
+        {
+          roleRequestId: roleRequest.id,
+          email: user.email,
+          festId: festForRequest.id,
+          festName: festForRequest.name,
+        },
+        "[auth] Created RoleRequest"
       );
     }
 
     if (process.env.NODE_ENV !== "development") {
       const verifyLink =
         `${process.env.BACKEND_URL || "http://localhost:4000"}/api/auth/verify-email?token=${verifyToken}`;
-      console.log("Email verification link:", verifyLink);
+      req.log.info({ verifyLink }, "Email verification link");
     }
 
     res.status(201).json({
@@ -168,7 +168,7 @@ router.post("/signup", signupLimiter, validate(signupSchema), async (req, res) =
 
   } catch (error) {
 
-    console.error("Signup error:", error);
+    req.log.error({ err: error }, "Signup error");
 
     res.status(500).json({
       message: "Internal server error"
@@ -304,7 +304,7 @@ router.post("/signin", loginLimiter, validate(signinSchema), async (req, res) =>
 
   } catch (error) {
 
-    console.error("Signin error:", error);
+    req.log.error({ err: error }, "Signin error");
 
     res.status(500).json({
       message: "Internal server error"
@@ -417,7 +417,7 @@ router.post("/refresh-token", async (req, res) => {
 
   } catch (error) {
 
-    console.error("Refresh token error:", error);
+    req.log.error({ err: error }, "Refresh token error");
 
     res.status(500).json({
       message: "Server error"
@@ -457,7 +457,7 @@ router.post("/logout", async (req, res) => {
 
   } catch (error) {
 
-    console.error("Logout error:", error);
+    req.log.error({ err: error }, "Logout error");
 
     res.status(500).json({
       message: "Server error"
@@ -490,7 +490,7 @@ router.get("/sessions", authenticateUser, async (req, res) => {
 
   } catch (error) {
 
-    console.error("Session fetch error:", error);
+    req.log.error({ err: error }, "Session fetch error");
 
     res.status(500).json({
       message: "Server error"
@@ -519,7 +519,7 @@ router.delete("/sessions/:id", authenticateUser, async (req, res) => {
 
   } catch (error) {
 
-    console.error("Session delete error:", error);
+    req.log.error({ err: error }, "Session delete error");
 
     res.status(500).json({
       message: "Server error"
@@ -545,7 +545,7 @@ router.delete("/sessions", authenticateUser, async (req, res) => {
 
   } catch (error) {
 
-    console.error("Session clear error:", error);
+    req.log.error({ err: error }, "Session clear error");
 
     res.status(500).json({
       message: "Server error"
@@ -587,7 +587,7 @@ router.post("/forgot-password", writeLimiter, async (req, res) => {
     const resetLink =
       `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset?token=${resetToken}`;
 
-    console.log("Password reset link:", resetLink);
+    req.log.info({ resetLink }, "Password reset link");
 
     res.json({
       message: "If this email exists, a reset link was sent."
@@ -595,7 +595,7 @@ router.post("/forgot-password", writeLimiter, async (req, res) => {
 
   } catch (err) {
 
-    console.error("Forgot password error:", err);
+    req.log.error({ err }, "Forgot password error");
 
     res.status(500).json({
       message: "Server error"
@@ -682,7 +682,7 @@ router.post("/reset-password", async (req, res) => {
 
   } catch (err) {
 
-    console.error("Reset password error:", err);
+    req.log.error({ err }, "Reset password error");
 
     res.status(500).json({
       message: "Server error"
@@ -734,7 +734,7 @@ router.get("/verify-email", async (req, res) => {
 
   } catch (error) {
 
-    console.error("Email verification error:", error);
+    req.log.error({ err: error }, "Email verification error");
 
     res.status(500).json({
       message: "Server error"

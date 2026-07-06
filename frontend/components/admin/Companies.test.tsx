@@ -60,9 +60,7 @@ describe("Companies", () => {
     // Confirmed = 1 (only Acme is CONFIRMED)
     expect(screen.getByText("Confirmed").nextElementSibling).toHaveTextContent("1");
     // Total Sponsorship = 50000 + 30000
-    expect(
-      screen.getByText(`₹${(80000).toLocaleString()}`)
-    ).toBeInTheDocument();
+    expect(screen.getByText("₹80,000.00")).toBeInTheDocument();
   });
 
   it("shows the empty state when there are no sponsors", async () => {

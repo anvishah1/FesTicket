@@ -80,13 +80,13 @@ describe("BookingPage discount display (M8)", () => {
 
     // Discount line: 10% of ₹1000 = ₹100.
     expect(within(summary).getByText(/Discount \(10%\)/)).toBeInTheDocument();
-    expect(within(summary).getByText("-₹100")).toBeInTheDocument();
+    expect(within(summary).getByText("-₹100.00")).toBeInTheDocument();
 
     // discountedBase 900 -> platformFee 18, tax round2((900+18)*0.18)=165.24,
     // total = 900 + 18 + 165.24 = 1083.24.
-    expect(within(summary).getByText("₹18")).toBeInTheDocument();
+    expect(within(summary).getByText("₹18.00")).toBeInTheDocument();
     expect(within(summary).getByText("₹165.24")).toBeInTheDocument();
-    expect(within(summary).getByText("₹1083.24")).toBeInTheDocument();
+    expect(within(summary).getByText("₹1,083.24")).toBeInTheDocument();
   });
 
   it("renders the standard summary (no discount line) when the event has no discount", async () => {

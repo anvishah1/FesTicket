@@ -180,7 +180,7 @@ router.get("/marketing/files/:filename", async (req, res) => {
     }
     return res.sendFile(filePath);
   } catch (error) {
-    console.error("Error serving marketing file:", error);
+    req.log.error({ err: error }, "Error serving marketing file");
     return res.status(500).json({
       success: false,
       error: { code: "FILE_ERROR", message: "Failed to serve file" },
@@ -322,7 +322,7 @@ router.get("/", optionalAuthenticate, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching events:", error);
+    req.log.error({ err: error }, "Error fetching events");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch events" },
@@ -376,7 +376,7 @@ router.get("/analytics/fest/:festId", authenticateUser, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching fest analytics:", error);
+    req.log.error({ err: error }, "Error fetching fest analytics");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch analytics" },
@@ -438,7 +438,7 @@ router.get("/:id", optionalAuthenticate, async (req, res) => {
       data: withEffectiveStatus(event),
     });
   } catch (error) {
-    console.error("Error fetching event:", error);
+    req.log.error({ err: error }, "Error fetching event");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch event" },
@@ -567,7 +567,7 @@ router.post("/", authenticateUser, authorizeRoles("EDITOR", "HOST", "ADMIN"), va
       message: "Event created successfully",
     });
   } catch (error) {
-    console.error("Error creating event:", error);
+    req.log.error({ err: error }, "Error creating event");
     res.status(500).json({
       success: false,
       error: { code: "CREATE_ERROR", message: "Failed to create event", details: error.message },
@@ -681,7 +681,7 @@ router.put("/:id", authenticateUser, async (req, res) => {
       message: "Event updated successfully",
     });
   } catch (error) {
-    console.error("Error updating event:", error);
+    req.log.error({ err: error }, "Error updating event");
     if (error.code === "P2025") {
       return res.status(404).json({
         success: false,
@@ -750,7 +750,7 @@ router.patch("/:id/status", authenticateUser, async (req, res) => {
       message: "Event status updated successfully",
     });
   } catch (error) {
-    console.error("Error updating event status:", error);
+    req.log.error({ err: error }, "Error updating event status");
     if (error.code === "P2025") {
       return res.status(404).json({
         success: false,
@@ -782,7 +782,7 @@ router.delete("/:id", authenticateUser, async (req, res) => {
       message: "Event deleted successfully",
     });
   } catch (error) {
-    console.error("Error deleting event:", error);
+    req.log.error({ err: error }, "Error deleting event");
     if (error.code === "P2025") {
       return res.status(404).json({
         success: false,
@@ -851,7 +851,7 @@ router.get("/:id/ticket-types", optionalAuthenticate, async (req, res) => {
       data: ticketTypes,
     });
   } catch (error) {
-    console.error("Error fetching ticket types:", error);
+    req.log.error({ err: error }, "Error fetching ticket types");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch ticket types" },
@@ -899,7 +899,7 @@ router.post("/:id/ticket-types", authenticateUser, validate(ticketTypeSchema), a
       message: "Ticket type created successfully",
     });
   } catch (error) {
-    console.error("Error creating ticket type:", error);
+    req.log.error({ err: error }, "Error creating ticket type");
     res.status(500).json({
       success: false,
       error: { code: "CREATE_ERROR", message: "Failed to create ticket type" },
@@ -959,7 +959,7 @@ router.put("/:eventId/ticket-types/:ticketId", authenticateUser, validate(ticket
       message: "Ticket type updated successfully",
     });
   } catch (error) {
-    console.error("Error updating ticket type:", error);
+    req.log.error({ err: error }, "Error updating ticket type");
     res.status(500).json({
       success: false,
       error: { code: "UPDATE_ERROR", message: "Failed to update ticket type" },
@@ -998,7 +998,7 @@ router.delete("/:eventId/ticket-types/:ticketId", authenticateUser, async (req, 
       message: "Ticket type deleted successfully",
     });
   } catch (error) {
-    console.error("Error deleting ticket type:", error);
+    req.log.error({ err: error }, "Error deleting ticket type");
     // Foreign-key violation: the ticket type still has bookings referencing it.
     if (error.code === "P2003") {
       return res.status(409).json({
@@ -1049,7 +1049,7 @@ router.get("/host/:hostId", optionalAuthenticate, async (req, res) => {
       data: events,
     });
   } catch (error) {
-    console.error("Error fetching host events:", error);
+    req.log.error({ err: error }, "Error fetching host events");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch events" },
@@ -1122,7 +1122,7 @@ router.get("/:id/buyers", authenticateUser, async (req, res) => {
       data: buyers,
     });
   } catch (error) {
-    console.error("Error fetching buyers:", error);
+    req.log.error({ err: error }, "Error fetching buyers");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch buyers" },
@@ -1189,7 +1189,7 @@ router.get("/:id/stats", authenticateUser, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching event stats:", error);
+    req.log.error({ err: error }, "Error fetching event stats");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch event stats" },
@@ -1217,7 +1217,7 @@ router.get("/marketing/host/:hostId/sponsors", async (req, res) => {
 
     res.json({ success: true, data: sponsors });
   } catch (error) {
-    console.error("Error fetching sponsors:", error);
+    req.log.error({ err: error }, "Error fetching sponsors");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch sponsors" },
@@ -1244,7 +1244,7 @@ router.get("/marketing/fest/:festId/sponsors", async (req, res) => {
 
     res.json({ success: true, data: sponsors });
   } catch (error) {
-    console.error("Error fetching fest sponsors:", error);
+    req.log.error({ err: error }, "Error fetching fest sponsors");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch fest sponsors" },
@@ -1328,7 +1328,7 @@ router.post("/marketing/host/:hostId/sponsors", validate(createSponsorSchema), a
       message: "Sponsor saved successfully",
     });
   } catch (error) {
-    console.error("Error creating sponsor:", error);
+    req.log.error({ err: error }, "Error creating sponsor");
     res.status(500).json({
       success: false,
       error: { code: "CREATE_ERROR", message: "Failed to create sponsor" },
@@ -1412,7 +1412,7 @@ router.put("/marketing/sponsors/:id", validate(updateSponsorSchema), async (req,
       message: "Sponsor updated successfully",
     });
   } catch (error) {
-    console.error("Error updating sponsor:", error);
+    req.log.error({ err: error }, "Error updating sponsor");
     res.status(500).json({
       success: false,
       error: { code: "UPDATE_ERROR", message: "Failed to update sponsor" },
@@ -1451,7 +1451,7 @@ router.delete("/marketing/sponsors/:id", async (req, res) => {
       message: "Sponsor deleted successfully",
     });
   } catch (error) {
-    console.error("Error deleting sponsor:", error);
+    req.log.error({ err: error }, "Error deleting sponsor");
     res.status(500).json({
       success: false,
       error: { code: "DELETE_ERROR", message: "Failed to delete sponsor" },
@@ -1473,7 +1473,7 @@ router.get("/marketing/host/:hostId/expenses", async (req, res) => {
 
     res.json({ success: true, data: expenses });
   } catch (error) {
-    console.error("Error fetching expenses:", error);
+    req.log.error({ err: error }, "Error fetching expenses");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch expenses" },
@@ -1506,7 +1506,7 @@ router.get("/marketing/fest/:festId/expenses", async (req, res) => {
 
     res.json({ success: true, data: expenses });
   } catch (error) {
-    console.error("Error fetching fest expenses:", error);
+    req.log.error({ err: error }, "Error fetching fest expenses");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch fest expenses" },
@@ -1567,7 +1567,7 @@ router.post("/marketing/host/:hostId/expenses", validate(createExpenseSchema), a
       message: "Expense saved successfully",
     });
   } catch (error) {
-    console.error("Error creating expense:", error);
+    req.log.error({ err: error }, "Error creating expense");
     res.status(500).json({
       success: false,
       error: { code: "CREATE_ERROR", message: "Failed to create expense" },
@@ -1653,7 +1653,7 @@ router.put("/marketing/expenses/:id", validate(updateExpenseSchema), async (req,
       message: "Expense updated successfully",
     });
   } catch (error) {
-    console.error("Error updating expense:", error);
+    req.log.error({ err: error }, "Error updating expense");
     res.status(500).json({
       success: false,
       error: { code: "UPDATE_ERROR", message: "Failed to update expense" },
@@ -1692,7 +1692,7 @@ router.delete("/marketing/expenses/:id", async (req, res) => {
       message: "Expense deleted successfully",
     });
   } catch (error) {
-    console.error("Error deleting expense:", error);
+    req.log.error({ err: error }, "Error deleting expense");
     res.status(500).json({
       success: false,
       error: { code: "DELETE_ERROR", message: "Failed to delete expense" },

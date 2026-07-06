@@ -33,10 +33,10 @@ describe("BookingSummary", () => {
         total={1199}
       />
     );
-    // "Qty 2 × ₹500"
+    // "Qty 2 × ₹500.00"
     expect(screen.getByText(/Qty 2/)).toBeInTheDocument();
     // line total = qty * price = 2 * 500 = 1000
-    expect(screen.getByText("₹1000")).toBeInTheDocument();
+    expect(screen.getByText("₹1,000.00")).toBeInTheDocument();
   });
 
   it("renders subtotal, platform fee, tax and total from props", () => {
@@ -50,13 +50,13 @@ describe("BookingSummary", () => {
       />
     );
     expect(screen.getByText("Subtotal")).toBeInTheDocument();
-    expect(screen.getByText("₹999")).toBeInTheDocument();
+    expect(screen.getByText("₹999.00")).toBeInTheDocument();
     expect(screen.getByText("Platform fee")).toBeInTheDocument();
-    expect(screen.getByText("₹20")).toBeInTheDocument();
+    expect(screen.getByText("₹20.00")).toBeInTheDocument();
     expect(screen.getByText("Tax")).toBeInTheDocument();
-    expect(screen.getByText("₹180")).toBeInTheDocument();
+    expect(screen.getByText("₹180.00")).toBeInTheDocument();
     expect(screen.getByText("Total")).toBeInTheDocument();
-    expect(screen.getByText("₹1199")).toBeInTheDocument();
+    expect(screen.getByText("₹1,199.00")).toBeInTheDocument();
   });
 
   it("still renders the totals block when no item has a positive quantity", () => {
@@ -71,7 +71,7 @@ describe("BookingSummary", () => {
     );
     expect(screen.queryByText("General")).not.toBeInTheDocument();
     expect(screen.getByText("Total")).toBeInTheDocument();
-    // subtotal, platform fee, tax and total all render ₹0 (4 occurrences)
-    expect(screen.getAllByText("₹0")).toHaveLength(4);
+    // subtotal, platform fee, tax and total all render ₹0.00 (4 occurrences)
+    expect(screen.getAllByText("₹0.00")).toHaveLength(4);
   });
 });

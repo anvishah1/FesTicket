@@ -7,6 +7,7 @@ import Footer from "@/components/Footer";
 import { getApiUrl, getStoredUser, isAuthenticated, apiFetch } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
 import { downloadMarketingFile } from "@/lib/files";
+import { formatCurrency } from "@/lib/format";
 
 interface UploadedFile {
   name: string;
@@ -711,7 +712,7 @@ export default function MarketingPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-[#29104A]">₹{totalSponsorshipAmount.toLocaleString()}</p>
+            <p className="text-3xl font-bold text-[#29104A]">{formatCurrency(totalSponsorshipAmount)}</p>
             <p className="text-xs text-[#6B597F] mt-1">Committed amount</p>
           </div>
 
@@ -724,7 +725,7 @@ export default function MarketingPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-green-600">₹{totalReceivedAmount.toLocaleString()}</p>
+            <p className="text-3xl font-bold text-green-600">{formatCurrency(totalReceivedAmount)}</p>
             <p className="text-xs text-[#6B597F] mt-1">From sponsors</p>
           </div>
 
@@ -737,7 +738,7 @@ export default function MarketingPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-3xl font-bold text-red-500">₹{totalExpenses.toLocaleString()}</p>
+            <p className="text-3xl font-bold text-red-500">{formatCurrency(totalExpenses)}</p>
             <p className="text-xs text-[#6B597F] mt-1">Out of pocket</p>
           </div>
 
@@ -751,7 +752,7 @@ export default function MarketingPage() {
               </div>
             </div>
             <p className={`text-3xl font-bold ${netBalance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-              {netBalance >= 0 ? '+' : ''}₹{netBalance.toLocaleString()}
+              {netBalance >= 0 ? '+' : ''}{formatCurrency(netBalance)}
             </p>
             <p className="text-xs text-[#6B597F] mt-1">Received - Expenses</p>
           </div>
@@ -827,13 +828,13 @@ export default function MarketingPage() {
                         <p className="text-xs text-[#6B597F]">{sponsor.email}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="font-bold text-[#29104A]">₹{sponsor.sponsorshipAmount.toLocaleString()}</p>
+                        <p className="font-bold text-[#29104A]">{formatCurrency(sponsor.sponsorshipAmount)}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="font-bold text-green-600">₹{sponsor.receivedAmount.toLocaleString()}</p>
+                        <p className="font-bold text-green-600">{formatCurrency(sponsor.receivedAmount)}</p>
                         {sponsor.receivedAmount < sponsor.sponsorshipAmount && (
                           <p className="text-xs text-yellow-600">
-                            Pending: ₹{(sponsor.sponsorshipAmount - sponsor.receivedAmount).toLocaleString()}
+                            Pending: {formatCurrency(sponsor.sponsorshipAmount - sponsor.receivedAmount)}
                           </p>
                         )}
                       </td>
@@ -908,7 +909,7 @@ export default function MarketingPage() {
                         <p className="text-xs text-[#6B597F]">{expense.paymentMethod}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="font-bold text-red-500">₹{expense.amount.toLocaleString()}</p>
+                        <p className="font-bold text-red-500">{formatCurrency(expense.amount)}</p>
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-[#29104A]">{expense.paymentDate}</p>

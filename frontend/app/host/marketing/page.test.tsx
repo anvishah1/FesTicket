@@ -40,15 +40,15 @@ describe("MarketingPage — Net Balance", () => {
   it("computes the Net Balance from fest-wide income and spend, not the host's own rows", async () => {
     render(<MarketingPage />);
     // Received (fest-wide) = 10000, Expenses (fest-wide) = 3000.
-    expect(await screen.findByText("₹10,000")).toBeInTheDocument();
-    expect(await screen.findByText("₹3,000")).toBeInTheDocument();
+    expect(await screen.findByText("₹10,000.00")).toBeInTheDocument();
+    expect(await screen.findByText("₹3,000.00")).toBeInTheDocument();
     // Net = 10000 - 3000 = +₹7,000 (would be ₹0 if it used this host's empty rows).
-    expect(await screen.findByText("+₹7,000")).toBeInTheDocument();
+    expect(await screen.findByText("+₹7,000.00")).toBeInTheDocument();
   });
 
   it("associates every sponsor-form field with a label (WCAG 1.3.1)", async () => {
     render(<MarketingPage />);
-    await screen.findByText("+₹7,000");
+    await screen.findByText("+₹7,000.00");
     await userEvent.click(screen.getByRole("button", { name: /add sponsor/i }));
     const dialog = await screen.findByRole("dialog", { name: /add sponsor/i });
     expect(dialog).toBeInTheDocument();
@@ -72,7 +72,7 @@ describe("MarketingPage — Net Balance", () => {
 
   it("associates every expense-form field with a label and names the file inputs", async () => {
     render(<MarketingPage />);
-    await screen.findByText("+₹7,000");
+    await screen.findByText("+₹7,000.00");
     // Switch to the Expenses tab, then open its form.
     await userEvent.click(screen.getByRole("button", { name: /^expenses \(/i }));
     await userEvent.click(screen.getByRole("button", { name: /add expense/i }));

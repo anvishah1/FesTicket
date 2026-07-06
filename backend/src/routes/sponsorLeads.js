@@ -29,7 +29,7 @@ router.get("/", authenticateUser, authorizeRoles("ADMIN"), async (req, res) => {
     });
     return res.json({ success: true, data: leads });
   } catch (err) {
-    console.error("Sponsor lead list error:", err);
+    req.log.error({ err }, "Sponsor lead list error");
     return res.status(500).json({
       success: false,
       error: { code: "SERVER_ERROR", message: "Internal server error" },
@@ -83,7 +83,7 @@ router.post("/", writeLimiter, async (req, res) => {
       message: "Thanks — we will be in touch.",
     });
   } catch (err) {
-    console.error("Sponsor lead create error:", err);
+    req.log.error({ err }, "Sponsor lead create error");
     return res.status(500).json({
       success: false,
       error: {

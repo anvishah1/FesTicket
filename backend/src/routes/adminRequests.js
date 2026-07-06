@@ -35,13 +35,13 @@ router.post("/", writeLimiter, async (req, res) => {
         phone: phone?.trim() || null,
       },
     });
-    console.log("[admin-requests] Created request id:", request.id, "email:", request.email);
+    req.log.info({ adminRequestId: request.id, email: request.email }, "[admin-requests] Created request");
     res.status(201).json({
       message: "Request received. You will be set up with credentials after verification.",
       id: request.id,
     });
   } catch (err) {
-    console.error("Admin request create error:", err);
+    req.log.error({ err }, "Admin request create error");
     res.status(500).json({ message: "Server error" });
   }
 });

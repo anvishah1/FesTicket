@@ -8,6 +8,8 @@
  * fail CLOSED on any network/parse error — an attacker can't bypass the check
  * by knocking the provider offline.
  */
+import logger from "./logger.js";
+
 const DEFAULT_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
@@ -36,7 +38,7 @@ export async function verifyCaptcha(token, remoteIp) {
     return json.success === true;
   } catch (err) {
     // Fail closed when a provider is configured but unreachable/unparsable.
-    console.error("[captcha] verification failed:", err);
+    logger.error({ err }, "[captcha] verification failed");
     return false;
   }
 }

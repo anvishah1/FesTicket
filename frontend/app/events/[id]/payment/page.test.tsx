@@ -52,7 +52,7 @@ describe("PaymentPage discount line", () => {
     const line = await screen.findByTestId("payment-discount-line");
     // 100 / 1000 = 10%
     expect(within(line).getByText(/Discount \(10%\)/)).toBeInTheDocument();
-    expect(within(line).getByText("-₹100")).toBeInTheDocument();
+    expect(within(line).getByText("-₹100.00")).toBeInTheDocument();
   });
 
   it("omits the discount line when there is no discount", async () => {

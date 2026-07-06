@@ -3,8 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Pooled connection (pgbouncer) for the running app.
+  url       = env("DATABASE_URL")
+  // Unpooled/direct connection used by prisma migrate/db push. Optional in dev
+  // (falls back to DATABASE_URL when unset); set it in prod for migrations.
+  directUrl = env("DIRECT_URL")
 }
 
 // ==================== USER & AUTH ====================
@@ -185,7 +189,15 @@ model Booking {
   payment      Payment?
   answers      AttendeeAnswer[]
 
-  @@index([eventId])
+  // Composite indexes back the hottest queries: eventId+status (host event
+  // bookings / buyers), status+createdAt (stale-pending sweep), guestEmail
+  // (guest lookup), eventId+purchaseDate (fest/buyer lists ordered by date).
+  // [eventId,status] and [eventId,purchaseDate] both prefix-cover eventId, so the
+  // standalone @@index([eventId]) is dropped as redundant.
+  @@index([eventId, status])
+  @@index([eventId, purchaseDate])
+  @@index([status, createdAt])
+  @@index([guestEmail])
   @@index([userId])
 }
 
@@ -450,4 +462,32 @@ model AttendeeAnswer {
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@index([bookingId])
+}
+
+// ==================== EMAIL DELIVERY LOG ====================
+// One row per send attempt (NOTIF-04). Lets us see delivery status, dedupe, and
+// drive retry/backoff without changing sendMail's caller contract.
+model EmailLog {
+  id                Int         @id @default(autoincrement())
+  toEmail           String
+  subject           String
+  template          String?
+  bookingId         Int?
+  provider          String?
+  providerMessageId String?
+  status            EmailStatus @default(QUEUED)
+  attempts          Int         @default(0)
+  lastError         String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([status])
+  @@index([bookingId])
+}
+
+enum EmailStatus {
+  QUEUED
+  SENT
+  FAILED
+  SKIPPED
 }

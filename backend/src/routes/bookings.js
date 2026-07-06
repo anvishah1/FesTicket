@@ -3,10 +3,11 @@ import { Router } from "express";
 import prisma from "../prisma.js";
 import Razorpay from "razorpay";
 import { sendBookingConfirmation } from "../utils/email.js";
-import { authenticateUser, optionalAuthenticate } from "../middleware/authMiddleware.js";
+import { authenticateUser, optionalAuthenticate, authorizeRoles } from "../middleware/authMiddleware.js";
 import { bookingLimiter, writeLimiter } from "../middleware/rateLimiter.js";
 import { validate } from "../middleware/validate.js";
 import { createBookingSchema } from "../validators/bookingValidator.js";
+import { bookingError } from "../utils/AppError.js";
 
 const router = Router();
 
@@ -44,12 +45,11 @@ async function callerOwnsBooking(req, booking) {
   return false;
 }
 
-// Tag a business/client error with an explicit HTTP status + stable code + a
-// safe, user-facing message. The POST catch maps these to their status and
-// exposes the message; ANY untagged error is treated as an unexpected fault and
-// becomes a GENERIC 500 (its raw message is never leaked to the client).
-const bookingError = (status, code, message) =>
-  Object.assign(new Error(message), { status, code, expose: true });
+// Business/client errors are tagged with an explicit HTTP status + stable code +
+// safe message via bookingError (now an AppError factory imported above). The
+// POST catch maps these to their status/message; ANY untagged error is an
+// unexpected fault -> GENERIC 500 (raw message never leaked). AppError instances
+// are also recognized by the central error handler (index.js).
 
 const getRazorpay = () => {
   const keyId = process.env.RAZORPAY_KEY_ID;
@@ -425,7 +425,7 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
     // email the same way the paid completion paths do (non-blocking).
     if (booking.isFree) {
       sendBookingConfirmation(booking.full).catch((e) =>
-        console.error("[email] Booking confirmation failed:", e)
+        req.log.error({ err: e }, "[email] Booking confirmation failed")
       );
     }
 
@@ -435,7 +435,7 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
       message: "Booking created successfully",
     });
   } catch (error) {
-    console.error("Error creating booking:", error);
+    req.log.error({ err: error }, "Error creating booking");
     // Tagged business/client errors (bookingError) carry an explicit HTTP status,
     // a stable code, and a safe user-facing message — map them straight through
     // (validation 400, not-found 404, sold-out / not-bookable 409). ANY other
@@ -531,7 +531,7 @@ router.post("/:id/create-order", writeLimiter, optionalAuthenticate, async (req,
       },
     });
   } catch (err) {
-    console.error("Razorpay create order error:", err);
+    req.log.error({ err }, "Razorpay create order error");
     res.status(500).json({
       success: false,
       error: { code: "ORDER_ERROR", message: err?.message || "Failed to create order" },
@@ -636,7 +636,7 @@ router.post("/:id/verify-payment", writeLimiter, optionalAuthenticate, async (re
       },
     });
 
-    sendBookingConfirmation(updated).catch((e) => console.error("[email] Booking confirmation failed:", e));
+    sendBookingConfirmation(updated).catch((e) => req.log.error({ err: e }, "[email] Booking confirmation failed"));
 
     res.json({
       success: true,
@@ -644,7 +644,7 @@ router.post("/:id/verify-payment", writeLimiter, optionalAuthenticate, async (re
       message: "Payment verified and booking completed",
     });
   } catch (err) {
-    console.error("Razorpay verify error:", err);
+    req.log.error({ err }, "Razorpay verify error");
     res.status(500).json({
       success: false,
       error: { code: "VERIFY_ERROR", message: err?.message || "Verification failed" },
@@ -739,7 +739,7 @@ router.put("/:id/complete", writeLimiter, optionalAuthenticate, async (req, res)
       return updatedBooking;
     });
 
-    sendBookingConfirmation(booking).catch((e) => console.error("[email] Booking confirmation failed:", e));
+    sendBookingConfirmation(booking).catch((e) => req.log.error({ err: e }, "[email] Booking confirmation failed"));
 
     res.json({
       success: true,
@@ -747,7 +747,7 @@ router.put("/:id/complete", writeLimiter, optionalAuthenticate, async (req, res)
       message: "Booking completed successfully",
     });
   } catch (error) {
-    console.error("Error completing booking:", error);
+    req.log.error({ err: error }, "Error completing booking");
     res.status(500).json({
       success: false,
       error: { code: "COMPLETE_ERROR", message: "Failed to complete booking" },
@@ -803,7 +803,7 @@ router.get("/:id", authenticateUser, async (req, res) => {
       data: booking,
     });
   } catch (error) {
-    console.error("Error fetching booking:", error);
+    req.log.error({ err: error }, "Error fetching booking");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch booking" },
@@ -844,7 +844,7 @@ router.get("/code/:bookingCode", async (req, res) => {
       data: booking,
     });
   } catch (error) {
-    console.error("Error fetching booking:", error);
+    req.log.error({ err: error }, "Error fetching booking");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch booking" },
@@ -891,7 +891,7 @@ router.get("/user/:userId", authenticateUser, async (req, res) => {
       data: bookings,
     });
   } catch (error) {
-    console.error("Error fetching user bookings:", error);
+    req.log.error({ err: error }, "Error fetching user bookings");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch bookings" },
@@ -936,7 +936,7 @@ router.get("/guest/:email", authenticateUser, async (req, res) => {
       data: bookings,
     });
   } catch (error) {
-    console.error("Error fetching guest bookings:", error);
+    req.log.error({ err: error }, "Error fetching guest bookings");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch bookings" },
@@ -1026,7 +1026,7 @@ router.put("/:id/cancel", authenticateUser, async (req, res) => {
       message: "Booking cancelled successfully",
     });
   } catch (error) {
-    console.error("Error cancelling booking:", error);
+    req.log.error({ err: error }, "Error cancelling booking");
     // Map tagged business errors (e.g. the lost-race 409) to their status/code;
     // anything else is an unexpected fault -> generic 500.
     if (error.expose && error.status && error.code) {
@@ -1143,7 +1143,7 @@ router.get("/event/:eventId", authenticateUser, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching event bookings:", error);
+    req.log.error({ err: error }, "Error fetching event bookings");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch bookings" },
@@ -1220,10 +1220,30 @@ router.get("/fest/:festId", authenticateUser, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching fest bookings:", error);
+    req.log.error({ err: error }, "Error fetching fest bookings");
     res.status(500).json({
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch bookings" },
+    });
+  }
+});
+
+// ==================== ADMIN: MANUAL STALE-SWEEP TRIGGER ====================
+
+// POST /api/bookings/admin/sweep-stale - force a stale-hold release now.
+// ADMIN only. Shares the exact expireStalePendingBookings implementation as the
+// scheduled interval (no logic duplication). Optional body { olderThanMinutes }.
+router.post("/admin/sweep-stale", authenticateUser, authorizeRoles("ADMIN"), async (req, res) => {
+  try {
+    const mins = Number(req.body?.olderThanMinutes);
+    const olderThanMs = Number.isFinite(mins) && mins > 0 ? mins * 60 * 1000 : undefined;
+    const result = await expireStalePendingBookings(olderThanMs);
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    req.log.error({ err: error }, "Manual stale sweep failed");
+    return res.status(500).json({
+      success: false,
+      error: { code: "SWEEP_ERROR", message: "Failed to sweep stale bookings" },
     });
   }
 });
@@ -1240,6 +1260,7 @@ router.get("/fest/:festId", authenticateUser, async (req, res) => {
 // minutes) should import and call this; wiring an interval here would fire once
 // per server process and is out of scope for a route module.
 export async function expireStalePendingBookings(olderThanMs = 15 * 60 * 1000) {
+  const started = Date.now();
   const cutoff = new Date(Date.now() - olderThanMs);
 
   // SWEEP-RACE: never expire a booking whose payment is in flight. Once
@@ -1277,7 +1298,7 @@ export async function expireStalePendingBookings(olderThanMs = 15 * 60 * 1000) {
     });
   }
 
-  return { expired };
+  return { expired, durationMs: Date.now() - started };
 }
 
 export default router;

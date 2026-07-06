@@ -19,7 +19,7 @@ describe("PaymentSidebar", () => {
     expect(screen.getByText("Order ID")).toBeInTheDocument();
     expect(screen.getByText("order_123")).toBeInTheDocument();
     expect(screen.getByText("Total Amount")).toBeInTheDocument();
-    expect(screen.getByText("₹2,500")).toBeInTheDocument();
+    expect(screen.getByText("₹2,500.00")).toBeInTheDocument();
   });
 
   it("renders the secure-payment reassurance copy", () => {

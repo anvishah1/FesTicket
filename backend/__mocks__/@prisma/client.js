@@ -44,6 +44,8 @@ const MODEL_KEYS = [
   "roleRequest",
   "refreshToken",
   "adminRequest",
+  "emailLog",
+  "webhookEvent",
 ];
 
 function makeModel() {
@@ -60,6 +62,11 @@ export function resetPrismaMock() {
   prismaMock.$connect = vi.fn().mockResolvedValue(undefined);
   prismaMock.$disconnect = vi.fn().mockResolvedValue(undefined);
   prismaMock.$on = vi.fn();
+  // Raw-query helpers (advisory lock, readiness probe, reconciliation).
+  prismaMock.$queryRaw = vi.fn().mockResolvedValue([]);
+  prismaMock.$queryRawUnsafe = vi.fn().mockResolvedValue([]);
+  prismaMock.$executeRaw = vi.fn().mockResolvedValue(0);
+  prismaMock.$executeRawUnsafe = vi.fn().mockResolvedValue(0);
   // Support both callback form `$transaction(async (tx) => ...)` and array form
   // `$transaction([p1, p2])` used across the routes.
   prismaMock.$transaction = vi.fn(async (arg) =>

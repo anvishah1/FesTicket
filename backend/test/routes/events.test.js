@@ -999,6 +999,7 @@ describe("GET /api/events/:id/buyers", () => {
         purchaseDate: "2024-02-01T00:00:00.000Z",
       },
     ];
+    prismaMock.booking.count.mockResolvedValue(2);
     prismaMock.booking.findMany.mockResolvedValue(bookings);
 
     const res = await request(app).get("/api/events/5/buyers").set(...ownerAuth);
@@ -1011,7 +1012,8 @@ describe("GET /api/events/:id/buyers", () => {
     );
     expect(res.body).toEqual({
       success: true,
-      data: [
+      data: {
+        buyers: [
         {
           id: 10,
           bookingId: "BK-1",
@@ -1038,23 +1040,80 @@ describe("GET /api/events/:id/buyers", () => {
           attendees: [],
           answers: [],
         },
-      ],
+        ],
+        pagination: { page: 1, pageSize: 50, total: 2, totalPages: 1 },
+      },
     });
   });
 
   it("allows an ADMIN of the event's fest", async () => {
     prismaMock.event.findUnique.mockResolvedValue({ hostId: 999, festId: 7 });
     prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.booking.count.mockResolvedValue(0);
     prismaMock.booking.findMany.mockResolvedValue([]);
     const res = await request(app)
       .get("/api/events/5/buyers")
       .set("Authorization", `Bearer ${signToken({ userId: 1, role: "ADMIN" })}`);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ success: true, data: [] });
+    expect(res.body).toEqual({
+      success: true,
+      data: { buyers: [], pagination: { page: 1, pageSize: 50, total: 0, totalPages: 0 } },
+    });
+  });
+
+  it("paginates via ?page & ?pageSize and returns a pagination object", async () => {
+    asOwner();
+    prismaMock.booking.count.mockResolvedValue(120);
+    prismaMock.booking.findMany.mockResolvedValue([]);
+    const res = await request(app)
+      .get("/api/events/5/buyers?page=2&pageSize=40")
+      .set(...ownerAuth);
+    expect(res.status).toBe(200);
+    expect(prismaMock.booking.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 40, take: 40 })
+    );
+    expect(res.body.data.pagination).toEqual({ page: 2, pageSize: 40, total: 120, totalPages: 3 });
+  });
+
+  it("resolves custom-question answers via the event's question labels", async () => {
+    asOwner();
+    prismaMock.booking.count.mockResolvedValue(1);
+    prismaMock.booking.findMany.mockResolvedValue([
+      {
+        id: 20,
+        bookingCode: "BK-9",
+        user: { id: 2, name: "Cara", email: "cara@x.com", phone: "333" },
+        guestName: null,
+        guestEmail: null,
+        guestPhone: null,
+        items: [{ quantity: 1, ticketType: { name: "GA", price: 100 } }],
+        attendees: [],
+        total: 100,
+        purchaseDate: "2024-03-01T00:00:00.000Z",
+        answers: [
+          { questionId: 5, value: "Vegetarian" },
+          { questionId: 6, value: "Medium" },
+        ],
+      },
+    ]);
+    prismaMock.eventQuestion.findMany.mockResolvedValue([
+      { id: 5, label: "Meal preference" },
+      { id: 6, label: "T-shirt size" },
+    ]);
+    const res = await request(app).get("/api/events/5/buyers").set(...ownerAuth);
+    expect(res.status).toBe(200);
+    expect(res.body.data.buyers[0].answers).toEqual([
+      { question: "Meal preference", value: "Vegetarian" },
+      { question: "T-shirt size", value: "Medium" },
+    ]);
+    expect(prismaMock.eventQuestion.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { eventId: 5 } })
+    );
   });
 
   it("returns 500 when the database throws", async () => {
     asOwner();
+    prismaMock.booking.count.mockResolvedValue(0);
     prismaMock.booking.findMany.mockRejectedValue(new Error("db"));
 
     const res = await request(app).get("/api/events/5/buyers").set(...ownerAuth);

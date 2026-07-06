@@ -15,6 +15,7 @@ import {
   createExpenseSchema,
   updateExpenseSchema,
 } from "../validators/marketingValidator.js";
+import { parsePagination, buildPagination } from "../utils/pagination.js";
 
 const router = Router();
 
@@ -1187,12 +1188,16 @@ router.get("/:id/buyers", authenticateUser, async (req, res) => {
       return res.status(403).json({ success: false, error: { code: "FORBIDDEN", message: "You do not have permission to view this event's buyers" } });
     }
 
+    // ARCH-07: paginate the buyer list (default 50, max 100 per page) so a large
+    // event does not stream thousands of booking graphs on every request.
+    const { page, pageSize, skip, take } = parsePagination(req.query);
+    const buyerWhere = { eventId, status: "COMPLETED" };
+    const total = await prisma.booking.count({ where: buyerWhere });
     const bookings = await prisma.booking.findMany({
-      where: {
-        eventId,
-        status: "COMPLETED",
-      },
+      where: buyerWhere,
       orderBy: { purchaseDate: "desc" },
+      skip,
+      take,
       include: {
         user: {
           select: { id: true, name: true, email: true, phone: true },
@@ -1205,11 +1210,22 @@ router.get("/:id/buyers", authenticateUser, async (req, res) => {
           },
         },
         attendees: true,
-        // Surface the custom registration-question answers to the organiser —
-        // previously collected/required at booking but never returned anywhere.
-        answers: { include: { question: { select: { label: true } } } },
+        // Surface the custom registration-question answers to the organiser.
+        // AttendeeAnswer stores questionId (there is no `question` relation), so
+        // labels are resolved from the event's questions below.
+        answers: { select: { questionId: true, value: true } },
       },
     });
+
+    // Resolve question labels for this event once, then map each answer's
+    // questionId → label (avoids a non-existent AttendeeAnswer.question relation).
+    const questions = await prisma.eventQuestion.findMany({
+      where: { eventId },
+      select: { id: true, label: true },
+    });
+    const labelByQuestionId = Object.fromEntries(
+      (questions || []).map((q) => [q.id, q.label])
+    );
 
     // Format response for frontend
     const buyers = bookings.map((booking) => ({
@@ -1224,14 +1240,14 @@ router.get("/:id/buyers", authenticateUser, async (req, res) => {
       purchaseDate: booking.purchaseDate,
       attendees: booking.attendees,
       answers: (booking.answers || []).map((a) => ({
-        question: a.question?.label || "",
+        question: labelByQuestionId[a.questionId] || "",
         value: a.value,
       })),
     }));
 
     res.json({
       success: true,
-      data: buyers,
+      data: { buyers, pagination: buildPagination(page, pageSize, total) },
     });
   } catch (error) {
     req.log.error({ err: error }, "Error fetching buyers");

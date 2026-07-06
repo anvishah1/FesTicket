@@ -47,6 +47,8 @@ const MODEL_KEYS = [
   "emailLog",
   "webhookEvent",
   "promoCode",
+  "eventQuestion",
+  "attendeeAnswer",
 ];
 
 function makeModel() {

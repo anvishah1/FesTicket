@@ -110,6 +110,7 @@ export default function ManageEventPage() {
   const [accessDenied, setAccessDenied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "buyers" | "promos">("overview");
+  const [buyersPage, setBuyersPage] = useState(1);
   const [isEditing, setIsEditing] = useState(false);
   const [editingTicketId, setEditingTicketId] = useState<number | null>(null);
   const [ticketDraft, setTicketDraft] = useState({ name: "", price: "", total: "" });
@@ -145,7 +146,7 @@ export default function ManageEventPage() {
       try {
         const [eventRes, bookingsRes] = await Promise.all([
           apiFetch(`${getApiUrl()}/api/events/${eventId}`),
-          apiFetch(`${getApiUrl()}/api/bookings/event/${eventId}`),
+          apiFetch(`${getApiUrl()}/api/bookings/event/${eventId}?page=1&pageSize=100`),
         ]);
         const eventData = await eventRes.json();
         const bookingsData = await bookingsRes.json();
@@ -173,8 +174,25 @@ export default function ManageEventPage() {
           return;
         }
 
-        const bookings = bookingsData.success && bookingsData.data?.bookings ? bookingsData.data.bookings : [];
+        let bookings = bookingsData.success && bookingsData.data?.bookings ? bookingsData.data.bookings : [];
         const stats = bookingsData.success && bookingsData.data?.stats ? bookingsData.data.stats : { totalRevenue: 0, totalTicketsSold: 0 };
+
+        // ARCH-07: the endpoint is paginated (100/page). The sales chart, buyers
+        // table and CSV export all need every completed booking, so fetch any
+        // remaining pages and concatenate. stats are event-wide (identical on
+        // every page), so page 1's copy is authoritative.
+        const totalPages = bookingsData.data?.pagination?.totalPages || 1;
+        if (totalPages > 1) {
+          const rest = await Promise.all(
+            Array.from({ length: totalPages - 1 }, (_, i) =>
+              apiFetch(`${getApiUrl()}/api/bookings/event/${eventId}?page=${i + 2}&pageSize=100`)
+                .then((r) => r.json())
+                .then((j) => (j.success && j.data?.bookings ? j.data.bookings : []))
+                .catch(() => [])
+            )
+          );
+          bookings = bookings.concat(...rest);
+        }
 
         const completed = bookings.filter((b: { status: string }) => b.status === "COMPLETED");
 
@@ -677,6 +695,16 @@ export default function ManageEventPage() {
     );
   }
 
+  // ARCH-07: the buyer list can be large, so page it client-side (the full list
+  // is already loaded for the sales chart + CSV export).
+  const BUYERS_PER_PAGE = 25;
+  const buyersTotalPages = Math.max(1, Math.ceil(event.buyers.length / BUYERS_PER_PAGE));
+  const safeBuyersPage = Math.min(buyersPage, buyersTotalPages);
+  const pagedBuyers = event.buyers.slice(
+    (safeBuyersPage - 1) * BUYERS_PER_PAGE,
+    safeBuyersPage * BUYERS_PER_PAGE
+  );
+
   return (
     <main className="min-h-screen bg-[#fdfdff] text-[#29104A]">
       {/* Header */}
@@ -1174,6 +1202,7 @@ export default function ManageEventPage() {
                 <p className="text-sm text-[#6B597F] mt-1">Completed bookings will appear here.</p>
               </div>
             ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -1189,7 +1218,7 @@ export default function ManageEventPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#C5BAC4]">
-                  {event.buyers.map((buyer) => (
+                  {pagedBuyers.map((buyer) => (
                     <tr key={buyer.id} className="hover:bg-[#C5BAC4]/10 transition-colors">
                       <td className="px-6 py-4">
                         <span className="font-mono text-sm text-[#522C5D]">{buyer.bookingId}</span>
@@ -1242,6 +1271,32 @@ export default function ManageEventPage() {
                 </tbody>
               </table>
             </div>
+            {buyersTotalPages > 1 && (
+              <div className="px-6 py-4 border-t border-[#C5BAC4] flex items-center justify-between text-sm">
+                <span className="text-[#6B597F]">
+                  Page {safeBuyersPage} of {buyersTotalPages} · {event.buyers.length} buyers
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={safeBuyersPage <= 1}
+                    onClick={() => setBuyersPage((p) => Math.max(1, p - 1))}
+                    className="px-3 py-1.5 rounded-lg bg-[#C5BAC4]/30 text-[#29104A] disabled:opacity-40 hover:bg-[#C5BAC4] transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    disabled={safeBuyersPage >= buyersTotalPages}
+                    onClick={() => setBuyersPage((p) => Math.min(buyersTotalPages, p + 1))}
+                    className="px-3 py-1.5 rounded-lg bg-[#C5BAC4]/30 text-[#29104A] disabled:opacity-40 hover:bg-[#C5BAC4] transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+            </>
             )}
           </div>
         )}

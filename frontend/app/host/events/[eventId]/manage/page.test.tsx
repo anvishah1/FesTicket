@@ -102,6 +102,7 @@ function installFetch() {
             },
           ],
           stats: { totalRevenue: 0, totalTicketsSold: 0 },
+          pagination: { page: 1, pageSize: 100, total: 1, totalPages: 1 },
         },
       });
     }

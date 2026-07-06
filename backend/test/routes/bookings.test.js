@@ -1589,6 +1589,13 @@ describe("GET /api/bookings/event/:eventId", () => {
 
   it("returns formatted bookings and summary stats (host)", async () => {
     prismaMock.event.findUnique.mockResolvedValue({ hostId: 7, festId: 3 });
+    // ARCH-07: stats now come from DB aggregates, not a JS reduce over the rows.
+    prismaMock.booking.groupBy.mockResolvedValue([
+      { status: "COMPLETED", _count: { _all: 1 }, _sum: { total: 240.72 } },
+      { status: "PENDING", _count: { _all: 1 }, _sum: { total: 60.18 } },
+    ]);
+    prismaMock.bookingItem.aggregate.mockResolvedValue({ _sum: { quantity: 2 } });
+    prismaMock.booking.count.mockResolvedValue(2);
     prismaMock.booking.findMany.mockResolvedValue(eventBookings);
     const res = await request(app)
       .get("/api/bookings/event/1")
@@ -1599,6 +1606,7 @@ describe("GET /api/bookings/event/:eventId", () => {
 
     const { bookings, stats } = res.body.data;
     expect(bookings).toHaveLength(2);
+    expect(res.body.data.pagination).toEqual({ page: 1, pageSize: 50, total: 2, totalPages: 1 });
 
     // Registered-user booking formatting.
     expect(bookings[0]).toMatchObject({
@@ -1644,8 +1652,11 @@ describe("GET /api/bookings/event/:eventId", () => {
     expect(res.status).toBe(200);
   });
 
-  it("passes the status filter through to the where clause", async () => {
+  it("passes the status filter through to the list where clause", async () => {
     prismaMock.event.findUnique.mockResolvedValue({ hostId: 7, festId: 3 });
+    prismaMock.booking.groupBy.mockResolvedValue([]);
+    prismaMock.bookingItem.aggregate.mockResolvedValue({ _sum: { quantity: null } });
+    prismaMock.booking.count.mockResolvedValue(0);
     prismaMock.booking.findMany.mockResolvedValue([]);
     const res = await request(app)
       .get("/api/bookings/event/1?status=COMPLETED")
@@ -1654,6 +1665,47 @@ describe("GET /api/bookings/event/:eventId", () => {
     expect(prismaMock.booking.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { eventId: 1, status: "COMPLETED" } })
     );
+    // Stats aggregate over the whole event, ignoring the list's status filter.
+    expect(prismaMock.booking.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ by: ["status"], where: { eventId: 1 } })
+    );
+  });
+
+  it("paginates the row list via ?page & ?pageSize (skip/take) and echoes pagination", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 7, festId: 3 });
+    prismaMock.booking.groupBy.mockResolvedValue([
+      { status: "COMPLETED", _count: { _all: 130 }, _sum: { total: 1000 } },
+    ]);
+    prismaMock.bookingItem.aggregate.mockResolvedValue({ _sum: { quantity: 260 } });
+    prismaMock.booking.count.mockResolvedValue(130);
+    prismaMock.booking.findMany.mockResolvedValue([]);
+    const res = await request(app)
+      .get("/api/bookings/event/1?page=3&pageSize=25")
+      .set("Authorization", auth({ userId: 7, role: "HOST" }));
+    expect(res.status).toBe(200);
+    expect(prismaMock.booking.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 50, take: 25 })
+    );
+    expect(res.body.data.pagination).toEqual({ page: 3, pageSize: 25, total: 130, totalPages: 6 });
+    // Stats are event-wide, independent of the page window.
+    expect(res.body.data.stats.totalBookings).toBe(130);
+    expect(res.body.data.stats.totalTicketsSold).toBe(260);
+  });
+
+  it("clamps pageSize above the 100 max", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 7, festId: 3 });
+    prismaMock.booking.groupBy.mockResolvedValue([]);
+    prismaMock.bookingItem.aggregate.mockResolvedValue({ _sum: { quantity: null } });
+    prismaMock.booking.count.mockResolvedValue(0);
+    prismaMock.booking.findMany.mockResolvedValue([]);
+    const res = await request(app)
+      .get("/api/bookings/event/1?pageSize=9999")
+      .set("Authorization", auth({ userId: 7, role: "HOST" }));
+    expect(res.status).toBe(200);
+    expect(prismaMock.booking.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 100 })
+    );
+    expect(res.body.data.pagination.pageSize).toBe(100);
   });
 
   it("returns 500 when the query throws", async () => {
@@ -1698,7 +1750,16 @@ describe("GET /api/bookings/fest/:festId", () => {
 
   it("aggregates completed bookings across the fest's events", async () => {
     prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 9, editorFestId: null });
-    prismaMock.event.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+    prismaMock.event.findMany.mockResolvedValue([
+      { id: 1, name: "EventA" },
+      { id: 2, name: "EventB" },
+    ]);
+    // ARCH-07: totals + per-event summary come from DB aggregates; the raw join
+    // supplies per-event ticket counts; recentBookings is a take:20 preview.
+    prismaMock.booking.groupBy.mockResolvedValue([
+      { eventId: 1, _count: { _all: 2 }, _sum: { total: 299.72 } },
+    ]);
+    prismaMock.$queryRawUnsafe.mockResolvedValue([{ eventId: 1, tickets: 3 }]);
     prismaMock.booking.findMany.mockResolvedValue([
       {
         bookingCode: "BK1",
@@ -1706,7 +1767,6 @@ describe("GET /api/bookings/fest/:festId", () => {
         user: { name: "Alice", email: "alice@x.com" },
         guestName: null,
         guestEmail: null,
-        items: [{ quantity: 2, ticketType: { name: "GA", price: 100 } }],
         total: 240.72,
         purchaseDate: "2024-01-02T00:00:00.000Z",
       },
@@ -1716,7 +1776,6 @@ describe("GET /api/bookings/fest/:festId", () => {
         user: null,
         guestName: "Bob",
         guestEmail: "bob@x.com",
-        items: [{ quantity: 1, ticketType: { name: "VIP", price: 50 } }],
         total: 59,
         purchaseDate: "2024-01-03T00:00:00.000Z",
       },
@@ -1727,9 +1786,11 @@ describe("GET /api/bookings/fest/:festId", () => {
       .set("Authorization", auth({ userId: 1, role: "ADMIN" }));
 
     expect(res.status).toBe(200);
+    // recentBookings preview query is scoped to the fest's completed bookings.
     expect(prismaMock.booking.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { eventId: { in: [1, 2] }, status: "COMPLETED" },
+        take: 20,
       })
     );
 

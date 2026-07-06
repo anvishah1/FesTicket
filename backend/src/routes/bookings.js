@@ -9,6 +9,7 @@ import { bookingLimiter, writeLimiter } from "../middleware/rateLimiter.js";
 import { validate } from "../middleware/validate.js";
 import { createBookingSchema } from "../validators/bookingValidator.js";
 import { bookingError } from "../utils/AppError.js";
+import { parsePagination, buildPagination } from "../utils/pagination.js";
 
 const router = Router();
 
@@ -1335,12 +1336,50 @@ router.get("/event/:eventId", authenticateUser, async (req, res) => {
     }
     if (!allowed) return forbid(res);
 
-    const where = { eventId: parseInt(eventId) };
-    if (status) where.status = status;
+    const eid = parseInt(eventId);
+    const { page, pageSize, skip, take } = parsePagination(req.query);
 
+    // ARCH-07: summary stats come from DB aggregates over the WHOLE event, not a
+    // JS reduce over every row. groupBy(status) gives per-status counts +
+    // completed revenue; a BookingItem aggregate gives total tickets sold. The
+    // optional ?status filter narrows the row list only, never the stats.
+    const statusGroups =
+      (await prisma.booking.groupBy({
+        by: ["status"],
+        where: { eventId: eid },
+        _count: { _all: true },
+        _sum: { total: true },
+      })) || [];
+    const countByStatus = {};
+    let totalBookings = 0;
+    let totalRevenue = 0;
+    for (const g of statusGroups) {
+      countByStatus[g.status] = g._count?._all || 0;
+      totalBookings += g._count?._all || 0;
+      if (g.status === "COMPLETED") totalRevenue = g._sum?.total || 0;
+    }
+    const ticketsAgg = await prisma.bookingItem.aggregate({
+      where: { booking: { eventId: eid, status: "COMPLETED" } },
+      _sum: { quantity: true },
+    });
+    const stats = {
+      totalBookings,
+      completedBookings: countByStatus.COMPLETED || 0,
+      pendingBookings: countByStatus.PENDING || 0,
+      cancelledBookings: countByStatus.CANCELLED || 0,
+      totalRevenue,
+      totalTicketsSold: ticketsAgg?._sum?.quantity || 0,
+    };
+
+    // The row list is paginated (default 50, max 100 per page).
+    const listWhere = { eventId: eid };
+    if (status) listWhere.status = status;
+    const total = await prisma.booking.count({ where: listWhere });
     const bookings = await prisma.booking.findMany({
-      where,
+      where: listWhere,
       orderBy: { createdAt: "desc" },
+      skip,
+      take,
       include: {
         user: {
           select: { id: true, name: true, email: true, phone: true },
@@ -1386,25 +1425,12 @@ router.get("/event/:eventId", authenticateUser, async (req, res) => {
       })),
     }));
 
-    // Calculate summary stats
-    const completedBookings = bookings.filter((b) => b.status === "COMPLETED");
-    const stats = {
-      totalBookings: bookings.length,
-      completedBookings: completedBookings.length,
-      pendingBookings: bookings.filter((b) => b.status === "PENDING").length,
-      cancelledBookings: bookings.filter((b) => b.status === "CANCELLED").length,
-      totalRevenue: completedBookings.reduce((sum, b) => sum + b.total, 0),
-      totalTicketsSold: completedBookings.reduce(
-        (sum, b) => sum + sumTicketQuantity(b.items),
-        0
-      ),
-    };
-
     res.json({
       success: true,
       data: {
         bookings: formattedBookings,
         stats,
+        pagination: buildPagination(page, pageSize, total),
       },
     });
   } catch (error) {
@@ -1430,58 +1456,92 @@ router.get("/fest/:festId", authenticateUser, async (req, res) => {
       return forbid(res);
     }
 
-    // Get all events for this fest
+    const RECENT_LIMIT = 20;
+
+    // ARCH-07: never pull the fest's full booking graph. Fetch the event
+    // id→name map, then compute totals + the per-event summary with DB
+    // aggregates and load only the most-recent completed bookings for preview.
     const events = await prisma.event.findMany({
-      where: { festId: parseInt(festId) },
-      select: { id: true },
+      where: { festId: fid },
+      select: { id: true, name: true },
     });
-
     const eventIds = events.map((e) => e.id);
+    const nameById = Object.fromEntries(events.map((e) => [e.id, e.name]));
 
-    const bookings = await prisma.booking.findMany({
-      where: {
-        eventId: { in: eventIds },
-        status: "COMPLETED",
-      },
-      orderBy: { purchaseDate: "desc" },
-      include: {
-        event: { select: { id: true, name: true } },
-        user: { select: { name: true, email: true } },
-        items: {
-          include: { ticketType: { select: { name: true, price: true } } },
-        },
-      },
-    });
+    const completedWhere = { eventId: { in: eventIds }, status: "COMPLETED" };
 
-    // Summary by event
+    // Count + revenue per event (COMPLETED only) via one groupBy.
+    const perEvent = eventIds.length
+      ? await prisma.booking.groupBy({
+          by: ["eventId"],
+          where: completedWhere,
+          _count: { _all: true },
+          _sum: { total: true },
+        })
+      : [];
+
+    // Tickets sold per event: BookingItem has no eventId, so join to Booking in a
+    // single aggregate rather than looping. eventIds are integers from our own
+    // query, so interpolating them is injection-safe.
+    const ticketRows = eventIds.length
+      ? await prisma.$queryRawUnsafe(
+          `SELECT b."eventId" AS "eventId", COALESCE(SUM(bi.quantity), 0)::int AS tickets
+           FROM "BookingItem" bi
+           JOIN "Booking" b ON bi."bookingId" = b.id
+           WHERE b."eventId" IN (${eventIds.join(",")}) AND b.status = 'COMPLETED'
+           GROUP BY b."eventId"`
+        )
+      : [];
+    const ticketsByEvent = Object.fromEntries(
+      (ticketRows || []).map((r) => [Number(r.eventId), Number(r.tickets) || 0])
+    );
+
+    let totalBookings = 0;
+    let totalRevenue = 0;
+    let totalTickets = 0;
     const eventSummary = {};
-    for (const booking of bookings) {
-      const eventName = booking.event.name;
-      if (!eventSummary[eventName]) {
-        eventSummary[eventName] = { tickets: 0, revenue: 0 };
-      }
-      eventSummary[eventName].tickets += sumTicketQuantity(booking.items);
-      eventSummary[eventName].revenue += booking.total;
+    for (const g of perEvent) {
+      const count = g._count?._all || 0;
+      const revenue = g._sum?.total || 0;
+      const tickets = ticketsByEvent[g.eventId] || 0;
+      totalBookings += count;
+      totalRevenue += revenue;
+      totalTickets += tickets;
+      const name = nameById[g.eventId] ?? `Event ${g.eventId}`;
+      eventSummary[name] = { tickets, revenue };
     }
+
+    // Recent-bookings preview: the N most-recent completed, no full-graph load.
+    const recent = eventIds.length
+      ? await prisma.booking.findMany({
+          where: completedWhere,
+          orderBy: { purchaseDate: "desc" },
+          take: RECENT_LIMIT,
+          include: {
+            event: { select: { id: true, name: true } },
+            user: { select: { name: true, email: true } },
+          },
+        })
+      : [];
 
     res.json({
       success: true,
       data: {
-        totalBookings: bookings.length,
-        totalRevenue: bookings.reduce((sum, b) => sum + b.total, 0),
-        totalTickets: bookings.reduce(
-          (sum, b) => sum + sumTicketQuantity(b.items),
-          0
-        ),
+        totalBookings,
+        totalRevenue,
+        totalTickets,
         eventSummary,
-        recentBookings: bookings.slice(0, 20).map((b) => ({
+        recentBookings: recent.map((b) => ({
           bookingCode: b.bookingCode,
-          eventName: b.event.name,
+          eventName: b.event?.name,
           buyerName: b.user?.name || b.guestName,
           buyerEmail: b.user?.email || b.guestEmail,
           total: b.total,
           purchaseDate: b.purchaseDate,
         })),
+        // A preview window over the completed bookings, not a full paginated
+        // list — recentBookings is capped at RECENT_LIMIT.
+        pagination: buildPagination(1, RECENT_LIMIT, totalBookings),
       },
     });
   } catch (error) {

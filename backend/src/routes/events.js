@@ -384,6 +384,118 @@ router.get("/analytics/fest/:festId", authenticateUser, async (req, res) => {
   }
 });
 
+// ==================== PAY-04: PROMO CODES (host/admin scoped) ====================
+// Registered BEFORE GET /:id so "promo-codes" isn't captured as an :id param.
+const PROMO_KINDS = ["PERCENT", "FLAT"];
+const promoNum = (v) => (v == null || v === "" ? null : Math.round(Number(v)));
+
+// A promo is scoped to a single event OR a fest; the caller must manage that scope.
+async function callerCanManagePromo(req, { eventId, festId }) {
+  if (eventId != null) {
+    const ev = await prisma.event.findUnique({ where: { id: parseInt(eventId) }, select: { hostId: true, festId: true } });
+    return ev ? callerCanManageEvent(ev, req) : false;
+  }
+  if (festId != null) return canAccessFest(parseInt(festId), await callerFests(req));
+  return false;
+}
+
+// GET /api/events/promo-codes?festId=&eventId=
+router.get("/promo-codes", authenticateUser, authorizeRoles("EDITOR", "HOST", "ADMIN"), async (req, res) => {
+  try {
+    const eventId = req.query.eventId != null ? parseInt(req.query.eventId) : null;
+    const festId = req.query.festId != null ? parseInt(req.query.festId) : null;
+    if (!(await callerCanManagePromo(req, { eventId, festId }))) return forbid(res);
+    const codes = await prisma.promoCode.findMany({
+      where: eventId != null ? { eventId } : { festId },
+      orderBy: { createdAt: "desc" },
+    });
+    return res.json({ success: true, data: codes });
+  } catch (error) {
+    req.log.error({ err: error }, "List promo codes error");
+    return res.status(500).json({ success: false, error: { code: "FETCH_ERROR", message: "Failed to list promo codes" } });
+  }
+});
+
+// POST /api/events/promo-codes
+router.post("/promo-codes", authenticateUser, authorizeRoles("EDITOR", "HOST", "ADMIN"), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const eventId = b.eventId != null ? parseInt(b.eventId) : null;
+    const festId = b.festId != null ? parseInt(b.festId) : null;
+    if (!(await callerCanManagePromo(req, { eventId, festId }))) return forbid(res);
+    const code = String(b.code || "").trim();
+    if (!code) return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Code is required" } });
+    const kind = String(b.kind || "").toUpperCase();
+    if (!PROMO_KINDS.includes(kind)) return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "kind must be PERCENT or FLAT" } });
+    const created = await prisma.promoCode.create({
+      data: {
+        code,
+        festId,
+        eventId,
+        kind,
+        percentOff: kind === "PERCENT" ? Math.max(0, Math.min(100, promoNum(b.percentOff) ?? 0)) : null,
+        flatOffPaise: kind === "FLAT" ? Math.max(0, promoNum(b.flatOffPaise) ?? 0) : null,
+        maxDiscountPaise: promoNum(b.maxDiscountPaise),
+        minSubtotalPaise: promoNum(b.minSubtotalPaise),
+        maxRedemptions: promoNum(b.maxRedemptions),
+        startsAt: b.startsAt ? new Date(b.startsAt) : null,
+        expiresAt: b.expiresAt ? new Date(b.expiresAt) : null,
+        active: b.active !== false,
+      },
+    });
+    return res.status(201).json({ success: true, data: created });
+  } catch (error) {
+    if (error?.code === "P2002") {
+      return res.status(409).json({ success: false, error: { code: "CONFLICT", message: "A promo code with this code already exists for this fest" } });
+    }
+    req.log.error({ err: error }, "Create promo code error");
+    return res.status(500).json({ success: false, error: { code: "CREATE_ERROR", message: "Failed to create promo code" } });
+  }
+});
+
+// PATCH /api/events/promo-codes/:id
+router.patch("/promo-codes/:id", authenticateUser, authorizeRoles("EDITOR", "HOST", "ADMIN"), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const promo = await prisma.promoCode.findUnique({ where: { id } });
+    if (!promo) return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Promo code not found" } });
+    if (!(await callerCanManagePromo(req, { eventId: promo.eventId, festId: promo.festId }))) return forbid(res);
+    const b = req.body || {};
+    const opt = (v) => (v === undefined ? undefined : promoNum(v));
+    const updated = await prisma.promoCode.update({
+      where: { id },
+      data: {
+        active: typeof b.active === "boolean" ? b.active : undefined,
+        percentOff: opt(b.percentOff),
+        flatOffPaise: opt(b.flatOffPaise),
+        maxDiscountPaise: opt(b.maxDiscountPaise),
+        minSubtotalPaise: opt(b.minSubtotalPaise),
+        maxRedemptions: opt(b.maxRedemptions),
+        expiresAt: b.expiresAt !== undefined ? (b.expiresAt ? new Date(b.expiresAt) : null) : undefined,
+      },
+    });
+    return res.json({ success: true, data: updated });
+  } catch (error) {
+    req.log.error({ err: error }, "Update promo code error");
+    return res.status(500).json({ success: false, error: { code: "UPDATE_ERROR", message: "Failed to update promo code" } });
+  }
+});
+
+// DELETE /api/events/promo-codes/:id
+router.delete("/promo-codes/:id", authenticateUser, authorizeRoles("EDITOR", "HOST", "ADMIN"), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const promo = await prisma.promoCode.findUnique({ where: { id } });
+    if (!promo) return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Promo code not found" } });
+    if (!(await callerCanManagePromo(req, { eventId: promo.eventId, festId: promo.festId }))) return forbid(res);
+    await prisma.promoCode.delete({ where: { id } });
+    return res.json({ success: true, data: { id } });
+  } catch (error) {
+    req.log.error({ err: error }, "Delete promo code error");
+    return res.status(500).json({ success: false, error: { code: "DELETE_ERROR", message: "Failed to delete promo code" } });
+  }
+});
+
 // GET /api/events/:id - Get single event with details
 router.get("/:id", optionalAuthenticate, async (req, res) => {
   try {

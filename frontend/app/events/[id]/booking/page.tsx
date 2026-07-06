@@ -72,6 +72,13 @@ export default function BookingPage() {
   // Answers to the event's custom registration questions, keyed by question id.
   const [answers, setAnswers] = useState<Record<number, string>>({});
 
+  // PAY-04: a promo code the buyer applied. The server re-validates + redeems at
+  // booking time and is authoritative — this mirror is display-only so the total
+  // shown here matches what will be charged. `promoInput` holds the text field.
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; promoDiscount: number } | null>(null);
+  const [promoInput, setPromoInput] = useState("");
+  const [promoApplying, setPromoApplying] = useState(false);
+
   // Fetch event data
   useEffect(() => {
     const fetchEvent = async () => {
@@ -157,10 +164,89 @@ export default function BookingPage() {
   // platform fee + GST are computed on the DISCOUNTED base.
   const discountPct = event?.discount ?? 0;
   const discountAmount = Math.round(subtotal * (discountPct / 100)); // paise
-  const discountedBase = subtotal - discountAmount; // paise (integers)
+  // PAY-04: promo discount (integer paise) comes from the server's validate-promo
+  // preview and is subtracted from the base BEFORE fee/tax, exactly like the event
+  // discount. The backend applies the same order, so the total stays byte-for-byte
+  // identical to what it stores and charges.
+  const promoDiscount = appliedPromo?.promoDiscount ?? 0; // paise
+  const discountedBase = subtotal - discountAmount - promoDiscount; // paise (integers)
   const platformFee = Math.round(discountedBase * 0.02); // paise
   const tax = Math.round((discountedBase + platformFee) * 0.18); // paise
   const total = discountedBase + platformFee + tax; // paise (exact)
+
+  // Ask the server to (re)validate a promo code against the current subtotal.
+  // Returns the fresh promoDiscount in paise when valid, or null when not.
+  async function validatePromo(code: string): Promise<{ valid: boolean; promoDiscount: number; message?: string }> {
+    const res = await apiFetch(
+      "/api/bookings/validate-promo",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId: Number(eventId), code, subtotal }),
+      },
+      { redirectOnAuthFailure: false }
+    );
+    const body = await res.json();
+    const data = body?.data;
+    if (data?.valid) return { valid: true, promoDiscount: data.promoDiscount, message: data.message };
+    return {
+      valid: false,
+      promoDiscount: 0,
+      message: data?.message || body?.error?.message || "Invalid promo code",
+    };
+  }
+
+  const applyPromo = async () => {
+    const code = promoInput.trim();
+    if (!code || promoApplying) return;
+    setPromoApplying(true);
+    try {
+      const result = await validatePromo(code);
+      if (result.valid) {
+        setAppliedPromo({ code, promoDiscount: result.promoDiscount });
+        showToast("Promo applied", "success");
+      } else {
+        showToast(result.message || "Invalid promo code", "error");
+      }
+    } catch (error) {
+      console.error("Promo validation failed:", error);
+      showToast("Could not validate promo code. Please try again.", "error");
+    } finally {
+      setPromoApplying(false);
+    }
+  };
+
+  const removePromo = () => {
+    setAppliedPromo(null);
+    setPromoInput("");
+  };
+
+  // Keep the applied promo's discount accurate as ticket quantities (subtotal)
+  // change: re-validate against the new subtotal and update the preview, or clear
+  // it if the code no longer qualifies. Display-only — the server re-validates at
+  // booking time regardless. Keyed on `subtotal` per PAY-04.
+  useEffect(() => {
+    if (!appliedPromo) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await validatePromo(appliedPromo.code);
+        if (cancelled) return;
+        if (result.valid) {
+          setAppliedPromo((prev) => (prev ? { ...prev, promoDiscount: result.promoDiscount } : prev));
+        } else {
+          setAppliedPromo(null);
+          showToast(result.message || "Promo code no longer applies", "error");
+        }
+      } catch {
+        // Transient error — keep the last known discount; booking-time re-validation is authoritative.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtotal]);
 
   const totalTickets = Object.values(quantities).reduce((a, b) => a + b, 0);
   const requiredAttendees = totalTickets;
@@ -226,6 +312,9 @@ export default function BookingPage() {
             tickets: ticketsPayload,
             attendees: attendeesPayload,
             answers: answersPayload,
+            // PAY-04: the server re-validates + redeems this and stores the
+            // authoritative promoDiscount/promoCodeId.
+            promoCode: appliedPromo?.code,
           }),
         },
         { redirectOnAuthFailure: false }
@@ -507,6 +596,12 @@ export default function BookingPage() {
                   <div>Discount ({discountPct}%)</div>
                   <div>-{formatPaise(discountAmount)}</div>
                 </div>
+                {appliedPromo && (
+                  <div className="flex justify-between text-sm text-green-700">
+                    <div>Promo ({appliedPromo.code})</div>
+                    <div>-{formatPaise(promoDiscount)}</div>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <div className="text-slate-600">Platform fee</div>
                   <div>{formatPaise(platformFee)}</div>
@@ -531,6 +626,53 @@ export default function BookingPage() {
               items={tickets.map((t) => ({ ...t, qty: quantities[t.id] ?? 0 }))}
             />
           )}
+
+          {/* PAY-04: apply a promo code. The applied line shows in the summary
+              context here; the discounted total already flows through `total`. */}
+          <div className="rounded-lg p-5 border bg-white shadow-sm" data-testid="promo-card">
+            <h4 className="font-semibold mb-3">Promo code</h4>
+            {appliedPromo ? (
+              <div
+                className="flex items-center justify-between text-sm text-green-700"
+                data-testid="promo-applied"
+              >
+                <div>
+                  Promo ({appliedPromo.code}){" "}
+                  <span className="font-medium">−{formatPaise(appliedPromo.promoDiscount)}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={removePromo}
+                  className="text-xs text-slate-500 hover:underline"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  aria-label="Promo code"
+                  value={promoInput}
+                  onChange={(e) => setPromoInput(e.target.value)}
+                  placeholder="Enter code"
+                  className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+                <button
+                  type="button"
+                  onClick={applyPromo}
+                  disabled={promoApplying || !promoInput.trim()}
+                  className={`px-4 py-2 rounded-md text-white font-semibold ${
+                    promoApplying || !promoInput.trim()
+                      ? "bg-slate-300 cursor-not-allowed"
+                      : "bg-primary-600 hover:bg-primary-700"
+                  }`}
+                >
+                  {promoApplying ? "…" : "Apply"}
+                </button>
+              </div>
+            )}
+          </div>
 
           <div className="rounded-lg p-5 border bg-white shadow-sm">
             <h4 className="font-semibold mb-3">Payment</h4>

@@ -15,7 +15,7 @@ vi.mock("@/components/Footer", () => ({ default: () => <footer /> }));
 vi.mock("@/components/payment/PaymentSidebar", () => ({ default: () => <aside /> }));
 vi.mock("@/lib/toast", () => ({ showToast: vi.fn() }));
 
-function bookingResponse({ discount }: { discount: number }) {
+function bookingResponse({ discount, promoDiscount = 0 }: { discount: number; promoDiscount?: number }) {
   return {
     ok: true,
     json: async () => ({
@@ -27,6 +27,7 @@ function bookingResponse({ discount }: { discount: number }) {
         status: "PENDING",
         subtotal: 100000,
         discount,
+        promoDiscount,
         platformFee: 1800,
         tax: 16524,
         total: 108324,
@@ -66,5 +67,17 @@ describe("PaymentPage discount line", () => {
     // Wait for the summary to render.
     await screen.findByText("Order Summary");
     expect(screen.queryByTestId("payment-discount-line")).not.toBeInTheDocument();
+  });
+
+  it("renders a promo-discount line when the booking has a promoDiscount (PAY-04)", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      bookingResponse({ discount: 0, promoDiscount: 2000 })
+    );
+
+    render(<PaymentPage />);
+
+    const line = await screen.findByTestId("payment-promo-line");
+    expect(within(line).getByText("Promo discount")).toBeInTheDocument();
+    expect(within(line).getByText("-₹20.00")).toBeInTheDocument();
   });
 });

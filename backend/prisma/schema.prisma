@@ -177,6 +177,8 @@ model Booking {
   tax          Int           @default(0) // paise
   total        Int // paise
   status       BookingStatus @default(PENDING)
+  promoCodeId  Int?          // applied promo code (PAY-04)
+  promoDiscount Int          @default(0) // paise discounted by the promo code
   refundedAmount Int         @default(0) // paise refunded so far (PAY-02)
   refundReason String?
   purchaseDate DateTime?
@@ -507,4 +509,33 @@ model WebhookEvent {
   payload     String
   processedAt DateTime?
   createdAt   DateTime  @default(now())
+}
+
+// ==================== PROMO CODES (PAY-04) ====================
+// A reusable discount code scoped to a fest or a single event. Money is paise.
+model PromoCode {
+  id               Int       @id @default(autoincrement())
+  code             String
+  festId           Int?
+  eventId          Int?
+  kind             PromoKind
+  percentOff       Int? // 0..100, for PERCENT
+  flatOffPaise     Int? // paise, for FLAT
+  maxDiscountPaise Int? // cap on a PERCENT discount
+  minSubtotalPaise Int? // minimum (pre-discount) subtotal to qualify
+  maxRedemptions   Int? // null = unlimited
+  redeemedCount    Int       @default(0)
+  startsAt         DateTime?
+  expiresAt        DateTime?
+  active           Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([festId, code])
+  @@index([eventId])
+}
+
+enum PromoKind {
+  PERCENT
+  FLAT
 }

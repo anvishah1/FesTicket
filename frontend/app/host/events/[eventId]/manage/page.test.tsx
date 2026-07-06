@@ -44,6 +44,31 @@ function installFetch() {
   globalThis.fetch = vi.fn((url: unknown, opts?: RequestInit) => {
     const u = String(url);
     const method = opts?.method || "GET";
+    if (u.includes("/api/events/promo-codes/") && method === "DELETE") {
+      return resp({ success: true });
+    }
+    if (u.includes("/api/events/promo-codes") && method === "POST") {
+      const b = JSON.parse(String(opts?.body || "{}"));
+      return resp({ success: true, data: { id: 10, code: b.code } });
+    }
+    if (u.includes("/api/events/promo-codes")) {
+      return resp({
+        success: true,
+        data: [
+          {
+            id: 7,
+            code: "SAVE20",
+            kind: "PERCENT",
+            percentOff: 20,
+            flatOffPaise: null,
+            maxRedemptions: 100,
+            redeemedCount: 3,
+            active: true,
+            expiresAt: null,
+          },
+        ],
+      });
+    }
     if (u.includes("/api/events/5/status")) {
       return resp({ success: true, data: { status: "PUBLISHED", effectiveStatus: "UPCOMING" } });
     }
@@ -197,5 +222,48 @@ describe("ManageEventPage", () => {
     expect(refundCall).toBeTruthy();
     // Modal closes on success.
     expect(screen.queryByText("Issue Refund")).not.toBeInTheDocument();
+  });
+
+  it("lists promo codes and creates a new one (PAY-04)", async () => {
+    render(<ManageEventPage />);
+    await screen.findByRole("button", { name: "Publish" });
+    // Open the Promo Codes tab -> fetches and lists existing codes.
+    await userEvent.click(screen.getByRole("button", { name: "Promo Codes" }));
+    expect(await screen.findByText("SAVE20")).toBeInTheDocument();
+
+    // Fill and submit the create form.
+    await userEvent.type(screen.getByLabelText("Promo code"), "NEW10");
+    await userEvent.type(screen.getByLabelText("Percent off"), "10");
+    await userEvent.click(screen.getByRole("button", { name: "Create Promo Code" }));
+
+    await waitFor(() =>
+      expect(showToastMock).toHaveBeenCalledWith("Promo code created", "success")
+    );
+    // The create POST hit /api/events/promo-codes with the right body.
+    const postCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) =>
+        String(c[0]).includes("/api/events/promo-codes") &&
+        (c[1] as RequestInit | undefined)?.method === "POST"
+    );
+    expect(postCall).toBeTruthy();
+    const body = JSON.parse((postCall![1] as RequestInit).body as string);
+    expect(body).toMatchObject({ eventId: 5, code: "NEW10", kind: "PERCENT", percentOff: 10 });
+  });
+
+  it("deletes a promo code (PAY-04)", async () => {
+    render(<ManageEventPage />);
+    await screen.findByRole("button", { name: "Publish" });
+    await userEvent.click(screen.getByRole("button", { name: "Promo Codes" }));
+    const row = (await screen.findByText("SAVE20")).closest("tr")!;
+    await userEvent.click(within(row).getByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(showToastMock).toHaveBeenCalledWith("Promo code deleted", "success")
+    );
+    const delCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) =>
+        String(c[0]).includes("/api/events/promo-codes/7") &&
+        (c[1] as RequestInit | undefined)?.method === "DELETE"
+    );
+    expect(delCall).toBeTruthy();
   });
 });

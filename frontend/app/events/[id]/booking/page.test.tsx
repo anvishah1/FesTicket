@@ -169,3 +169,72 @@ describe("BookingPage custom questions (C4)", () => {
     expect(body.answers).toEqual([{ questionId: 5, value: "L" }]);
   });
 });
+
+describe("BookingPage promo code (PAY-04)", () => {
+  it("applies a promo code, shows the discount, and sends promoCode in the booking POST", async () => {
+    const fetchMock = vi.fn((url: unknown, opts?: RequestInit) => {
+      const u = String(url);
+      const method = opts?.method || "GET";
+      if (u.includes("/api/bookings/validate-promo")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: { valid: true, promoDiscount: 2000, kind: "PERCENT" },
+          }),
+        });
+      }
+      if (u.includes("/api/bookings") && method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: { id: 99, bookingCode: "BK99", total: 100000, status: "PENDING" },
+          }),
+        });
+      }
+      // Default: the event GET (no event-level discount).
+      return Promise.resolve(eventResponse(0));
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    render(<BookingPage />);
+    await screen.findByText("General");
+
+    // Select 1 General ticket (₹1000 subtotal).
+    await userEvent.click(screen.getByRole("button", { name: /increase general/i }));
+
+    // Apply a promo code.
+    await userEvent.type(screen.getByLabelText("Promo code"), "SAVE20");
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    // The applied line shows the promo code and its −₹20.00 discount (2000 paise).
+    const applied = await screen.findByTestId("promo-applied");
+    expect(within(applied).getByText(/Promo \(SAVE20\)/)).toBeInTheDocument();
+    expect(within(applied).getByText(/₹20\.00/)).toBeInTheDocument();
+
+    // Complete the remaining required fields and submit.
+    await userEvent.type(screen.getByPlaceholderText("your@email.com"), "guest@example.com");
+    await userEvent.click(screen.getByTestId("fill-attendees"));
+    await userEvent.click(screen.getByRole("button", { name: /Proceed to Payment/i }));
+
+    // The booking POST body carries promoCode.
+    await waitFor(() => {
+      const bookingCall = fetchMock.mock.calls.find(
+        (c) =>
+          String(c[0]).includes("/api/bookings") &&
+          !String(c[0]).includes("validate-promo") &&
+          (c[1] as RequestInit | undefined)?.method === "POST"
+      );
+      expect(bookingCall).toBeTruthy();
+    });
+    const bookingCall = fetchMock.mock.calls.find(
+      (c) =>
+        String(c[0]).includes("/api/bookings") &&
+        !String(c[0]).includes("validate-promo") &&
+        (c[1] as RequestInit | undefined)?.method === "POST"
+    );
+    const bookingBody = JSON.parse((bookingCall![1] as RequestInit).body as string);
+    expect(bookingBody.promoCode).toBe("SAVE20");
+  });
+});

@@ -40,5 +40,8 @@ export const createBookingSchema = z
     guestPhone: z.string().max(50, "Phone is too long").optional().nullable(),
     tickets: z.array(ticketSelectionSchema).optional(),
     attendees: z.array(attendeeSchema).optional().nullable(),
+    // PAY-04: an optional promo code string. The DISCOUNT is derived server-side
+    // from the stored PromoCode, never from the client.
+    promoCode: z.string().max(64, "Promo code is too long").optional().nullable(),
   })
   .passthrough();

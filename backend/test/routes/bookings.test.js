@@ -2111,3 +2111,86 @@ describe("POST /api/bookings/:id/refund", () => {
     expect(res.status).toBe(409);
   });
 });
+
+// ==================== PAY-04: promo codes ====================
+describe("promo codes at checkout", () => {
+  const eventWithPromo = () => ({
+    id: 1, status: "PUBLISHED", visibility: "PUBLIC", festId: 3,
+    ticketTypes: [{ id: 10, name: "GA", price: 10000, quantity: 50, sold: 0 }],
+  });
+  const validPromo = (over = {}) => ({
+    id: 99, code: "SAVE10", kind: "PERCENT", percentOff: 10, flatOffPaise: null,
+    maxDiscountPaise: null, minSubtotalPaise: null, maxRedemptions: 100, redeemedCount: 0,
+    startsAt: null, expiresAt: null, active: true, ...over,
+  });
+
+  it("applies a valid PERCENT promo, redeems it atomically, and adjusts the total", async () => {
+    prismaMock.event.findUnique.mockResolvedValue(eventWithPromo());
+    prismaMock.promoCode.findFirst.mockResolvedValue(validPromo());
+    prismaMock.promoCode.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.booking.create.mockResolvedValue({ id: 77, items: [] });
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.booking.findUnique.mockResolvedValue({ id: 77 });
+
+    const res = await request(app)
+      .post("/api/bookings")
+      .send({ eventId: 1, guestEmail: "g@x.com", tickets: [{ ticketTypeId: 10, quantity: 1 }], promoCode: "save10" });
+
+    expect(res.status).toBe(201);
+    // subtotal 10000; promo 10% -> 1000; base 9000; fee round(180)=180;
+    // tax round(9180*0.18)=1652; total 9000+180+1652 = 10832
+    expect(prismaMock.booking.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ subtotal: 10000, promoDiscount: 1000, promoCodeId: 99, total: 10832 }),
+      })
+    );
+    expect(prismaMock.promoCode.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: 99 }), data: { redeemedCount: { increment: 1 } } })
+    );
+  });
+
+  it("rejects an unknown/invalid promo (400 INVALID_PROMO, no booking, no inventory claimed)", async () => {
+    prismaMock.event.findUnique.mockResolvedValue(eventWithPromo());
+    prismaMock.promoCode.findFirst.mockResolvedValue(null);
+    const res = await request(app)
+      .post("/api/bookings")
+      .send({ eventId: 1, guestEmail: "g@x.com", tickets: [{ ticketTypeId: 10, quantity: 1 }], promoCode: "BOGUS" });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("INVALID_PROMO");
+    expect(prismaMock.booking.create).not.toHaveBeenCalled();
+    expect(prismaMock.ticketType.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 PROMO_EXHAUSTED when the guarded redemption loses the race", async () => {
+    prismaMock.event.findUnique.mockResolvedValue(eventWithPromo());
+    prismaMock.promoCode.findFirst.mockResolvedValue(validPromo({ maxRedemptions: 5, redeemedCount: 4 }));
+    prismaMock.promoCode.updateMany.mockResolvedValue({ count: 0 }); // exhausted at claim time
+    const res = await request(app)
+      .post("/api/bookings")
+      .send({ eventId: 1, guestEmail: "g@x.com", tickets: [{ ticketTypeId: 10, quantity: 1 }], promoCode: "SAVE10" });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("PROMO_EXHAUSTED");
+  });
+});
+
+describe("POST /api/bookings/validate-promo (preview)", () => {
+  it("returns the discount for a valid code WITHOUT redeeming", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ festId: 3 });
+    prismaMock.promoCode.findFirst.mockResolvedValue({
+      id: 99, kind: "PERCENT", percentOff: 10, maxDiscountPaise: null, minSubtotalPaise: null,
+      maxRedemptions: 100, redeemedCount: 0, active: true, startsAt: null, expiresAt: null,
+    });
+    const res = await request(app).post("/api/bookings/validate-promo").send({ eventId: 1, code: "SAVE10", subtotal: 10000 });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ valid: true, promoDiscount: 1000, kind: "PERCENT" });
+    expect(prismaMock.promoCode.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("returns valid:false for an unknown code", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ festId: 3 });
+    prismaMock.promoCode.findFirst.mockResolvedValue(null);
+    const res = await request(app).post("/api/bookings/validate-promo").send({ eventId: 1, code: "NOPE", subtotal: 10000 });
+    expect(res.status).toBe(200);
+    expect(res.body.data.valid).toBe(false);
+  });
+});

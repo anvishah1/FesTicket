@@ -75,6 +75,19 @@ interface EventDetails {
   buyers: TicketBuyer[];
 }
 
+// PAY-04: a promo code scoped to this event. Money fields are integer paise.
+interface PromoCode {
+  id: number;
+  code: string;
+  kind: "PERCENT" | "FLAT";
+  percentOff: number | null;
+  flatOffPaise: number | null;
+  maxRedemptions: number | null;
+  redeemedCount: number;
+  active: boolean;
+  expiresAt: string | null;
+}
+
 // Convert various time representations coming from the API into a value
 // that works nicely with `<input type="time">` (HH:MM).
 function toTimeInputValue(value?: string | null): string {
@@ -96,7 +109,7 @@ export default function ManageEventPage() {
   const [event, setEvent] = useState<EventDetails | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "buyers">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "buyers" | "promos">("overview");
   const [isEditing, setIsEditing] = useState(false);
   const [editingTicketId, setEditingTicketId] = useState<number | null>(null);
   const [ticketDraft, setTicketDraft] = useState({ name: "", price: "", total: "" });
@@ -116,6 +129,17 @@ export default function ManageEventPage() {
   const [refundRupees, setRefundRupees] = useState("");
   const [refundReason, setRefundReason] = useState("");
   const [refundSubmitting, setRefundSubmitting] = useState(false);
+
+  // PAY-04 promo-code management state.
+  const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
+  const [promoForm, setPromoForm] = useState<{
+    code: string;
+    kind: "PERCENT" | "FLAT";
+    value: string; // percent (PERCENT) or rupees (FLAT)
+    maxRedemptions: string;
+    expiresAt: string;
+  }>({ code: "", kind: "PERCENT", value: "", maxRedemptions: "", expiresAt: "" });
+  const [promoSubmitting, setPromoSubmitting] = useState(false);
 
   const fetchEventData = async () => {
       try {
@@ -261,6 +285,12 @@ export default function ManageEventPage() {
     fetchEventData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
+
+  // PAY-04: load promo codes lazily the first time the Promo Codes tab is opened.
+  useEffect(() => {
+    if (activeTab === "promos") fetchPromoCodes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, eventId]);
 
   const handleSaveChanges = async () => {
     if (!event) return;
@@ -474,6 +504,85 @@ export default function ManageEventPage() {
       showToast("Refund failed", "error");
     } finally {
       setRefundSubmitting(false);
+    }
+  };
+
+  // PAY-04: fetch this event's promo codes (scoped server-side to the caller's fest).
+  const fetchPromoCodes = async () => {
+    try {
+      const res = await apiFetch(`${getApiUrl()}/api/events/promo-codes?eventId=${eventId}`);
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) setPromoCodes(data.data || []);
+    } catch (err) {
+      console.error("Failed to fetch promo codes:", err);
+    }
+  };
+
+  // Create a promo code. The value field is a percentage for PERCENT and RUPEES
+  // for FLAT (converted ×100 to integer paise for the API).
+  const handleCreatePromo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = promoForm.code.trim();
+    if (!code || promoSubmitting) return;
+    setPromoSubmitting(true);
+    try {
+      const payload: {
+        eventId: number;
+        code: string;
+        kind: "PERCENT" | "FLAT";
+        percentOff?: number;
+        flatOffPaise?: number;
+        maxRedemptions?: number;
+        expiresAt?: string;
+      } = { eventId: Number(eventId), code, kind: promoForm.kind };
+      if (promoForm.kind === "PERCENT") {
+        payload.percentOff = parseInt(promoForm.value, 10) || 0;
+      } else {
+        payload.flatOffPaise = Math.round((parseFloat(promoForm.value) || 0) * 100);
+      }
+      if (promoForm.maxRedemptions.trim()) {
+        payload.maxRedemptions = parseInt(promoForm.maxRedemptions, 10);
+      }
+      if (promoForm.expiresAt) {
+        payload.expiresAt = new Date(promoForm.expiresAt).toISOString();
+      }
+      const res = await apiFetch(`${getApiUrl()}/api/events/promo-codes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        showToast(data?.error?.message || "Failed to create promo code", "error");
+        return;
+      }
+      showToast("Promo code created", "success");
+      setPromoForm({ code: "", kind: "PERCENT", value: "", maxRedemptions: "", expiresAt: "" });
+      await fetchPromoCodes();
+    } catch (err) {
+      console.error("Failed to create promo code:", err);
+      showToast("Failed to create promo code", "error");
+    } finally {
+      setPromoSubmitting(false);
+    }
+  };
+
+  const handleDeletePromo = async (id: number) => {
+    if (!confirm("Delete this promo code?")) return;
+    try {
+      const res = await apiFetch(`${getApiUrl()}/api/events/promo-codes/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        showToast("Promo code deleted", "success");
+        await fetchPromoCodes();
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      showToast(data?.error?.message || "Failed to delete promo code", "error");
+    } catch (err) {
+      console.error("Failed to delete promo code:", err);
+      showToast("Failed to delete promo code", "error");
     }
   };
 
@@ -872,6 +981,16 @@ export default function ManageEventPage() {
           >
             Ticket Buyers
           </button>
+          <button
+            onClick={() => setActiveTab("promos")}
+            className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
+              activeTab === "promos"
+                ? "bg-[#522C5D] text-white"
+                : "bg-[#C5BAC4]/30 text-[#6B597F] hover:bg-[#C5BAC4]"
+            }`}
+          >
+            Promo Codes
+          </button>
         </div>
 
         {activeTab === "overview" && (
@@ -1124,6 +1243,163 @@ export default function ManageEventPage() {
               </table>
             </div>
             )}
+          </div>
+        )}
+
+        {activeTab === "promos" && (
+          <div className="space-y-8">
+            {/* Create promo form */}
+            <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 shadow-sm">
+              <h3 className="text-lg font-bold mb-6 text-[#29104A]">Create Promo Code</h3>
+              <form onSubmit={handleCreatePromo} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="promo-code" className="text-xs text-[#6B597F] block mb-1">Code</label>
+                  <input
+                    id="promo-code"
+                    type="text"
+                    aria-label="Promo code"
+                    value={promoForm.code}
+                    onChange={(e) => setPromoForm({ ...promoForm, code: e.target.value })}
+                    placeholder="SAVE20"
+                    className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm text-[#29104A]"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="promo-kind" className="text-xs text-[#6B597F] block mb-1">Type</label>
+                  <select
+                    id="promo-kind"
+                    aria-label="Promo type"
+                    value={promoForm.kind}
+                    onChange={(e) =>
+                      setPromoForm({ ...promoForm, kind: e.target.value as "PERCENT" | "FLAT" })
+                    }
+                    className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm text-[#29104A]"
+                  >
+                    <option value="PERCENT">Percentage (%)</option>
+                    <option value="FLAT">Flat amount (₹)</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="promo-value" className="text-xs text-[#6B597F] block mb-1">
+                    {promoForm.kind === "PERCENT" ? "Percent off (%)" : "Amount off (₹)"}
+                  </label>
+                  <input
+                    id="promo-value"
+                    type="number"
+                    min="0"
+                    aria-label={promoForm.kind === "PERCENT" ? "Percent off" : "Amount off in rupees"}
+                    value={promoForm.value}
+                    onChange={(e) => setPromoForm({ ...promoForm, value: e.target.value })}
+                    className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm text-[#29104A]"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="promo-max" className="text-xs text-[#6B597F] block mb-1">Max redemptions (optional)</label>
+                  <input
+                    id="promo-max"
+                    type="number"
+                    min="0"
+                    aria-label="Max redemptions"
+                    value={promoForm.maxRedemptions}
+                    onChange={(e) => setPromoForm({ ...promoForm, maxRedemptions: e.target.value })}
+                    className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm text-[#29104A]"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="promo-expiry" className="text-xs text-[#6B597F] block mb-1">Expiry (optional)</label>
+                  <input
+                    id="promo-expiry"
+                    type="date"
+                    aria-label="Promo expiry date"
+                    value={promoForm.expiresAt}
+                    onChange={(e) => setPromoForm({ ...promoForm, expiresAt: e.target.value })}
+                    className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm text-[#29104A]"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    disabled={promoSubmitting || !promoForm.code.trim()}
+                    className="px-5 py-2 rounded-lg text-sm font-medium bg-[#522C5D] text-white hover:bg-[#29104A] disabled:opacity-60"
+                  >
+                    {promoSubmitting ? "Creating…" : "Create Promo Code"}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Existing promo codes */}
+            <div className="bg-white rounded-2xl border border-[#C5BAC4] overflow-hidden shadow-sm">
+              <div className="px-6 py-5 border-b border-[#C5BAC4]">
+                <h3 className="text-lg font-bold text-[#29104A]">Promo Codes ({promoCodes.length})</h3>
+              </div>
+              {promoCodes.length === 0 ? (
+                <div className="px-6 py-16 text-center">
+                  <p className="text-[#6B597F]">No promo codes yet.</p>
+                  <p className="text-sm text-[#6B597F] mt-1">Create one above to offer discounts.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-[#C5BAC4]/20">
+                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Code</th>
+                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Discount</th>
+                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Redemptions</th>
+                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Status</th>
+                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Expires</th>
+                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#C5BAC4]">
+                      {promoCodes.map((promo) => (
+                        <tr key={promo.id} className="hover:bg-[#C5BAC4]/10 transition-colors">
+                          <td className="px-6 py-4">
+                            <span className="font-mono text-sm font-semibold text-[#522C5D]">{promo.code}</span>
+                          </td>
+                          <td className="px-6 py-4 text-[#29104A]">
+                            {promo.kind === "PERCENT"
+                              ? `${promo.percentOff ?? 0}%`
+                              : formatPaise(promo.flatOffPaise ?? 0)}
+                          </td>
+                          <td className="px-6 py-4 text-[#29104A]">
+                            {promo.redeemedCount}
+                            {promo.maxRedemptions != null ? ` / ${promo.maxRedemptions}` : ""}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                              promo.active
+                                ? "bg-green-100 text-green-700"
+                                : "bg-[#C5BAC4]/30 text-[#6B597F]"
+                            }`}>
+                              {promo.active ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-[#6B597F]">
+                            {promo.expiresAt
+                              ? new Date(promo.expiresAt).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })
+                              : "—"}
+                          </td>
+                          <td className="px-6 py-4">
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePromo(promo.id)}
+                              className="px-3 py-1 rounded-lg text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

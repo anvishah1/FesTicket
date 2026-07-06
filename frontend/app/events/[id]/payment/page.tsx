@@ -16,6 +16,7 @@ interface BookingData {
   total: number;
   subtotal: number;
   discount?: number;
+  promoDiscount?: number; // PAY-04: integer paise redeemed from a promo code
   platformFee: number;
   tax: number;
   expiresAt?: string | null; // PAY-05: ISO time the inventory hold lapses (PENDING only)
@@ -337,6 +338,12 @@ export default function PaymentPage() {
                       : ""}
                   </span>
                   <span>-{formatPaise(booking.discount)}</span>
+                </div>
+              )}
+              {booking.promoDiscount != null && booking.promoDiscount > 0 && (
+                <div className="flex justify-between text-green-700" data-testid="payment-promo-line">
+                  <span>Promo discount</span>
+                  <span>-{formatPaise(booking.promoDiscount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-slate-600">

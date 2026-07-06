@@ -146,6 +146,17 @@ async function settleBookingAsPaid(bookingId, { transactionId, method }) {
   });
 }
 
+// PAY-04: return a redemption to a promo code when its booking is released
+// (manual cancel / stale-sweep / full refund), floored at 0, so an abandoned or
+// refunded booking doesn't permanently burn a capped code.
+async function releasePromoRedemption(tx, promoCodeId) {
+  if (promoCodeId == null) return;
+  await tx.promoCode.updateMany({
+    where: { id: promoCodeId, redeemedCount: { gt: 0 } },
+    data: { redeemedCount: { decrement: 1 } },
+  });
+}
+
 // ==================== CREATE BOOKING ====================
 
 // POST /api/bookings - Create a new booking (buy tickets)
@@ -159,6 +170,7 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
       tickets, // Array of { ticketTypeId, quantity }
       attendees, // Array of { ticketTypeId, name, email }
       answers, // Optional array of { questionId, value } — per-booking question answers
+      promoCode, // Optional promo code string (PAY-04) — discount derived server-side
     } = req.body;
 
     // L2: the owning user comes ONLY from a verified token, never from the body.
@@ -347,7 +359,55 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
       // paise; with no discount (pct 0) discountedBase === subtotal.
       const pct = event.discount || 0; // percentage 0..100 from the event
       const discount = Math.round(subtotal * (pct / 100)); // paise
-      const discountedBase = subtotal - discount; // paise (integers)
+
+      // PAY-04: apply an optional PROMO CODE. Validated + atomically redeemed
+      // INSIDE this transaction so a capped code can never be over-redeemed under
+      // concurrency and a rolled-back booking never burns a redemption. The
+      // discount is derived from the stored PromoCode — a client-supplied amount
+      // is never trusted.
+      let promoDiscount = 0; // paise
+      let promoCodeId = null;
+      if (promoCode && String(promoCode).trim()) {
+        const codeStr = String(promoCode).trim();
+        const promo = await tx.promoCode.findFirst({
+          where: {
+            code: { equals: codeStr, mode: "insensitive" },
+            active: true,
+            OR: [{ eventId: parseInt(eventId) }, ...(event.festId != null ? [{ festId: event.festId }] : [])],
+          },
+        });
+        const now = new Date();
+        const valid =
+          promo &&
+          (!promo.startsAt || promo.startsAt <= now) &&
+          (!promo.expiresAt || promo.expiresAt >= now) &&
+          (promo.minSubtotalPaise == null || subtotal >= promo.minSubtotalPaise) &&
+          (promo.maxRedemptions == null || promo.redeemedCount < promo.maxRedemptions);
+        if (!valid) {
+          throw bookingError(400, "INVALID_PROMO", "This promo code is not valid for this booking");
+        }
+        const rawPromo =
+          promo.kind === "PERCENT"
+            ? Math.min(Math.round(subtotal * ((promo.percentOff || 0) / 100)), promo.maxDiscountPaise ?? Infinity)
+            : Math.min(promo.flatOffPaise || 0, subtotal);
+        // Never let the stacked discount drive the base below zero.
+        promoDiscount = Math.max(0, Math.min(rawPromo, subtotal - discount));
+        // Atomically claim a redemption (guarded when capped).
+        const claim =
+          promo.maxRedemptions == null
+            ? await tx.promoCode.updateMany({ where: { id: promo.id }, data: { redeemedCount: { increment: 1 } } })
+            : await tx.promoCode.updateMany({
+                where: { id: promo.id, redeemedCount: { lt: promo.maxRedemptions } },
+                data: { redeemedCount: { increment: 1 } },
+              });
+        if (claim.count === 0) {
+          throw bookingError(409, "PROMO_EXHAUSTED", "This promo code has reached its redemption limit");
+        }
+        promoCodeId = promo.id;
+      }
+
+      // Compute fees on the base after BOTH the event discount and the promo.
+      const discountedBase = subtotal - discount - promoDiscount; // paise (integers)
       const platformFee = Math.round(discountedBase * 0.02); // 2% platform fee (paise)
       const tax = Math.round((discountedBase + platformFee) * 0.18); // 18% GST (paise)
       const total = discountedBase + platformFee + tax; // paise (exact)
@@ -379,6 +439,8 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
           guestPhone: guestPhone || null,
           subtotal,
           discount,
+          promoCodeId,
+          promoDiscount,
           platformFee,
           tax,
           total,
@@ -497,6 +559,49 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
       success: false,
       error: { code: "BOOKING_ERROR", message: "Failed to create booking" },
     });
+  }
+});
+
+// ==================== PAY-04: PROMO PREVIEW ====================
+
+// POST /api/bookings/validate-promo - preview a promo code's discount for an
+// event + subtotal (paise) WITHOUT redeeming it, so the booking page can show the
+// discount before submitting. Public; the authoritative redeem is at booking POST.
+router.post("/validate-promo", async (req, res) => {
+  try {
+    const { eventId, code, subtotal } = req.body || {};
+    const sub = Math.round(Number(subtotal));
+    if (!eventId || !code || !Number.isFinite(sub) || sub <= 0) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "eventId, code and subtotal are required" } });
+    }
+    const event = await prisma.event.findUnique({ where: { id: parseInt(eventId) }, select: { festId: true } });
+    if (!event) return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Event not found" } });
+
+    const promo = await prisma.promoCode.findFirst({
+      where: {
+        code: { equals: String(code).trim(), mode: "insensitive" },
+        active: true,
+        OR: [{ eventId: parseInt(eventId) }, ...(event.festId != null ? [{ festId: event.festId }] : [])],
+      },
+    });
+    const now = new Date();
+    const valid =
+      promo &&
+      (!promo.startsAt || promo.startsAt <= now) &&
+      (!promo.expiresAt || promo.expiresAt >= now) &&
+      (promo.minSubtotalPaise == null || sub >= promo.minSubtotalPaise) &&
+      (promo.maxRedemptions == null || promo.redeemedCount < promo.maxRedemptions);
+    if (!valid) {
+      return res.json({ success: true, data: { valid: false, promoDiscount: 0, message: "Invalid or expired promo code" } });
+    }
+    const promoDiscount =
+      promo.kind === "PERCENT"
+        ? Math.min(Math.round(sub * ((promo.percentOff || 0) / 100)), promo.maxDiscountPaise ?? Infinity)
+        : Math.min(promo.flatOffPaise || 0, sub);
+    return res.json({ success: true, data: { valid: true, promoDiscount: Math.max(0, promoDiscount), kind: promo.kind } });
+  } catch (error) {
+    req.log.error({ err: error }, "Validate promo error");
+    return res.status(500).json({ success: false, error: { code: "PROMO_ERROR", message: "Failed to validate promo code" } });
   }
 });
 
@@ -1056,6 +1161,7 @@ router.put("/:id/cancel", authenticateUser, async (req, res) => {
           data: { sold: { decrement: item.quantity } },
         });
       }
+      await releasePromoRedemption(tx, existingBooking.promoCodeId); // PAY-04
 
       return tx.booking.findUnique({
         where: { id: parseInt(id) },
@@ -1181,6 +1287,7 @@ router.post("/:id/refund", writeLimiter, authenticateUser, async (req, res) => {
             data: { sold: { decrement: item.quantity } },
           });
         }
+        await releasePromoRedemption(tx, booking.promoCodeId); // PAY-04
       }
       return tx.booking.findUnique({
         where: { id: bid },
@@ -1452,6 +1559,7 @@ export async function expireStalePendingBookings(olderThanMs = BOOKING_HOLD_MS) 
           data: { sold: { decrement: item.quantity } },
         });
       }
+      await releasePromoRedemption(tx, booking.promoCodeId); // PAY-04
       expired += 1;
     });
   }

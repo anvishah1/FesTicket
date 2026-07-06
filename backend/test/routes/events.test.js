@@ -1913,3 +1913,55 @@ describe("inline base64 uploads are stored and their /uploads URL persisted", ()
     );
   });
 });
+
+// ==================== PAY-04: promo code CRUD ====================
+describe("promo codes CRUD", () => {
+  const hostAuth = ["Authorization", `Bearer ${signToken({ userId: 10, role: "HOST" })}`];
+
+  it("401 without a token", async () => {
+    const res = await request(app).get("/api/events/promo-codes?eventId=5");
+    expect(res.status).toBe(401);
+  });
+
+  it("host creates a PERCENT code for their own event", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 10, festId: 3 });
+    prismaMock.promoCode.create.mockResolvedValue({ id: 1, code: "SAVE10", kind: "PERCENT", percentOff: 10 });
+    const res = await request(app)
+      .post("/api/events/promo-codes")
+      .set(...hostAuth)
+      .send({ eventId: 5, code: "save10", kind: "percent", percentOff: 10, maxRedemptions: 100 });
+    expect(res.status).toBe(201);
+    expect(res.body.data.id).toBe(1);
+    expect(prismaMock.promoCode.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ eventId: 5, code: "save10", kind: "PERCENT", percentOff: 10, maxRedemptions: 100 }) })
+    );
+  });
+
+  it("403 when creating a code for an event the caller does not manage", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 999, festId: 3 });
+    const res = await request(app)
+      .post("/api/events/promo-codes")
+      .set(...hostAuth)
+      .send({ eventId: 5, code: "X", kind: "FLAT", flatOffPaise: 5000 });
+    expect(res.status).toBe(403);
+    expect(prismaMock.promoCode.create).not.toHaveBeenCalled();
+  });
+
+  it("lists codes for a managed event", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 10, festId: 3 });
+    prismaMock.promoCode.findMany.mockResolvedValue([{ id: 1, code: "SAVE10" }]);
+    const res = await request(app).get("/api/events/promo-codes?eventId=5").set(...hostAuth);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+    expect(prismaMock.promoCode.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { eventId: 5 } }));
+  });
+
+  it("deletes a code the caller manages", async () => {
+    prismaMock.promoCode.findUnique.mockResolvedValue({ id: 1, eventId: 5, festId: null });
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 10, festId: 3 });
+    prismaMock.promoCode.delete.mockResolvedValue({ id: 1 });
+    const res = await request(app).delete("/api/events/promo-codes/1").set(...hostAuth);
+    expect(res.status).toBe(200);
+    expect(prismaMock.promoCode.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+  });
+});

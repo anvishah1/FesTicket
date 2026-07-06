@@ -1,6 +1,5 @@
 // frontend/app/page.tsx
 import Header from "@/components/Header";
-import FeatureCard from "@/components/FeatureCard";
 import HeroIllustration from "@/components/HeroIllustration";
 import Link from "next/link";
 import Footer from "@/components/Footer";

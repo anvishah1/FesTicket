@@ -21,7 +21,7 @@ type Props = {
   processing?: boolean;
 };
 
-export default function NetbankingList({ amount, orderId, onPaymentComplete, processing }: Props) {
+export default function NetbankingList({ amount, onPaymentComplete, processing }: Props) {
   const [selected, setSelected] = React.useState<string | null>(null);
   const [localProcessing, setLocalProcessing] = React.useState(false);
 

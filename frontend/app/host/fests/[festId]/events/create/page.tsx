@@ -64,7 +64,7 @@ export default function EventCreatePage() {
         } else {
           setError("Fest not found");
         }
-      } catch (err) {
+      } catch {
         setError("Failed to load fest details");
       } finally {
         setLoading(false);
@@ -263,7 +263,7 @@ export default function EventCreatePage() {
       } else {
         alert(result.error?.message || "Failed to create event");
       }
-    } catch (err) {
+    } catch {
       alert("Failed to connect to server. Make sure backend is running.");
     } finally {
       setIsSubmitting(false);

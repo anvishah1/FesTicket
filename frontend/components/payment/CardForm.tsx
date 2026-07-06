@@ -9,7 +9,7 @@ type Props = {
   processing?: boolean;
 };
 
-export default function CardForm({ amount, orderId, onPaymentComplete, processing: externalProcessing }: Props) {
+export default function CardForm({ amount, onPaymentComplete, processing: externalProcessing }: Props) {
   const [cardNumber, setCardNumber] = React.useState("");
   const [expiry, setExpiry] = React.useState("");
   const [cvv, setCvv] = React.useState("");

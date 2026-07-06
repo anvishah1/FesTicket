@@ -219,7 +219,7 @@ export default function HostDashboard() {
       } else {
         setFestError(data.error || "Failed to save fest");
       }
-    } catch (err) {
+    } catch {
       setFestError("Failed to connect to server. Make sure backend is running.");
     } finally {
       setCreatingFest(false);

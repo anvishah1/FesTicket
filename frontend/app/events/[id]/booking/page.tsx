@@ -180,7 +180,7 @@ export default function BookingPage() {
     try {
       // Build tickets array for API
       const ticketsPayload = Object.entries(quantities)
-        .filter(([_, qty]) => qty > 0)
+        .filter(([, qty]) => qty > 0)
         .map(([ticketTypeId, quantity]) => ({
           ticketTypeId: parseInt(ticketTypeId),
           quantity,

@@ -9,7 +9,7 @@ type Props = {
   processing?: boolean;
 };
 
-export default function UPIForm({ amount, orderId, onPaymentComplete, processing: externalProcessing }: Props) {
+export default function UPIForm({ amount, onPaymentComplete, processing: externalProcessing }: Props) {
   const [upiId, setUpiId] = React.useState("");
   const [qrShown, setQrShown] = React.useState(false);
   const [processing, setProcessing] = React.useState(false);

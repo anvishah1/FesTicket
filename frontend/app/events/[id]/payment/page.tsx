@@ -18,6 +18,7 @@ interface BookingData {
   discount?: number;
   platformFee: number;
   tax: number;
+  expiresAt?: string | null; // PAY-05: ISO time the inventory hold lapses (PENDING only)
   event: {
     name: string;
     venue: string;
@@ -27,6 +28,12 @@ interface BookingData {
     quantity: number;
     ticketType: { name: string; price: number };
   }>;
+}
+
+// mm:ss for a millisecond duration (floored at 0).
+function mmss(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
 export default function PaymentPage() {
@@ -39,6 +46,7 @@ export default function PaymentPage() {
   const [booking, setBooking] = useState<BookingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
   useEffect(() => {
     const fetchBooking = async () => {
@@ -80,6 +88,18 @@ export default function PaymentPage() {
     fetchBooking();
   }, [bookingCode]);
 
+  // PAY-05: tick each second so the hold countdown updates while the booking is
+  // PENDING (expiresAt present). Computed from the server expiresAt vs now, so
+  // client clock skew only shifts the displayed remaining time, not the source.
+  useEffect(() => {
+    if (!booking?.expiresAt) return;
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [booking?.expiresAt]);
+
+  const remainingMs = booking?.expiresAt ? new Date(booking.expiresAt).getTime() - nowMs : null;
+  const holdExpired = remainingMs != null && remainingMs <= 0;
+
   const completeBookingAndRedirect = (bookingCode: string) => {
     localStorage.removeItem("pendingBooking");
     showToast("Payment successful! Redirecting to your confirmation…", "success");
@@ -88,6 +108,10 @@ export default function PaymentPage() {
 
   const handlePaymentComplete = async (paymentMethod: string) => {
     if (!booking || processing) return;
+    if (holdExpired) {
+      showToast("Your ticket hold has expired — please start a new booking.", "error");
+      return;
+    }
     setProcessing(true);
     try {
       const res = await fetch(`${getApiUrl()}/api/bookings/${booking.id}/complete`, {
@@ -114,6 +138,10 @@ export default function PaymentPage() {
 
   const payWithRazorpay = async () => {
     if (!booking || processing) return;
+    if (holdExpired) {
+      showToast("Your ticket hold has expired — please start a new booking.", "error");
+      return;
+    }
     setProcessing(true);
     try {
       const orderRes = await fetch(`${getApiUrl()}/api/bookings/${booking.id}/create-order`, {
@@ -246,14 +274,40 @@ export default function PaymentPage() {
             <h2 className="text-xl font-semibold">Payment Methods</h2>
             <p className="text-sm text-slate-500 mt-1">Pay securely via UPI, card, or netbanking.</p>
 
+            {/* PAY-05: inventory-hold countdown */}
+            {remainingMs != null &&
+              (holdExpired ? (
+                <div role="alert" className="mt-4 rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                  Your ticket hold has expired and your seats may have been released.{" "}
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/events/${eventId}/booking`)}
+                    className="font-semibold underline"
+                  >
+                    Start a new booking
+                  </button>
+                  .
+                </div>
+              ) : (
+                <div
+                  className="mt-4 rounded-md bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-800 flex items-center gap-2"
+                  aria-live="polite"
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Seats held for you — <span className="font-mono font-semibold tabular-nums">{mmss(remainingMs)}</span> left to pay.
+                </div>
+              ))}
+
             <div className="mt-6">
               <button
                 type="button"
                 onClick={payWithRazorpay}
-                disabled={processing}
+                disabled={processing || holdExpired}
                 className="w-full py-3 px-4 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold"
               >
-                {processing ? "Opening…" : `Pay ${formatPaise(amount)}`}
+                {processing ? "Opening…" : holdExpired ? "Hold expired" : `Pay ${formatPaise(amount)}`}
               </button>
               <p className="text-xs text-slate-500 mt-3 text-center">You’ll be redirected to a secure payment page.</p>
             </div>

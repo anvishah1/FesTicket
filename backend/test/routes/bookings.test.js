@@ -3,7 +3,7 @@ import request from "supertest";
 import { prismaMock, resetPrismaMock } from "@prisma/client";
 import { makeApp } from "../helpers/makeApp.js";
 import { signToken } from "../helpers/auth.js";
-import router, { expireStalePendingBookings } from "../../src/routes/bookings.js";
+import router, { expireStalePendingBookings, BOOKING_HOLD_MS } from "../../src/routes/bookings.js";
 import { sendBookingConfirmation } from "../../src/utils/email.js";
 
 vi.mock("@prisma/client");
@@ -1230,6 +1230,28 @@ describe("GET /api/bookings/code/:bookingCode", () => {
     const res = await request(app).get("/api/bookings/code/NOPE");
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe("NOT_FOUND");
+  });
+
+  // PAY-05: the hold countdown source
+  it("adds expiresAt = createdAt + BOOKING_HOLD_MS + holdMs for a PENDING booking", async () => {
+    const createdAt = new Date("2026-01-01T10:00:00.000Z");
+    prismaMock.booking.findUnique.mockResolvedValue({ id: 5, bookingCode: "BK5", status: "PENDING", createdAt });
+    const res = await request(app).get("/api/bookings/code/BK5");
+    expect(res.status).toBe(200);
+    expect(res.body.data.holdMs).toBe(BOOKING_HOLD_MS);
+    expect(res.body.data.expiresAt).toBe(new Date(createdAt.getTime() + BOOKING_HOLD_MS).toISOString());
+  });
+
+  it("returns expiresAt null for a non-PENDING booking", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue({
+      id: 6,
+      bookingCode: "BK6",
+      status: "COMPLETED",
+      createdAt: new Date("2026-01-01T10:00:00.000Z"),
+    });
+    const res = await request(app).get("/api/bookings/code/BK6");
+    expect(res.status).toBe(200);
+    expect(res.body.data.expiresAt).toBeNull();
   });
 });
 

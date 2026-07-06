@@ -99,6 +99,23 @@ const bookingEventSelect = {
   fest: { select: { name: true, college: true } },
 };
 
+// PAY-05: inventory is held from booking creation until the stale-sweep releases
+// it. This is the SINGLE source of truth for that window — the sweep default and
+// the payment-page countdown both derive from it.
+export const BOOKING_HOLD_MS = 15 * 60 * 1000;
+
+// Attach a derived expiresAt/holdMs to a booking for the guest/lookup responses.
+// A PENDING booking's hold expires at createdAt + BOOKING_HOLD_MS; anything else
+// has no active hold (expiresAt null).
+const withHoldExpiry = (booking) => {
+  if (!booking) return booking;
+  const expiresAt =
+    booking.status === "PENDING" && booking.createdAt
+      ? new Date(new Date(booking.createdAt).getTime() + BOOKING_HOLD_MS).toISOString()
+      : null;
+  return { ...booking, expiresAt, holdMs: BOOKING_HOLD_MS };
+};
+
 // ==================== CREATE BOOKING ====================
 
 // POST /api/bookings - Create a new booking (buy tickets)
@@ -799,7 +816,7 @@ router.get("/:id", authenticateUser, async (req, res) => {
 
     res.json({
       success: true,
-      data: booking,
+      data: withHoldExpiry(booking),
     });
   } catch (error) {
     req.log.error({ err: error }, "Error fetching booking");
@@ -840,7 +857,7 @@ router.get("/code/:bookingCode", async (req, res) => {
 
     res.json({
       success: true,
-      data: booking,
+      data: withHoldExpiry(booking),
     });
   } catch (error) {
     req.log.error({ err: error }, "Error fetching booking");
@@ -1258,7 +1275,7 @@ router.post("/admin/sweep-stale", authenticateUser, authorizeRoles("ADMIN"), asy
 // NOTE: this does NOT start a timer. A scheduled job / cron (e.g. every few
 // minutes) should import and call this; wiring an interval here would fire once
 // per server process and is out of scope for a route module.
-export async function expireStalePendingBookings(olderThanMs = 15 * 60 * 1000) {
+export async function expireStalePendingBookings(olderThanMs = BOOKING_HOLD_MS) {
   const started = Date.now();
   const cutoff = new Date(Date.now() - olderThanMs);
 

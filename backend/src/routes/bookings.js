@@ -14,6 +14,7 @@ import {
   sendSalesDigest,
 } from "../utils/email.js";
 import { sendSms } from "../utils/sms.js";
+import { createNotification } from "../utils/notify.js";
 import { authenticateUser, optionalAuthenticate, authorizeRoles } from "../middleware/authMiddleware.js";
 import { bookingLimiter, writeLimiter } from "../middleware/rateLimiter.js";
 import { validate } from "../middleware/validate.js";
@@ -256,6 +257,31 @@ async function notifyTicketSms(booking, log) {
     await sendSms({ to: phone, body });
   } catch (e) {
     log?.error?.({ err: e, bookingId: booking?.id }, "[sms] ticket text failed");
+  }
+}
+
+// NOTIF-08: in-app notifications on a booking completion — the buyer (if
+// registered) gets a "confirmed" notice, the event host a "new sale" notice.
+async function notifyInAppSale(booking) {
+  const event = booking?.event || {};
+  const eventName = event.name || "your event";
+  if (booking?.userId) {
+    await createNotification({
+      userId: booking.userId,
+      type: "booking_confirmed",
+      title: "Booking confirmed",
+      body: `Your booking for ${eventName} is confirmed.`,
+      linkUrl: "/bookings",
+    });
+  }
+  if (event?.hostId) {
+    await createNotification({
+      userId: event.hostId,
+      type: "new_sale",
+      title: "New ticket sale",
+      body: `A ticket for ${eventName} just sold.`,
+      linkUrl: "/host/dashboard",
+    });
   }
 }
 
@@ -679,6 +705,7 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
       );
       notifyNewSale(booking.full, req.log); // NOTIF-05
       notifyTicketSms(booking.full, req.log); // NOTIF-07
+      notifyInAppSale(booking.full).catch(() => {}); // NOTIF-08
     }
 
     res.status(201).json({
@@ -938,6 +965,7 @@ router.post("/:id/verify-payment", writeLimiter, optionalAuthenticate, async (re
     sendBookingConfirmation(settled).catch((e) => req.log.error({ err: e }, "[email] Booking confirmation failed"));
     notifyNewSale(settled, req.log); // NOTIF-05
     notifyTicketSms(settled, req.log); // NOTIF-07
+    notifyInAppSale(settled).catch(() => {}); // NOTIF-08
 
     res.json({
       success: true,
@@ -1043,6 +1071,7 @@ router.put("/:id/complete", writeLimiter, optionalAuthenticate, async (req, res)
     sendBookingConfirmation(booking).catch((e) => req.log.error({ err: e }, "[email] Booking confirmation failed"));
     notifyNewSale(booking, req.log); // NOTIF-05
     notifyTicketSms(booking, req.log); // NOTIF-07
+    notifyInAppSale(booking).catch(() => {}); // NOTIF-08
 
     res.json({
       success: true,
@@ -1428,6 +1457,16 @@ router.put("/:id/cancel", authenticateUser, async (req, res) => {
     sendBookingCancelled(existingBooking).catch((e) =>
       req.log.error({ err: e, bookingId: existingBooking.id }, "[email] Booking cancellation email failed")
     );
+    // NOTIF-08: in-app notice for the registered buyer.
+    if (existingBooking.userId) {
+      createNotification({
+        userId: existingBooking.userId,
+        type: "booking_cancelled",
+        title: "Booking cancelled",
+        body: `Your booking for ${existingBooking.event?.name || "an event"} was cancelled.`,
+        linkUrl: "/bookings",
+      }).catch(() => {});
+    }
   } catch (error) {
     req.log.error({ err: error }, "Error cancelling booking");
     // Map tagged business errors (e.g. the lost-race 409) to their status/code;
@@ -2404,6 +2443,16 @@ export async function expireStalePendingBookings(olderThanMs = BOOKING_HOLD_MS) 
   // booking a concurrent manual cancel already handled gets no expiry mail.
   for (const b of cancelled) {
     sendBookingExpired(b).catch(() => {});
+    // NOTIF-08: in-app notice for the registered buyer.
+    if (b.userId) {
+      createNotification({
+        userId: b.userId,
+        type: "booking_expired",
+        title: "Reservation expired",
+        body: `Your held tickets for ${b.event?.name || "an event"} were released.`,
+        linkUrl: "/bookings",
+      }).catch(() => {});
+    }
   }
 
   return { expired, durationMs: Date.now() - started };
@@ -2471,6 +2520,7 @@ export async function razorpayWebhookHandler(req, res) {
           );
           notifyNewSale(updated, req.log); // NOTIF-05 (winner-only settle -> no dup)
           notifyTicketSms(updated, req.log); // NOTIF-07
+          notifyInAppSale(updated).catch(() => {}); // NOTIF-08
         }
       }
     } else if (event.event === "payment.failed" && entity?.order_id) {
@@ -2524,6 +2574,7 @@ export async function reconcileStalePaidOrders(olderThanMs = 30 * 60 * 1000, lim
           sendBookingConfirmation(updated).catch(() => {});
           notifyNewSale(updated, null); // NOTIF-05 (winner-only settle -> no dup)
           notifyTicketSms(updated, null); // NOTIF-07
+          notifyInAppSale(updated).catch(() => {}); // NOTIF-08
         }
       } else {
         // No captured payment after the window: the order was abandoned or every

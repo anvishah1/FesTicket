@@ -2,6 +2,7 @@ import express from "express";
 import prisma from "../prisma.js";
 import { authenticateUser, authorizeRoles } from "../middleware/authMiddleware.js";
 import { writeLimiter } from "../middleware/rateLimiter.js";
+import { createNotification } from "../utils/notify.js";
 
 const router = express.Router();
 
@@ -215,6 +216,20 @@ router.patch(
         { id, status },
         { message: status === "APPROVED" ? "Request approved" : "Request denied" }
       );
+
+      // NOTIF-08: tell the requester the decision. A just-approved user is logged
+      // out (tokenVersion bump revokes their tokens) so the durable channel is
+      // this notice + the email; the bell is best-effort for active sessions.
+      createNotification({
+        userId: roleRequest.userId,
+        type: status === "APPROVED" ? "role_approved" : "role_denied",
+        title: status === "APPROVED" ? "Organizer request approved" : "Organizer request declined",
+        body:
+          status === "APPROVED"
+            ? "You can now create and manage events. Sign in again to continue."
+            : "Your request to become an organizer was declined.",
+        linkUrl: status === "APPROVED" ? "/host/dashboard" : "/account",
+      }).catch(() => {});
     } catch (err) {
       req.log.error({ err }, "Role request update error");
       res.fail(500, "SERVER_ERROR", "Server error");

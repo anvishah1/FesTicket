@@ -45,6 +45,56 @@ router.put("/preferences", authenticateUser, async (req, res) => {
   return res.ok(updated, { message: "Preferences updated" });
 });
 
+// ==================== NOTIF-08: in-app notification center ====================
+
+// GET /api/notifications — the caller's notifications (newest first) + unreadCount.
+// Cursor pagination via ?cursor=<id> & ?limit (default 20, max 50).
+router.get("/", authenticateUser, async (req, res) => {
+  const userId = req.user.userId;
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+  const cursor = parseInt(req.query.cursor);
+
+  const items = await prisma.notification.findMany({
+    where: { userId },
+    orderBy: { id: "desc" },
+    take: limit + 1, // fetch one extra to detect "hasMore"
+    ...(Number.isInteger(cursor) ? { cursor: { id: cursor }, skip: 1 } : {}),
+  });
+  const hasMore = items.length > limit;
+  const notifications = hasMore ? items.slice(0, limit) : items;
+  const unreadCount = await prisma.notification.count({ where: { userId, read: false } });
+
+  return res.ok({
+    notifications,
+    unreadCount,
+    nextCursor: hasMore ? notifications[notifications.length - 1].id : null,
+  });
+});
+
+// PATCH /api/notifications/read-all — mark all of the caller's unread as read.
+// MUST be declared before "/:id" so it isn't captured as an id.
+router.patch("/read-all", authenticateUser, async (req, res) => {
+  await prisma.notification.updateMany({
+    where: { userId: req.user.userId, read: false },
+    data: { read: true, readAt: new Date() },
+  });
+  return res.ok({ ok: true });
+});
+
+// PATCH /api/notifications/:id — mark one read (owner-only; 403 on someone else's).
+router.patch("/:id", authenticateUser, async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!Number.isInteger(id)) return res.fail(400, "VALIDATION_ERROR", "Invalid notification id");
+  const notif = await prisma.notification.findUnique({ where: { id } });
+  if (!notif) return res.fail(404, "NOT_FOUND", "Notification not found");
+  if (notif.userId !== req.user.userId) return res.fail(403, "FORBIDDEN", "You cannot modify this notification");
+  const updated = await prisma.notification.update({
+    where: { id },
+    data: { read: true, readAt: notif.readAt ?? new Date() },
+  });
+  return res.ok(updated);
+});
+
 export default router;
 
 // ==================== /api/unsubscribe (public, RFC 8058) ====================

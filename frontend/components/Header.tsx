@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStoredUser, isAuthenticated, logout } from "@/lib/auth";
+import NotificationBell from "@/components/NotificationBell";
 
 type StoredUser = ReturnType<typeof getStoredUser>;
 
@@ -120,6 +121,13 @@ export default function Header() {
           >
             Support
           </Link>
+
+          {/* NOTIF-08: in-app notification bell (desktop, logged-in only). */}
+          {mounted && showUser && (
+            <div className="hidden sm:block">
+              <NotificationBell />
+            </div>
+          )}
 
           {/* Auth-dependent action (desktop). Rendered only after mount. */}
           {!mounted ? null : showUser ? (

@@ -55,6 +55,78 @@ describe("PUT /api/notifications/preferences", () => {
   });
 });
 
+describe("GET /api/notifications (NOTIF-08)", () => {
+  it("401 without a token", async () => {
+    const res = await request(appNotif).get("/api/notifications");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns the caller's notifications + unreadCount, scoped to them", async () => {
+    prismaMock.notification.findMany.mockResolvedValue([
+      { id: 3, userId: 42, title: "New sale", read: false },
+      { id: 2, userId: 42, title: "Confirmed", read: true },
+    ]);
+    prismaMock.notification.count.mockResolvedValue(1);
+    const res = await request(appNotif).get("/api/notifications").set(...authHeader);
+    expect(res.status).toBe(200);
+    expect(res.body.data.notifications).toHaveLength(2);
+    expect(res.body.data.unreadCount).toBe(1);
+    expect(prismaMock.notification.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 42 }, orderBy: { id: "desc" } })
+    );
+    expect(prismaMock.notification.count).toHaveBeenCalledWith({ where: { userId: 42, read: false } });
+  });
+
+  it("sets nextCursor when there are more than the limit", async () => {
+    // limit=1 -> fetch take=2; two rows returned => hasMore.
+    prismaMock.notification.findMany.mockResolvedValue([
+      { id: 9, userId: 42, read: false },
+      { id: 8, userId: 42, read: false },
+    ]);
+    prismaMock.notification.count.mockResolvedValue(2);
+    const res = await request(appNotif).get("/api/notifications?limit=1").set(...authHeader);
+    expect(res.body.data.notifications).toHaveLength(1);
+    expect(res.body.data.nextCursor).toBe(9);
+  });
+});
+
+describe("PATCH /api/notifications (NOTIF-08)", () => {
+  it("marks one notification read (owner)", async () => {
+    prismaMock.notification.findUnique.mockResolvedValue({ id: 5, userId: 42, read: false });
+    prismaMock.notification.update.mockResolvedValue({ id: 5, read: true });
+    const res = await request(appNotif).patch("/api/notifications/5").set(...authHeader);
+    expect(res.status).toBe(200);
+    expect(prismaMock.notification.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 5 }, data: expect.objectContaining({ read: true }) })
+    );
+  });
+
+  it("403 when the notification belongs to another user", async () => {
+    prismaMock.notification.findUnique.mockResolvedValue({ id: 5, userId: 999, read: false });
+    const res = await request(appNotif).patch("/api/notifications/5").set(...authHeader);
+    expect(res.status).toBe(403);
+    expect(prismaMock.notification.update).not.toHaveBeenCalled();
+  });
+
+  it("404 when the notification does not exist", async () => {
+    prismaMock.notification.findUnique.mockResolvedValue(null);
+    const res = await request(appNotif).patch("/api/notifications/5").set(...authHeader);
+    expect(res.status).toBe(404);
+  });
+
+  it("read-all marks all the caller's unread as read (not captured as an :id)", async () => {
+    prismaMock.notification.updateMany.mockResolvedValue({ count: 3 });
+    const res = await request(appNotif).patch("/api/notifications/read-all").set(...authHeader);
+    expect(res.status).toBe(200);
+    expect(prismaMock.notification.updateMany).toHaveBeenCalledWith({
+      where: { userId: 42, read: false },
+      data: expect.objectContaining({ read: true }),
+    });
+    // The /read-all route must NOT have hit the single-id handler.
+    expect(prismaMock.notification.findUnique).not.toHaveBeenCalled();
+  });
+});
+
 describe("GET/POST /api/unsubscribe", () => {
   it("flips exactly the named category off for a valid signed token (HTML)", async () => {
     prismaMock.user.updateMany.mockResolvedValue({ count: 1 });

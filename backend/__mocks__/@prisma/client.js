@@ -50,6 +50,7 @@ const MODEL_KEYS = [
   "eventQuestion",
   "attendeeAnswer",
   "reminderLog",
+  "notification",
 ];
 
 function makeModel() {

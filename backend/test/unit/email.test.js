@@ -17,7 +17,15 @@ vi.mock("nodemailer", () => ({
   default: { createTransport: createTransportMock },
 }));
 
-import { sendMail, sendBookingConfirmation, htmlToText, renderEmail } from "../../src/utils/email.js";
+import {
+  sendMail,
+  sendBookingConfirmation,
+  sendBookingCancelled,
+  sendPaymentFailed,
+  sendBookingExpired,
+  htmlToText,
+  renderEmail,
+} from "../../src/utils/email.js";
 
 beforeEach(() => {
   resetPrismaMock();
@@ -185,6 +193,50 @@ describe("sendBookingConfirmation", () => {
     });
     expect(result).toEqual({ sent: false, reason: "not_configured" });
     expect(sendMailMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("lifecycle emails (NOTIF-06)", () => {
+  const base = {
+    id: 5,
+    bookingCode: "TIQR-XYZ",
+    guestName: "Buyer",
+    event: { id: 9, name: "Autumn Fest" },
+  };
+
+  for (const fn of [sendBookingCancelled, sendPaymentFailed, sendBookingExpired]) {
+    it(`${fn.name}: skips cleanly (no send) when no email resolves`, async () => {
+      setSmtpConfigured();
+      const result = await fn({ ...base });
+      expect(result).toEqual({ sent: false, reason: "no_email" });
+      expect(sendMailMock).not.toHaveBeenCalled();
+    });
+  }
+
+  it("sendBookingCancelled includes a refund line when refundedAmount > 0", async () => {
+    setSmtpConfigured();
+    const result = await sendBookingCancelled({ ...base, guestEmail: "b@x.com", refundedAmount: 12000 });
+    expect(result).toEqual({ sent: true });
+    const arg = sendMailMock.mock.calls[0][0];
+    expect(arg.subject).toContain("cancelled");
+    expect(arg.subject).toContain("Autumn Fest");
+    expect(arg.html).toContain("TIQR-XYZ");
+    expect(arg.html).toContain("₹120.00"); // 12000 paise
+  });
+
+  it("sendPaymentFailed links back to the payment page for the booking", async () => {
+    setSmtpConfigured();
+    await sendPaymentFailed({ ...base, guestEmail: "b@x.com" });
+    const arg = sendMailMock.mock.calls[0][0];
+    expect(arg.subject).toMatch(/complete your payment/i);
+    expect(arg.html).toContain("/events/9/payment?bookingCode=TIQR-XYZ");
+  });
+
+  it("sendBookingExpired resolves the recipient from user.email when no guestEmail", async () => {
+    setSmtpConfigured();
+    const result = await sendBookingExpired({ ...base, user: { email: "u@x.com", name: "U" } });
+    expect(result).toEqual({ sent: true });
+    expect(sendMailMock.mock.calls[0][0].to).toBe("u@x.com");
   });
 });
 

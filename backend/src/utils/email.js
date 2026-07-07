@@ -428,6 +428,112 @@ export async function sendPasswordResetEmail({ to, name, resetLink }) {
   return sendMail({ to, subject: `Reset your ${APP_NAME} password`, html, text, template: "password_reset" });
 }
 
+// ==================== NOTIF-06: booking lifecycle emails ====================
+
+// PAY-03: money is integer paise. Small shared renderer for these lifecycle mails.
+const paiseToRupees = (n) =>
+  `₹${(Number(n ?? 0) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const FRONTEND = () => process.env.FRONTEND_URL || "http://localhost:3000";
+
+// A booking is CANCELLED — via the manual cancel route (NOT the sweep, which
+// sends the distinct "expired" mail). Transactional: always sent when an address
+// resolves. Includes any refund wording.
+export async function sendBookingCancelled(booking) {
+  const to = booking.guestEmail || booking.user?.email;
+  if (!to) return { sent: false, reason: "no_email" };
+  const event = booking.event || {};
+  const eventName = event.name || "your event";
+  const buyerName = booking.guestName || booking.user?.name || "there";
+  const refunded = booking.refundedAmount ?? 0;
+  const bodyHtml = `
+    <tr><td style="padding:0 0 16px;">Hi ${escapeHtml(buyerName)}, your booking for <strong>${escapeHtml(eventName)}</strong> has been cancelled.</td></tr>
+    <tr><td style="padding:0 0 4px;font-weight:600;">Booking ID</td></tr>
+    <tr><td style="padding:0 0 16px;font-family:monospace;font-size:18px;color:${BRAND};">${escapeHtml(booking.bookingCode)}</td></tr>
+    ${
+      refunded > 0
+        ? `<tr><td style="padding:0 0 16px;">A refund of <strong>${paiseToRupees(refunded)}</strong> has been initiated to your original payment method and may take a few business days to appear.</td></tr>`
+        : `<tr><td style="padding:0 0 16px;">If you were charged, any eligible refund will be processed to your original payment method.</td></tr>`
+    }`;
+  const { html, text } = renderEmail({
+    preheader: `Your ${eventName} booking was cancelled`,
+    heading: "Booking cancelled",
+    bodyHtml,
+    cta: { label: "Discover events", url: `${FRONTEND()}/fests` },
+    footerNote: `If you didn't expect this, please contact support.`,
+  });
+  return sendMail({
+    to,
+    subject: `Booking cancelled – ${eventName} (${booking.bookingCode})`,
+    html,
+    text,
+    bookingId: booking.id,
+    template: "booking_cancelled",
+  });
+}
+
+// A payment attempt for a PENDING booking failed / was not captured. Transactional.
+// Callers gate this on a real FAILED transition so a retrying buyer isn't spammed.
+export async function sendPaymentFailed(booking) {
+  const to = booking.guestEmail || booking.user?.email;
+  if (!to) return { sent: false, reason: "no_email" };
+  const event = booking.event || {};
+  const eventName = event.name || "your event";
+  const buyerName = booking.guestName || booking.user?.name || "there";
+  const resumeUrl = event.id
+    ? `${FRONTEND()}/events/${event.id}/payment?bookingCode=${encodeURIComponent(booking.bookingCode)}`
+    : `${FRONTEND()}/booking-confirmation?bookingCode=${encodeURIComponent(booking.bookingCode)}`;
+  const bodyHtml = `
+    <tr><td style="padding:0 0 16px;">Hi ${escapeHtml(buyerName)}, we couldn't confirm your payment for <strong>${escapeHtml(eventName)}</strong>. Your tickets are held for a short while — you can try the payment again.</td></tr>
+    <tr><td style="padding:0 0 4px;font-weight:600;">Booking ID</td></tr>
+    <tr><td style="padding:0 0 16px;font-family:monospace;font-size:18px;color:${BRAND};">${escapeHtml(booking.bookingCode)}</td></tr>
+    <tr><td style="padding:0 0 16px;">If money was deducted, it will be auto-refunded by your bank if the order wasn't captured.</td></tr>`;
+  const { html, text } = renderEmail({
+    preheader: `Payment couldn't be confirmed for ${eventName}`,
+    heading: "Payment not completed",
+    bodyHtml,
+    cta: { label: "Complete your payment", url: resumeUrl },
+    footerNote: `Need help? Reply to this email and we'll sort it out.`,
+  });
+  return sendMail({
+    to,
+    subject: `Action needed: complete your payment – ${eventName}`,
+    html,
+    text,
+    bookingId: booking.id,
+    template: "payment_failed",
+  });
+}
+
+// A PENDING booking's hold expired and the stale-sweep released it. Transactional;
+// fired ONLY from the sweep (the manual route sends "cancelled" instead).
+export async function sendBookingExpired(booking) {
+  const to = booking.guestEmail || booking.user?.email;
+  if (!to) return { sent: false, reason: "no_email" };
+  const event = booking.event || {};
+  const eventName = event.name || "your event";
+  const buyerName = booking.guestName || booking.user?.name || "there";
+  const rebookUrl = event.id ? `${FRONTEND()}/events/${event.id}` : `${FRONTEND()}/fests`;
+  const bodyHtml = `
+    <tr><td style="padding:0 0 16px;">Hi ${escapeHtml(buyerName)}, your reserved tickets for <strong>${escapeHtml(eventName)}</strong> were released because the payment wasn't completed in time.</td></tr>
+    <tr><td style="padding:0 0 16px;">Good news — if seats are still available you can book again in a moment.</td></tr>`;
+  const { html, text } = renderEmail({
+    preheader: `Your ${eventName} reservation expired`,
+    heading: "Reservation expired",
+    bodyHtml,
+    cta: { label: "Book again", url: rebookUrl },
+    footerNote: `Tickets are held for 15 minutes while you pay.`,
+  });
+  return sendMail({
+    to,
+    subject: `Your reservation expired – ${eventName}`,
+    html,
+    text,
+    bookingId: booking.id,
+    template: "booking_expired",
+  });
+}
+
 // Welcome email (sent after a user verifies / for auto-verified signups).
 export async function sendWelcomeEmail({ to, name }) {
   const { html, text } = renderEmail({

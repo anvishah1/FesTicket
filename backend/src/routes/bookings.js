@@ -3,7 +3,12 @@ import { Router } from "express";
 import crypto from "crypto";
 import prisma from "../prisma.js";
 import Razorpay from "razorpay";
-import { sendBookingConfirmation } from "../utils/email.js";
+import {
+  sendBookingConfirmation,
+  sendBookingCancelled,
+  sendPaymentFailed,
+  sendBookingExpired,
+} from "../utils/email.js";
 import { authenticateUser, optionalAuthenticate, authorizeRoles } from "../middleware/authMiddleware.js";
 import { bookingLimiter, writeLimiter } from "../middleware/rateLimiter.js";
 import { validate } from "../middleware/validate.js";
@@ -159,6 +164,43 @@ async function settleBookingAsPaid(bookingId, { transactionId, method }) {
       user: { select: { email: true, name: true } },
     },
   });
+}
+
+// NOTIF-06: mark a still-PENDING booking's payment FAILED (once) and email the
+// buyer. The status-guarded updateMany makes the transition idempotent so a buyer
+// retrying verify-payment isn't spammed; the email only fires on the first flip
+// and only while the booking itself is still PENDING (never after it settled).
+async function markPaymentFailedAndNotify(bookingId, log) {
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        event: { select: { id: true, name: true } },
+        user: { select: { email: true, name: true } },
+        payment: true,
+      },
+    });
+    if (!booking || booking.status !== "PENDING") return;
+
+    let firstFailure;
+    if (booking.payment) {
+      const flip = await prisma.payment.updateMany({
+        where: { bookingId, status: "PENDING" },
+        data: { status: "FAILED" },
+      });
+      firstFailure = flip.count === 1;
+    } else {
+      // No payment row yet — treat as the first observed failure.
+      firstFailure = true;
+    }
+    if (!firstFailure) return;
+
+    sendPaymentFailed(booking).catch((e) =>
+      log?.error?.({ err: e, bookingId }, "[email] Payment-failed email failed")
+    );
+  } catch (e) {
+    log?.error?.({ err: e, bookingId }, "[email] markPaymentFailedAndNotify error");
+  }
 }
 
 // PAY-04: return a redemption to a promo code when its booking is released
@@ -764,6 +806,9 @@ router.post("/:id/verify-payment", writeLimiter, optionalAuthenticate, async (re
       });
     }
     if (paymentEntity.status !== "captured") {
+      // NOTIF-06: a genuinely uncaptured/failed payment — mark it FAILED once and
+      // email the buyer a retry link (non-blocking; guarded against repeat spam).
+      markPaymentFailedAndNotify(bookingId, req.log);
       return res.status(400).json({
         success: false,
         error: { code: "VERIFY_FAILED", message: "Payment not captured" },
@@ -1237,7 +1282,13 @@ router.put("/:id/cancel", authenticateUser, async (req, res) => {
 
     const existingBooking = await prisma.booking.findUnique({
       where: { id: parseInt(id) },
-      include: { items: true, event: { select: { hostId: true, festId: true } } },
+      include: {
+        items: true,
+        // NOTIF-06: name/id feed the cancellation email; user resolves the
+        // recipient when there's no guestEmail.
+        event: { select: { hostId: true, festId: true, name: true, id: true } },
+        user: { select: { email: true, name: true } },
+      },
     });
 
     if (!existingBooking) {
@@ -1307,6 +1358,13 @@ router.put("/:id/cancel", authenticateUser, async (req, res) => {
       data: booking,
       message: "Booking cancelled successfully",
     });
+
+    // NOTIF-06: tell the buyer their booking was cancelled (fire-and-forget,
+    // after the response, skipped cleanly when no email resolves). The manual
+    // route sends "cancelled"; the sweep sends the distinct "expired" mail.
+    sendBookingCancelled(existingBooking).catch((e) =>
+      req.log.error({ err: e, bookingId: existingBooking.id }, "[email] Booking cancellation email failed")
+    );
   } catch (error) {
     req.log.error({ err: error }, "Error cancelling booking");
     // Map tagged business errors (e.g. the lost-race 409) to their status/code;
@@ -2063,12 +2121,18 @@ export async function expireStalePendingBookings(olderThanMs = BOOKING_HOLD_MS) 
       createdAt: { lt: cutoff },
       OR: [{ payment: null }, { payment: { orderId: null } }],
     },
-    include: { items: true },
+    // NOTIF-06: event/user feed the "reservation expired" email fired below.
+    include: {
+      items: true,
+      event: { select: { id: true, name: true } },
+      user: { select: { email: true, name: true } },
+    },
   });
 
   let expired = 0;
+  const cancelled = []; // only bookings THIS sweep actually flipped (for email)
   for (const booking of stale) {
-    await prisma.$transaction(async (tx) => {
+    const won = await prisma.$transaction(async (tx) => {
       // Atomically claim the PENDING -> CANCELLED transition so a concurrent
       // manual cancel (or a second sweep) cannot also restore this booking's
       // inventory. Only the winner (count === 1) decrements.
@@ -2076,7 +2140,7 @@ export async function expireStalePendingBookings(olderThanMs = BOOKING_HOLD_MS) 
         where: { id: booking.id, status: "PENDING" },
         data: { status: "CANCELLED" },
       });
-      if (flip.count === 0) return; // already handled elsewhere
+      if (flip.count === 0) return false; // already handled elsewhere
       for (const item of booking.items) {
         await tx.ticketType.updateMany({
           where: { id: item.ticketTypeId, sold: { gte: item.quantity } },
@@ -2085,7 +2149,17 @@ export async function expireStalePendingBookings(olderThanMs = BOOKING_HOLD_MS) 
       }
       await releasePromoRedemption(tx, booking.promoCodeId); // PAY-04
       expired += 1;
+      return true;
     });
+    if (won) cancelled.push(booking);
+  }
+
+  // NOTIF-06: email each buyer whose reservation THIS sweep expired (distinct
+  // from the manual-cancel mail). Fire-and-forget after the transactions commit,
+  // never inside them, and only for bookings this run actually cancelled — so a
+  // booking a concurrent manual cancel already handled gets no expiry mail.
+  for (const b of cancelled) {
+    sendBookingExpired(b).catch(() => {});
   }
 
   return { expired, durationMs: Date.now() - started };

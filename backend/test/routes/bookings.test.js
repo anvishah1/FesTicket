@@ -13,13 +13,21 @@ import router, {
   BOOKING_HOLD_MS,
   razorpayWebhookHandler,
 } from "../../src/routes/bookings.js";
-import { sendBookingConfirmation } from "../../src/utils/email.js";
+import {
+  sendBookingConfirmation,
+  sendBookingCancelled,
+  sendPaymentFailed,
+  sendBookingExpired,
+} from "../../src/utils/email.js";
 
 vi.mock("@prisma/client");
 
-// Keep confirmation emails quiet + inspectable.
+// Keep confirmation + lifecycle emails quiet + inspectable.
 vi.mock("../../src/utils/email.js", () => ({
   sendBookingConfirmation: vi.fn(async () => ({ sent: false })),
+  sendBookingCancelled: vi.fn(async () => ({ sent: false })),
+  sendPaymentFailed: vi.fn(async () => ({ sent: false })),
+  sendBookingExpired: vi.fn(async () => ({ sent: false })),
 }));
 
 // supertest hammers the same IP, so neutralise the rate limiters (bookingLimiter
@@ -985,6 +993,46 @@ describe("POST /api/bookings/:id/verify-payment", () => {
     expect(res.body.error.message).toMatch(/Payment not captured/);
   });
 
+  it("NOTIF-06: an uncaptured payment marks the Payment FAILED once and emails the buyer", async () => {
+    enableRazorpay();
+    rzp.payments.fetch.mockResolvedValue({ order_id: "order_1", status: "failed" });
+    prismaMock.booking.findUnique.mockResolvedValue({
+      id: 5, status: "PENDING", guestEmail: "g@x.com",
+      event: { id: 1, name: "Fest" }, user: null, payment: { status: "PENDING" },
+    });
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(app)
+      .post("/api/bookings/5/verify-payment")
+      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1" });
+    expect(res.status).toBe(400);
+
+    // Fire-and-forget: wait for the background transition + email.
+    await vi.waitFor(() => expect(sendPaymentFailed).toHaveBeenCalledTimes(1));
+    expect(prismaMock.payment.updateMany).toHaveBeenCalledWith({
+      where: { bookingId: 5, status: "PENDING" },
+      data: { status: "FAILED" },
+    });
+  });
+
+  it("NOTIF-06: does not email payment-failed when the Payment already transitioned (count 0)", async () => {
+    enableRazorpay();
+    rzp.payments.fetch.mockResolvedValue({ order_id: "order_1", status: "failed" });
+    prismaMock.booking.findUnique.mockResolvedValue({
+      id: 5, status: "PENDING", guestEmail: "g@x.com",
+      event: { id: 1, name: "Fest" }, user: null, payment: { status: "FAILED" },
+    });
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 0 }); // already FAILED
+
+    const res = await request(app)
+      .post("/api/bookings/5/verify-payment")
+      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1" });
+    expect(res.status).toBe(400);
+    // Give the background task a tick, then assert no email.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(sendPaymentFailed).not.toHaveBeenCalled();
+  });
+
   it("returns 400 when the booking is missing or already completed", async () => {
     enableRazorpay();
     rzp.payments.fetch.mockResolvedValue({ order_id: "order_1", status: "captured", method: "upi" });
@@ -1571,6 +1619,8 @@ describe("PUT /api/bookings/:id/cancel", () => {
       where: { id: 11, sold: { gte: 1 } },
       data: { sold: { decrement: 1 } },
     });
+    // NOTIF-06: the buyer is emailed that their booking was cancelled.
+    expect(sendBookingCancelled).toHaveBeenCalledTimes(1);
   });
 
   it("lets the event's host cancel a PENDING booking they did not buy", async () => {
@@ -2089,6 +2139,18 @@ describe("expireStalePendingBookings", () => {
       where: { id: 2, status: "PENDING" },
       data: { status: "CANCELLED" },
     });
+    // NOTIF-06: an expiry email fires for each booking THIS sweep actually cancelled.
+    expect(sendBookingExpired).toHaveBeenCalledTimes(2);
+  });
+
+  it("does NOT email expiry for a booking a concurrent cancel already flipped (count 0)", async () => {
+    prismaMock.booking.findMany.mockResolvedValue([{ id: 1, items: [{ ticketTypeId: 10, quantity: 2 }] }]);
+    // The guarded flip loses the race -> count 0 -> no restore, no email.
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 0 });
+    const result = await expireStalePendingBookings();
+    expect(result.expired).toBe(0);
+    expect(sendBookingExpired).not.toHaveBeenCalled();
+    expect(prismaMock.ticketType.updateMany).not.toHaveBeenCalled();
   });
 
   it("no-ops (no writes) when there are no stale bookings", async () => {

@@ -267,6 +267,14 @@ export default function BookingConfirmationPage() {
             </a>
           )}
 
+          {/* TIX-05: print / save the per-attendee tickets. */}
+          <Link
+            href={`/tickets/${encodeURIComponent(booking.bookingCode)}`}
+            className="block text-center px-4 py-3 mb-3 rounded-md border border-primary-600 text-primary-700 hover:bg-primary-50 font-semibold"
+          >
+            Print / download tickets
+          </Link>
+
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Link

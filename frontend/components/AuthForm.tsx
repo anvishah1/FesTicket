@@ -53,6 +53,47 @@ export default function AuthForm() {
 
   const canSubmit = email.trim().length > 0 && password.trim().length > 0;
 
+  function redirectByRole(user: { role?: string }) {
+    if (user.role === "ADMIN") router.push("/admin/dashboard");
+    else if (user.role === "EDITOR" || user.role === "HOST") router.push("/host/dashboard");
+    else router.push("/");
+  }
+
+  // AUTH-08: second-factor challenge state (set when signin returns twoFactorRequired).
+  const [challengeToken, setChallengeToken] = React.useState<string | null>(null);
+  const [twoFACode, setTwoFACode] = React.useState("");
+  const [useBackup, setUseBackup] = React.useState(false);
+  const [twoFABusy, setTwoFABusy] = React.useState(false);
+
+  async function verifyTwoFactor(e: React.FormEvent) {
+    e.preventDefault();
+    if (!challengeToken || twoFABusy) return;
+    setTwoFABusy(true);
+    setError(null);
+    try {
+      const body = useBackup
+        ? { challengeToken, backupCode: twoFACode.trim() }
+        : { challengeToken, code: twoFACode.trim() };
+      const res = await fetch(`${getApiUrl()}/api/auth/2fa/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        setError(data.error?.message || "Invalid authentication code.");
+        setTwoFABusy(false);
+        return;
+      }
+      const { accessToken, refreshToken, user } = data.data;
+      setAuth(accessToken, refreshToken, user);
+      redirectByRole(user);
+    } catch {
+      setError("Could not reach server. Please try again.");
+    }
+    setTwoFABusy(false);
+  }
+
   // AUTH-05: exchange a Google ID token for a session, then role-redirect.
   async function handleGoogleCredential(idToken: string) {
     setError(null);
@@ -132,26 +173,67 @@ export default function AuthForm() {
         setLoading(false);
         return;
       }
+      // AUTH-08: 2FA-enabled accounts get a challenge instead of a session.
+      if (data.data?.twoFactorRequired) {
+        setChallengeToken(data.data.challengeToken);
+        setLoading(false);
+        return;
+      }
       // Unified envelope: tokens + user live under `data`.
       const { accessToken, refreshToken, user } = data.data;
       setAuth(accessToken, refreshToken, user);
-
-        if (user.role === "ADMIN") {
-          router.push("/admin/dashboard");
-        }
-
-        else if (user.role === "EDITOR" || user.role === "HOST") {
-          router.push("/host/dashboard");
-        }
-
-        else {
-          router.push("/");
-        }
-
+      redirectByRole(user);
     } catch {
       setError("Could not reach server. Please try again.");
     }
     setLoading(false);
+  }
+
+  // AUTH-08: second-factor step (shown after a correct password on a 2FA account).
+  if (challengeToken) {
+    return (
+      <form onSubmit={verifyTwoFactor} className="space-y-4" data-testid="twofactor-step">
+        <h2 className="text-lg font-semibold text-[#29104A]">Two-factor authentication</h2>
+        <p className="text-sm text-[#6B597F]">
+          {useBackup
+            ? "Enter one of your backup codes."
+            : "Enter the 6-digit code from your authenticator app."}
+        </p>
+        {error && (
+          <div role="alert" className="text-sm text-red-600">
+            {error}
+          </div>
+        )}
+        <input
+          autoFocus
+          value={twoFACode}
+          onChange={(e) => setTwoFACode(e.target.value)}
+          inputMode={useBackup ? "text" : "numeric"}
+          placeholder={useBackup ? "XXXX-XXXX" : "123456"}
+          aria-label="Authentication code"
+          className="w-full border border-[#6B597F] rounded-lg px-3 py-2 tracking-widest text-center"
+        />
+        <button
+          type="submit"
+          disabled={!twoFACode.trim() || twoFABusy}
+          className="w-full rounded-lg px-4 py-3 font-medium bg-gradient-to-r from-[#29104A] to-[#522C5D] text-[#DEDCDC] disabled:opacity-50"
+        >
+          {twoFABusy ? "Verifying…" : "Verify"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setUseBackup((b) => !b);
+            setTwoFACode("");
+            setError(null);
+          }}
+          className="w-full text-sm text-[#29104A] hover:underline"
+          data-testid="toggle-backup"
+        >
+          {useBackup ? "Use your authenticator app instead" : "Use a backup code instead"}
+        </button>
+      </form>
+    );
   }
 
   return (

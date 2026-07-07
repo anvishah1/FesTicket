@@ -163,6 +163,10 @@ export default function AccountPage() {
             <Link href="/settings/notifications" className="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">
               Notification preferences
             </Link>
+            {/* AUTH-08 */}
+            <Link href="/account/security" className="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">
+              Security &amp; 2FA
+            </Link>
             {role === "VIEWER" && (
               <Link href="/account/organizer" className="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">
                 Become an organizer

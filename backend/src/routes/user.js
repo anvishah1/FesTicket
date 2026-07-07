@@ -21,6 +21,7 @@ router.get("/me", authenticateUser, async (req, res) => {
         role: true,
         profileCompleted: true,
         emailVerified: true,
+        twoFactorEnabled: true, // AUTH-08
         createdAt: true,
         managedFestId: true,
         editorFestId: true,

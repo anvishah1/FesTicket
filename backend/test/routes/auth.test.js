@@ -1276,3 +1276,107 @@ describe("POST /api/auth/google", () => {
     expect(prismaMock.user.create).not.toHaveBeenCalled();
   });
 });
+
+// ==================== AUTH-08: TOTP two-factor ====================
+import * as otplib from "otplib";
+import { generateSecret as gen2faSecret, encryptSecret, generateBackupCodes } from "../../src/utils/twofactor.js";
+
+const authHdr = (userId, role = "VIEWER") => ["Authorization", `Bearer ${signToken({ userId, role })}`];
+
+describe("AUTH-08 2FA setup/enable", () => {
+  it("setup stores an encrypted pending secret + returns a QR data URL", async () => {
+    prismaMock.user.update.mockResolvedValue({});
+    prismaMock.user.findUnique.mockResolvedValue({ email: "u@x.com" });
+    const res = await request(app).post("/api/auth/2fa/setup").set(...authHdr(7));
+    expect(res.status).toBe(200);
+    expect(res.body.data.qrDataUrl).toMatch(/^data:image\/png;base64,/);
+    expect(res.body.data.otpauthUrl).toMatch(/^otpauth:\/\/totp/);
+    // The stored pending secret is encrypted (iv:tag:cipher), not the raw base32.
+    const stored = prismaMock.user.update.mock.calls[0][0].data.twoFactorPendingSecret;
+    expect(stored.split(":")).toHaveLength(3);
+  });
+
+  it("enable verifies the pending secret + returns 10 backup codes", async () => {
+    const secret = await gen2faSecret();
+    prismaMock.user.findUnique.mockResolvedValue({ id: 7, twoFactorPendingSecret: encryptSecret(secret) });
+    prismaMock.user.update.mockResolvedValue({});
+    const code = await otplib.generate({ secret });
+    const res = await request(app).post("/api/auth/2fa/enable").set(...authHdr(7)).send({ code });
+    expect(res.status).toBe(200);
+    expect(res.body.data.backupCodes).toHaveLength(10);
+    expect(prismaMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ twoFactorEnabled: true, twoFactorPendingSecret: null }) })
+    );
+  });
+
+  it("enable rejects a wrong code", async () => {
+    const secret = await gen2faSecret();
+    prismaMock.user.findUnique.mockResolvedValue({ id: 7, twoFactorPendingSecret: encryptSecret(secret) });
+    const res = await request(app).post("/api/auth/2fa/enable").set(...authHdr(7)).send({ code: "000000" });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("INVALID_CODE");
+  });
+});
+
+describe("AUTH-08 signin challenge + verify", () => {
+  it("signin on a 2FA account returns a challenge, not a session", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 7, email: "u@x.com", password: "hash", twoFactorEnabled: true, tokenVersion: 0, emailVerified: true,
+    });
+    prismaMock.user.update.mockResolvedValue({});
+    const res = await request(app).post("/api/auth/signin").send({ email: "u@x.com", password: "pw" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.twoFactorRequired).toBe(true);
+    expect(res.body.data.challengeToken).toBeTruthy();
+    expect(res.body.data.accessToken).toBeUndefined();
+  });
+
+  it("verify accepts a valid TOTP code and issues the session", async () => {
+    const secret = await gen2faSecret();
+    prismaMock.user.findFirst.mockResolvedValue({
+      id: 7, role: "VIEWER", tokenVersion: 0, twoFactorEnabled: true, twoFactorSecret: encryptSecret(secret), twoFactorBackupCodes: [],
+    });
+    prismaMock.refreshToken.create.mockResolvedValue({ id: 1 });
+    prismaMock.refreshToken.findMany.mockResolvedValue([]);
+    const challengeToken = jwt.sign({ userId: 7, purpose: "2fa" }, process.env.JWT_SECRET, { expiresIn: "5m" });
+    const code = await otplib.generate({ secret });
+    const res = await request(app).post("/api/auth/2fa/verify").send({ challengeToken, code });
+    expect(res.status).toBe(200);
+    expect(res.body.data.accessToken).toBeTruthy();
+  });
+
+  it("verify consumes a one-time backup code", async () => {
+    const { plain, hashed } = generateBackupCodes();
+    prismaMock.user.findFirst.mockResolvedValue({
+      id: 7, role: "VIEWER", tokenVersion: 0, twoFactorEnabled: true, twoFactorSecret: encryptSecret("X"), twoFactorBackupCodes: hashed,
+    });
+    prismaMock.user.update.mockResolvedValue({});
+    prismaMock.refreshToken.create.mockResolvedValue({ id: 1 });
+    prismaMock.refreshToken.findMany.mockResolvedValue([]);
+    const challengeToken = jwt.sign({ userId: 7, purpose: "2fa" }, process.env.JWT_SECRET, { expiresIn: "5m" });
+    const res = await request(app).post("/api/auth/2fa/verify").send({ challengeToken, backupCode: plain[0] });
+    expect(res.status).toBe(200);
+    // The used code is removed from the remaining set.
+    const remaining = prismaMock.user.update.mock.calls[0][0].data.twoFactorBackupCodes;
+    expect(remaining).toHaveLength(9);
+  });
+
+  it("verify rejects a wrong code (401) and a bad challenge (400)", async () => {
+    const secret = await gen2faSecret();
+    prismaMock.user.findFirst.mockResolvedValue({
+      id: 7, role: "VIEWER", tokenVersion: 0, twoFactorEnabled: true, twoFactorSecret: encryptSecret(secret), twoFactorBackupCodes: [],
+    });
+    const challengeToken = jwt.sign({ userId: 7, purpose: "2fa" }, process.env.JWT_SECRET, { expiresIn: "5m" });
+    const wrong = await request(app).post("/api/auth/2fa/verify").send({ challengeToken, code: "000000" });
+    expect(wrong.status).toBe(401);
+
+    const badChallenge = await request(app).post("/api/auth/2fa/verify").send({ challengeToken: "not-a-jwt", code: "123456" });
+    expect(badChallenge.status).toBe(400);
+  });
+
+  it("a wrong-purpose challenge token is rejected", async () => {
+    const notFor2fa = jwt.sign({ userId: 7, purpose: "login" }, process.env.JWT_SECRET, { expiresIn: "5m" });
+    const res = await request(app).post("/api/auth/2fa/verify").send({ challengeToken: notFor2fa, code: "123456" });
+    expect(res.status).toBe(400);
+  });
+});

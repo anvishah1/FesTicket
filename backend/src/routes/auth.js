@@ -12,6 +12,8 @@ import { loginLimiter, signupLimiter, writeLimiter } from "../middleware/rateLim
 import { verifyCaptcha } from "../utils/captcha.js";
 import { sendVerificationEmail, sendPasswordResetEmail, sendMagicLink, isMailConfigured } from "../utils/email.js";
 import { OAuth2Client } from "google-auth-library";
+import QRCode from "qrcode";
+import * as twofactor from "../utils/twofactor.js";
 
 const router = express.Router();
 
@@ -336,6 +338,20 @@ router.post("/signin", loginLimiter, validate(signinSchema), async (req, res) =>
         "EMAIL_NOT_VERIFIED",
         "Please verify your email before signing in. Check your inbox for the verification link."
       );
+    }
+
+    // AUTH-08: the password is correct — but if 2FA is enabled, do NOT issue the
+    // session yet. Clear the failed-attempt counter (the password was right) and
+    // return a short-lived, single-purpose challenge token; the second factor is
+    // checked at /2fa/verify. The challenge lacks role/tokenVersion so it can
+    // never act as an access token.
+    if (user.twoFactorEnabled) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginAttempts: 0, lockUntil: null },
+      });
+      const challengeToken = jwt.sign({ userId: user.id, purpose: "2fa" }, process.env.JWT_SECRET, { expiresIn: "5m" });
+      return res.ok({ twoFactorRequired: true, challengeToken }, { message: "Two-factor authentication required" });
     }
 
     /* SUCCESSFUL LOGIN RESET */
@@ -752,6 +768,138 @@ router.post("/reset-password", async (req, res) => {
 
   }
 
+});
+
+/* ================= AUTH-08: TOTP TWO-FACTOR ================= */
+
+// POST /api/auth/2fa/setup — begin enrollment: generate a secret (stored as the
+// encrypted PENDING secret) and return the otpauth URL + a QR data URL.
+router.post("/2fa/setup", authenticateUser, async (req, res) => {
+  try {
+    const secret = await twofactor.generateSecret();
+    await prisma.user.update({
+      where: { id: req.user.userId },
+      data: { twoFactorPendingSecret: twofactor.encryptSecret(secret) },
+    });
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId }, select: { email: true } });
+    const otpauthUrl = twofactor.keyUri(user?.email, secret);
+    const qrDataUrl = await QRCode.toDataURL(otpauthUrl);
+    return res.ok({ otpauthUrl, qrDataUrl, secret });
+  } catch (err) {
+    req.log.error({ err }, "2fa setup error");
+    return res.fail(500, "SERVER_ERROR", "Server error");
+  }
+});
+
+// POST /api/auth/2fa/enable { code } — confirm a TOTP code against the pending
+// secret, activate 2FA, and return 10 one-time backup codes (shown once).
+router.post("/2fa/enable", authenticateUser, async (req, res) => {
+  try {
+    const { code } = req.body || {};
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    if (!user?.twoFactorPendingSecret) return res.fail(400, "NO_PENDING_2FA", "Start two-factor setup first");
+    const secret = twofactor.decryptSecret(user.twoFactorPendingSecret);
+    if (!secret || !(await twofactor.verifyToken(secret, String(code || "")))) {
+      return res.fail(400, "INVALID_CODE", "That code isn't valid. Try again.");
+    }
+    const { plain, hashed } = twofactor.generateBackupCodes();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        twoFactorEnabled: true,
+        twoFactorSecret: user.twoFactorPendingSecret, // already encrypted
+        twoFactorPendingSecret: null,
+        twoFactorBackupCodes: hashed,
+        tokenVersion: { increment: 1 }, // invalidate other live sessions
+      },
+    });
+    return res.ok({ backupCodes: plain }, { message: "Two-factor authentication enabled" });
+  } catch (err) {
+    req.log.error({ err }, "2fa enable error");
+    return res.fail(500, "SERVER_ERROR", "Server error");
+  }
+});
+
+// POST /api/auth/2fa/disable { code | password } — turn off 2FA after proving a
+// second factor (a TOTP code or the account password).
+router.post("/2fa/disable", authenticateUser, async (req, res) => {
+  try {
+    const { code, password } = req.body || {};
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    if (!user?.twoFactorEnabled) return res.fail(400, "NOT_ENABLED", "Two-factor authentication is not enabled");
+
+    let ok = false;
+    if (typeof code === "string" && user.twoFactorSecret) {
+      ok = await twofactor.verifyToken(twofactor.decryptSecret(user.twoFactorSecret), code);
+    }
+    if (!ok && typeof password === "string" && user.password) {
+      ok = await bcrypt.compare(password, user.password);
+    }
+    if (!ok) return res.fail(400, "INVALID_CODE", "Enter a valid code or your password to disable 2FA");
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        twoFactorEnabled: false,
+        twoFactorSecret: null,
+        twoFactorPendingSecret: null,
+        twoFactorBackupCodes: [],
+        tokenVersion: { increment: 1 },
+      },
+    });
+    return res.ok(null, { message: "Two-factor authentication disabled" });
+  } catch (err) {
+    req.log.error({ err }, "2fa disable error");
+    return res.fail(500, "SERVER_ERROR", "Server error");
+  }
+});
+
+// POST /api/auth/2fa/verify { challengeToken, code | backupCode } — the second
+// sign-in step. Validates the short-lived challenge + a TOTP code or a one-time
+// backup code (consumed once), then issues the normal session.
+router.post("/2fa/verify", loginLimiter, async (req, res) => {
+  try {
+    const { challengeToken, code, backupCode } = req.body || {};
+    if (typeof challengeToken !== "string" || !challengeToken) {
+      return res.fail(400, "INVALID_TOKEN", "Invalid challenge");
+    }
+    let payload;
+    try {
+      payload = jwt.verify(challengeToken, process.env.JWT_SECRET);
+    } catch {
+      return res.fail(400, "CHALLENGE_EXPIRED", "Your session expired. Please sign in again.");
+    }
+    if (payload?.purpose !== "2fa" || !payload.userId) return res.fail(400, "INVALID_TOKEN", "Invalid challenge");
+
+    const user = await prisma.user.findFirst({ where: { id: payload.userId, deletedAt: null } });
+    if (!user?.twoFactorEnabled) return res.fail(400, "INVALID_TOKEN", "Invalid challenge");
+
+    let ok = false;
+    let consumed = null;
+    if (typeof code === "string" && user.twoFactorSecret) {
+      ok = await twofactor.verifyToken(twofactor.decryptSecret(user.twoFactorSecret), code);
+    }
+    if (!ok && typeof backupCode === "string") {
+      const h = twofactor.hashBackupCode(backupCode);
+      if ((user.twoFactorBackupCodes || []).includes(h)) {
+        ok = true;
+        consumed = h;
+      }
+    }
+    if (!ok) return res.fail(401, "INVALID_CODE", "Invalid authentication code");
+
+    // A backup code works exactly once.
+    if (consumed) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { twoFactorBackupCodes: user.twoFactorBackupCodes.filter((c) => c !== consumed) },
+      });
+    }
+    return await issueSession(user, req, res, "Signed in");
+  } catch (err) {
+    req.log.error({ err }, "2fa verify error");
+    return res.fail(500, "SERVER_ERROR", "Server error");
+  }
 });
 
 /* ================= AUTH-05: GOOGLE SIGN-IN ================= */

@@ -30,6 +30,13 @@ model User {
   // password account can't be hijacked by an email match. avatarUrl is optional.
   googleId          String?   @unique
   avatarUrl         String?
+  // AUTH-08: opt-in TOTP 2FA. Secrets are ENCRYPTED at rest (never plaintext);
+  // backup codes are stored HASHED. Pending secret holds the not-yet-confirmed
+  // secret during enrollment.
+  twoFactorEnabled        Boolean  @default(false)
+  twoFactorSecret         String?
+  twoFactorPendingSecret  String?
+  twoFactorBackupCodes    String[]
   resetPasswordToken  String?
   resetPasswordExpiry DateTime?
   lastLogin         DateTime?

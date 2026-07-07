@@ -122,6 +122,34 @@ describe("AuthForm", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
+  it("shows the 2FA step on a twoFactorRequired signin and verifies the code (AUTH-08)", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, data: { twoFactorRequired: true, challengeToken: "chal-1" } }),
+      })
+      .mockResolvedValueOnce(successResponse({ role: "VIEWER" })); // /2fa/verify
+    render(<AuthForm />);
+    await fillCredentials();
+    await userEvent.click(screen.getByRole("button", { name: /sign in with email/i }));
+
+    // The 2FA step replaces the login form; no redirect yet.
+    const step = await screen.findByTestId("twofactor-step");
+    expect(step).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+
+    await userEvent.type(screen.getByLabelText("Authentication code"), "123456");
+    await userEvent.click(screen.getByRole("button", { name: /^verify$/i }));
+
+    await waitFor(() =>
+      expect(globalThis.fetch).toHaveBeenLastCalledWith(
+        "http://localhost:4000/api/auth/2fa/verify",
+        expect.objectContaining({ method: "POST", body: expect.stringContaining('"challengeToken":"chal-1"') })
+      )
+    );
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
+  });
+
   it("shows the server error message on a non-ok response", async () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: false,

@@ -1537,6 +1537,40 @@ router.post("/checkin", writeLimiter, authenticateUser, async (req, res) => {
   }
 });
 
+// TIX-04: POST /api/bookings/checkin/undo - revert an admit (organizer correction).
+// Same fest-scoped authorization as check-in. Body { attendeeId }.
+router.post("/checkin/undo", writeLimiter, authenticateUser, async (req, res) => {
+  try {
+    const attendeeId = parseInt(req.body?.attendeeId);
+    if (!Number.isInteger(attendeeId)) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "attendeeId is required" } });
+    }
+    const attendee = await prisma.attendee.findUnique({
+      where: { id: attendeeId },
+      include: { booking: { select: { event: { select: { hostId: true, festId: true } } } } },
+    });
+    if (!attendee) {
+      return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Attendee not found" } });
+    }
+    const event = attendee.booking?.event;
+    let allowed = event?.hostId != null && event.hostId === req.user.userId;
+    if (!allowed) {
+      const { managedFestId, editorFestId } = await callerFests(req);
+      allowed = event?.festId != null && (event.festId === managedFestId || event.festId === editorFestId);
+    }
+    if (!allowed) return forbid(res, "You cannot undo check-in for this event");
+
+    await prisma.attendee.updateMany({
+      where: { id: attendeeId, checkedInAt: { not: null } },
+      data: { checkedInAt: null, checkedInById: null },
+    });
+    return res.json({ success: true, data: { status: "NOT_ADMITTED", attendeeId } });
+  } catch (error) {
+    req.log.error({ err: error }, "Check-in undo error");
+    return res.status(500).json({ success: false, error: { code: "CHECKIN_ERROR", message: "Failed to undo check-in" } });
+  }
+});
+
 // ==================== HOST DASHBOARD - EVENT BOOKINGS ====================
 
 // GET /api/bookings/event/:eventId - Get all bookings for an event (for host dashboard).
@@ -1592,6 +1626,12 @@ router.get("/event/:eventId", authenticateUser, async (req, res) => {
       where: { booking: { eventId: eid, status: "COMPLETED" } },
       _sum: { quantity: true },
     });
+    // TIX-04: door check-in totals over the event's COMPLETED attendees.
+    const completedAttendeeWhere = { booking: { eventId: eid, status: "COMPLETED" } };
+    const attendeeCount = await prisma.attendee.count({ where: completedAttendeeWhere });
+    const admittedCount = await prisma.attendee.count({
+      where: { ...completedAttendeeWhere, checkedInAt: { not: null } },
+    });
     const stats = {
       totalBookings,
       completedBookings: countByStatus.COMPLETED || 0,
@@ -1599,6 +1639,9 @@ router.get("/event/:eventId", authenticateUser, async (req, res) => {
       cancelledBookings: countByStatus.CANCELLED || 0,
       totalRevenue,
       totalTicketsSold: ticketsAgg?._sum?.quantity || 0,
+      // TIX-04
+      attendeeCount,
+      admittedCount,
     };
 
     // The row list is paginated (default 50, max 100 per page).
@@ -1649,6 +1692,11 @@ router.get("/event/:eventId", authenticateUser, async (req, res) => {
       purchaseDate: booking.purchaseDate,
       createdAt: booking.createdAt,
       attendees: booking.attendees.map((att) => ({
+        // TIX-04: expose per-attendee id + ticketCode + check-in state for the
+        // live door dashboard (manual admit/undo + search).
+        id: att.id,
+        ticketCode: att.ticketCode,
+        checkedInAt: att.checkedInAt,
         name: att.name,
         email: att.email,
         ticketType: booking.items.find((i) => i.ticketTypeId === att.ticketTypeId)?.ticketType.name,

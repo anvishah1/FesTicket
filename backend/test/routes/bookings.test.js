@@ -1621,6 +1621,8 @@ describe("GET /api/bookings/event/:eventId", () => {
     ]);
     prismaMock.bookingItem.aggregate.mockResolvedValue({ _sum: { quantity: 2 } });
     prismaMock.booking.count.mockResolvedValue(2);
+    // TIX-04: attendee.count is called twice (total, then admitted).
+    prismaMock.attendee.count.mockResolvedValueOnce(3).mockResolvedValueOnce(1);
     prismaMock.booking.findMany.mockResolvedValue(eventBookings);
     const res = await request(app)
       .get("/api/bookings/event/1")
@@ -1664,6 +1666,9 @@ describe("GET /api/bookings/event/:eventId", () => {
       cancelledBookings: 0,
       totalRevenue: 240.72,
       totalTicketsSold: 2,
+      // TIX-04: door check-in totals.
+      attendeeCount: 3,
+      admittedCount: 1,
     });
   });
 
@@ -2586,6 +2591,43 @@ describe("POST /api/bookings/checkin", () => {
     expect(res.status).toBe(200);
     expect(res.body.data.status).toBe("INVALID");
     expect(prismaMock.attendee.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+// ==================== TIX-04: check-in undo ====================
+describe("POST /api/bookings/checkin/undo", () => {
+  const attWith = (over = {}) => ({ id: 1, booking: { event: { hostId: 7, festId: 3 } }, ...over });
+  const asHost = auth({ userId: 7, role: "HOST" });
+
+  it("400 when attendeeId is missing", async () => {
+    const res = await request(app).post("/api/bookings/checkin/undo").set("Authorization", asHost).send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("404 when the attendee does not exist", async () => {
+    prismaMock.attendee.findUnique.mockResolvedValue(null);
+    const res = await request(app).post("/api/bookings/checkin/undo").set("Authorization", asHost).send({ attendeeId: 1 });
+    expect(res.status).toBe(404);
+  });
+
+  it("403 for a caller not scoped to the event's fest", async () => {
+    prismaMock.attendee.findUnique.mockResolvedValue(attWith({ booking: { event: { hostId: 999, festId: 3 } } }));
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 111, editorFestId: null });
+    const res = await request(app).post("/api/bookings/checkin/undo").set("Authorization", auth({ userId: 7, role: "ADMIN" })).send({ attendeeId: 1 });
+    expect(res.status).toBe(403);
+    expect(prismaMock.attendee.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("clears checkedInAt/checkedInById via a guarded updateMany", async () => {
+    prismaMock.attendee.findUnique.mockResolvedValue(attWith());
+    prismaMock.attendee.updateMany.mockResolvedValue({ count: 1 });
+    const res = await request(app).post("/api/bookings/checkin/undo").set("Authorization", asHost).send({ attendeeId: 1 });
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("NOT_ADMITTED");
+    expect(prismaMock.attendee.updateMany).toHaveBeenCalledWith({
+      where: { id: 1, checkedInAt: { not: null } },
+      data: { checkedInAt: null, checkedInById: null },
+    });
   });
 });
 

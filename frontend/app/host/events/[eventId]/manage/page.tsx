@@ -55,6 +55,17 @@ interface SalesDataPoint {
   revenue: number;
 }
 
+// TIX-04: a single attendee for the door check-in tab.
+interface CheckinAttendee {
+  id: number;
+  ticketCode: string;
+  name: string;
+  email: string;
+  ticketType: string;
+  checkedInAt: string | null;
+  bookingCode: string;
+}
+
 interface EventDetails {
   id: number;
   name: string;
@@ -73,6 +84,7 @@ interface EventDetails {
   totalRevenue: number;
   salesData: SalesDataPoint[];
   buyers: TicketBuyer[];
+  attendees: CheckinAttendee[]; // TIX-04
 }
 
 // PAY-04: a promo code scoped to this event. Money fields are integer paise.
@@ -109,8 +121,11 @@ export default function ManageEventPage() {
   const [event, setEvent] = useState<EventDetails | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "buyers" | "promos">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "buyers" | "promos" | "checkin">("overview");
   const [buyersPage, setBuyersPage] = useState(1);
+  // TIX-04: door check-in tab state.
+  const [checkinSearch, setCheckinSearch] = useState("");
+  const [checkinBusyId, setCheckinBusyId] = useState<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingTicketId, setEditingTicketId] = useState<number | null>(null);
   const [ticketDraft, setTicketDraft] = useState({ name: "", price: "", total: "" });
@@ -236,6 +251,24 @@ export default function ManageEventPage() {
             revenue,
           }));
 
+        // TIX-04: flat attendee list from COMPLETED bookings for the door check-in
+        // tab (each carries its own ticketCode + checkedInAt from the API).
+        const attendees: CheckinAttendee[] = [];
+        for (const b of completed) {
+          for (const a of b.attendees || []) {
+            if (a?.id == null) continue;
+            attendees.push({
+              id: a.id,
+              ticketCode: a.ticketCode || "",
+              name: a.name || "Guest",
+              email: a.email || "",
+              ticketType: a.ticketType || "—",
+              checkedInAt: a.checkedInAt || null,
+              bookingCode: b.bookingCode,
+            });
+          }
+        }
+
         // Per-ticket-type sold from completed bookings only (so breakdown matches payments)
         const soldByTypeName: Record<string, number> = {};
         for (const b of completed) {
@@ -279,6 +312,7 @@ export default function ManageEventPage() {
           totalRevenue: stats.totalRevenue ?? 0,
           salesData,
           buyers,
+          attendees,
         };
 
         setEvent(mappedEvent);
@@ -607,6 +641,58 @@ export default function ManageEventPage() {
   const getTotalTicketsSold = () => {
     if (!event) return 0;
     return event.ticketTypes.reduce((sum, t) => sum + t.sold, 0);
+  };
+
+  // TIX-04: admit / undo an attendee at the door, updating local state.
+  const patchAttendee = (attendeeId: number, checkedInAt: string | null) =>
+    setEvent((prev) =>
+      prev
+        ? { ...prev, attendees: prev.attendees.map((a) => (a.id === attendeeId ? { ...a, checkedInAt } : a)) }
+        : prev
+    );
+
+  const admitAttendee = async (a: CheckinAttendee) => {
+    if (checkinBusyId) return;
+    setCheckinBusyId(a.id);
+    try {
+      const res = await apiFetch(`${getApiUrl()}/api/bookings/checkin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: a.ticketCode }),
+      });
+      const data = await res.json();
+      const st = data.data?.status;
+      if (res.ok && (st === "ADMITTED" || st === "ALREADY")) {
+        patchAttendee(a.id, data.data?.checkedInAt || new Date().toISOString());
+        showToast(st === "ALREADY" ? "Already checked in" : "Admitted", "success");
+      } else {
+        showToast(data.data?.reason || data.error?.message || "Could not admit", "error");
+      }
+    } catch {
+      showToast("Could not admit", "error");
+    }
+    setCheckinBusyId(null);
+  };
+
+  const undoAttendee = async (a: CheckinAttendee) => {
+    if (checkinBusyId) return;
+    setCheckinBusyId(a.id);
+    try {
+      const res = await apiFetch(`${getApiUrl()}/api/bookings/checkin/undo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attendeeId: a.id }),
+      });
+      if (res.ok) {
+        patchAttendee(a.id, null);
+        showToast("Check-in undone", "success");
+      } else {
+        showToast("Could not undo", "error");
+      }
+    } catch {
+      showToast("Could not undo", "error");
+    }
+    setCheckinBusyId(null);
   };
 
   const handleExportExcel = () => {
@@ -1028,6 +1114,16 @@ export default function ManageEventPage() {
             }`}
           >
             Promo Codes
+          </button>
+          <button
+            onClick={() => setActiveTab("checkin")}
+            className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
+              activeTab === "checkin"
+                ? "bg-[#522C5D] text-white"
+                : "bg-[#C5BAC4]/30 text-[#6B597F] hover:bg-[#C5BAC4]"
+            }`}
+          >
+            Check-in
           </button>
         </div>
 
@@ -1467,6 +1563,94 @@ export default function ManageEventPage() {
             </div>
           </div>
         )}
+
+        {/* TIX-04: live door check-in dashboard */}
+        {activeTab === "checkin" && (() => {
+          const total = event.attendees.length;
+          const admitted = event.attendees.filter((a) => a.checkedInAt).length;
+          const byType: Record<string, { admitted: number; total: number }> = {};
+          for (const a of event.attendees) {
+            const t = a.ticketType || "—";
+            if (!byType[t]) byType[t] = { admitted: 0, total: 0 };
+            byType[t].total += 1;
+            if (a.checkedInAt) byType[t].admitted += 1;
+          }
+          const q = checkinSearch.trim().toLowerCase();
+          const filtered = q
+            ? event.attendees.filter((a) => `${a.name} ${a.email} ${a.ticketCode}`.toLowerCase().includes(q))
+            : event.attendees;
+          return (
+            <div className="space-y-6">
+              <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 shadow-sm">
+                <div className="flex items-baseline justify-between">
+                  <h3 className="text-lg font-bold text-[#29104A]">Admitted</h3>
+                  <p className="text-2xl font-bold text-[#29104A]" data-testid="admitted-count">{admitted} / {total}</p>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {Object.entries(byType).map(([name, c]) => (
+                    <div key={name}>
+                      <div className="flex justify-between text-sm text-[#6B597F]">
+                        <span>{name}</span>
+                        <span>{c.admitted} / {c.total}</span>
+                      </div>
+                      <div className="h-2 bg-[#C5BAC4]/30 rounded">
+                        <div className="h-2 bg-[#522C5D] rounded" style={{ width: `${c.total ? (c.admitted / c.total) * 100 : 0}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-[#C5BAC4] overflow-hidden shadow-sm">
+                <div className="p-4 border-b border-[#C5BAC4]">
+                  <input
+                    value={checkinSearch}
+                    onChange={(e) => setCheckinSearch(e.target.value)}
+                    placeholder="Search name, email, or code"
+                    aria-label="Search attendees"
+                    className="w-full px-3 py-2 border border-[#C5BAC4] rounded-lg text-sm"
+                  />
+                </div>
+                {filtered.length === 0 ? (
+                  <p className="px-6 py-10 text-center text-[#6B597F]">No attendees{q ? " match your search" : " yet"}.</p>
+                ) : (
+                  <ul className="divide-y divide-[#C5BAC4]" data-testid="checkin-list">
+                    {filtered.map((a) => (
+                      <li key={a.id} className="flex items-center justify-between gap-4 px-5 py-3">
+                        <div className="min-w-0">
+                          <p className="font-medium text-[#29104A] truncate">{a.name}</p>
+                          <p className="text-xs text-[#6B597F] truncate">{a.email} · {a.ticketType}</p>
+                        </div>
+                        {a.checkedInAt ? (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Admitted</span>
+                            <button
+                              type="button"
+                              onClick={() => undoAttendee(a)}
+                              disabled={checkinBusyId === a.id}
+                              className="text-xs px-3 py-1.5 rounded-md border border-[#C5BAC4] text-[#29104A] hover:bg-[#C5BAC4]/20 disabled:opacity-50"
+                            >
+                              Undo
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => admitAttendee(a)}
+                            disabled={checkinBusyId === a.id}
+                            className="shrink-0 text-xs px-3 py-1.5 rounded-md bg-[#522C5D] text-white hover:bg-[#29104A] disabled:opacity-50"
+                          >
+                            Admit
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* PAY-02 refund modal */}

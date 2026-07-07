@@ -82,6 +82,9 @@ function installFetch() {
     if (u.includes("/api/bookings/1/refund") && method === "POST") {
       return resp({ success: true, data: { status: "REFUNDED" }, message: "Booking fully refunded" });
     }
+    if (u.includes("/api/bookings/checkin") && method === "POST") {
+      return resp({ success: true, data: { status: "ADMITTED", checkedInAt: "2026-02-02T09:00:00Z" } });
+    }
     if (u.includes("/api/bookings/event/5")) {
       return resp({
         success: true,
@@ -99,9 +102,13 @@ function installFetch() {
               total: 200,
               refundedAmount: 0,
               purchaseDate: "2099-05-01T10:00:00.000Z",
+              attendees: [
+                { id: 11, ticketCode: "tkt_alice", name: "Alice A", email: "aa@x.com", ticketType: "GA", checkedInAt: null },
+                { id: 12, ticketCode: "tkt_bob", name: "Bob B", email: "bb@x.com", ticketType: "GA", checkedInAt: "2026-01-01T10:00:00Z" },
+              ],
             },
           ],
-          stats: { totalRevenue: 0, totalTicketsSold: 0 },
+          stats: { totalRevenue: 0, totalTicketsSold: 0, attendeeCount: 2, admittedCount: 1 },
           pagination: { page: 1, pageSize: 100, total: 1, totalPages: 1 },
         },
       });
@@ -266,5 +273,20 @@ describe("ManageEventPage", () => {
         (c[1] as RequestInit | undefined)?.method === "DELETE"
     );
     expect(delCall).toBeTruthy();
+  });
+
+  it("shows the check-in tab with admitted counts and admits an attendee (TIX-04)", async () => {
+    render(<ManageEventPage />);
+    await screen.findByRole("button", { name: "Publish" });
+    await userEvent.click(screen.getByRole("button", { name: "Check-in" }));
+
+    // 1 of 2 attendees already admitted (Bob), Alice not yet.
+    expect(await screen.findByTestId("admitted-count")).toHaveTextContent("1 / 2");
+    const aliceRow = screen.getByText("Alice A").closest("li")!;
+    await userEvent.click(within(aliceRow).getByRole("button", { name: "Admit" }));
+
+    await waitFor(() => expect(showToastMock).toHaveBeenCalledWith("Admitted", "success"));
+    // Alice now admitted -> counter climbs to 2 / 2.
+    await waitFor(() => expect(screen.getByTestId("admitted-count")).toHaveTextContent("2 / 2"));
   });
 });

@@ -9,18 +9,40 @@ describe("buildEventIcs (TIX-09)", () => {
     expect(buildEventIcs({ id: 1, name: "E", startDate: "not-a-date" }, stamp)).toBeNull();
   });
 
-  it("builds a timed VEVENT with DTSTART/DTEND in UTC and a +2h default end", () => {
+  it("builds a timed VEVENT with FLOATING DTSTART/DTEND (no Z) and a +2h default end", () => {
     const ics = buildEventIcs(
       { id: 5, name: "Fest", startDate: "2026-05-01T00:00:00Z", startTime: "18:30", venue: "Hall" },
       stamp
     );
     expect(ics).toContain("BEGIN:VCALENDAR");
     expect(ics).toContain("UID:event-5@tiqr");
-    expect(ics).toContain("DTSTART:20260501T183000Z");
-    expect(ics).toContain("DTEND:20260501T203000Z");
+    // Floating local time (no Z): the wall-clock 18:30 must be preserved for the
+    // importer, not declared as UTC (which would shift it by their offset).
+    expect(ics).toContain("DTSTART:20260501T183000");
+    expect(ics).toContain("DTEND:20260501T203000");
+    expect(ics).not.toContain("DTSTART:20260501T183000Z");
+    // DTSTAMP stays a real UTC instant.
+    expect(ics).toContain("DTSTAMP:20260101T000000Z");
     expect(ics).toContain("SUMMARY:Fest");
     expect(ics).toContain("LOCATION:Hall");
     expect(ics.endsWith("\r\n")).toBe(true);
+  });
+
+  it("clamps DTEND to after DTSTART when a same-day, time-less endDate would precede it", () => {
+    const ics = buildEventIcs(
+      {
+        id: 9,
+        name: "Clamp",
+        startDate: "2026-05-01T00:00:00Z",
+        startTime: "18:00",
+        endDate: "2026-05-01T00:00:00Z", // same day, no endTime -> would be 00:00
+      },
+      stamp
+    );
+    // Must NOT emit DTEND at 00:00 (before the 18:00 start); falls back to +2h.
+    expect(ics).toContain("DTSTART:20260501T180000");
+    expect(ics).toContain("DTEND:20260501T200000");
+    expect(ics).not.toContain("DTEND:20260501T000000");
   });
 
   it("emits an all-day VALUE=DATE event when there is no time-of-day", () => {

@@ -1,5 +1,8 @@
 // TIX-09: build a standards-compliant (RFC 5545) VCALENDAR/VEVENT string for an
-// event. No dependency. Times are emitted in UTC (…Z) to avoid off-by-hours; when
+// event. No dependency. `startTime` is a naive wall-clock string ("18:00" = 6pm
+// at the venue) and the schema stores NO timezone, so timed events are emitted as
+// FLOATING local DATE-TIMEs (no Z) — that renders as the intended wall-clock time
+// in the importer's calendar instead of being shifted by their UTC offset. When
 // no usable time is present we fall back to an all-day VALUE=DATE event.
 
 // Escape per RFC 5545 §3.3.11: backslash, semicolon, comma, and newlines.
@@ -11,12 +14,23 @@ function escapeText(value) {
     .replace(/\r?\n/g, "\\n");
 }
 
-// "YYYYMMDDTHHMMSSZ" (UTC) for a datetime, or "YYYYMMDD" for an all-day date.
+// "YYYYMMDDTHHMMSSZ" (UTC) — used for DTSTAMP, which IS a real UTC instant.
 function toUtcStamp(date) {
   const p = (n) => String(n).padStart(2, "0");
   return (
     `${date.getUTCFullYear()}${p(date.getUTCMonth() + 1)}${p(date.getUTCDate())}` +
     `T${p(date.getUTCHours())}${p(date.getUTCMinutes())}${p(date.getUTCSeconds())}Z`
+  );
+}
+// "YYYYMMDDTHHMMSS" — FLOATING local time (no Z). composeStart builds the
+// wall-clock time via setUTCHours, so the UTC components ARE the wall-clock
+// values; emitting them without a Z keeps them floating (interpreted in the
+// viewer's own timezone) rather than wrongly declared as UTC.
+function toFloatingStamp(date) {
+  const p = (n) => String(n).padStart(2, "0");
+  return (
+    `${date.getUTCFullYear()}${p(date.getUTCMonth() + 1)}${p(date.getUTCDate())}` +
+    `T${p(date.getUTCHours())}${p(date.getUTCMinutes())}${p(date.getUTCSeconds())}`
   );
 }
 function toDateOnly(date) {
@@ -53,7 +67,11 @@ export function buildEventIcs(event, stamp = new Date()) {
     const composedEnd = composeStart(event.endDate, event.endTime);
     if (composedEnd) end = composedEnd.date;
   }
-  if (!end) {
+  // Fall back to a default duration when there is no end, OR when the composed
+  // end is not strictly after the start — e.g. a timed 18:00 start with a
+  // same-day, time-less endDate would otherwise yield DTEND at 00:00 (before
+  // DTSTART), producing an RFC-5545-invalid VEVENT that clients may drop.
+  if (!end || end.getTime() <= start.date.getTime()) {
     end = new Date(start.date);
     if (start.hasTime) end.setUTCHours(end.getUTCHours() + 2);
     else end.setUTCDate(end.getUTCDate() + 1);
@@ -74,8 +92,8 @@ export function buildEventIcs(event, stamp = new Date()) {
     "BEGIN:VEVENT",
     `UID:event-${event.id}@tiqr`,
     `DTSTAMP:${toUtcStamp(stamp)}`,
-    start.hasTime ? `DTSTART:${toUtcStamp(start.date)}` : `DTSTART;VALUE=DATE:${toDateOnly(start.date)}`,
-    start.hasTime ? `DTEND:${toUtcStamp(end)}` : `DTEND;VALUE=DATE:${toDateOnly(end)}`,
+    start.hasTime ? `DTSTART:${toFloatingStamp(start.date)}` : `DTSTART;VALUE=DATE:${toDateOnly(start.date)}`,
+    start.hasTime ? `DTEND:${toFloatingStamp(end)}` : `DTEND;VALUE=DATE:${toDateOnly(end)}`,
     `SUMMARY:${escapeText(event.name || "Event")}`,
     location ? `LOCATION:${escapeText(location)}` : null,
     description ? `DESCRIPTION:${escapeText(description)}` : null,

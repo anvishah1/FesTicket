@@ -14,16 +14,70 @@ function readFileText(file: File): Promise<string> {
   });
 }
 
+// RFC-4180-aware CSV tokenizer. A quoted field may contain commas, embedded
+// newlines, and escaped quotes (""). A naive split(",") would corrupt a value
+// like "Last, First" by breaking it across columns.
+function parseCsvRecords(text: string): string[][] {
+  const records: string[][] = [];
+  let record: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  let started = false; // has the current record seen any char yet?
+
+  const endField = () => {
+    record.push(field);
+    field = "";
+  };
+  const endRecord = () => {
+    endField();
+    records.push(record);
+    record = [];
+    started = false;
+  };
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++; // consume the escaped quote
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += ch;
+      }
+      continue;
+    }
+    if (ch === '"' && field === "") {
+      inQuotes = true;
+      started = true;
+    } else if (ch === ",") {
+      endField();
+      started = true;
+    } else if (ch === "\n") {
+      endRecord();
+    } else if (ch === "\r") {
+      // swallow CR; the following LF (or EOF) ends the record
+    } else {
+      field += ch;
+      started = true;
+    }
+  }
+  // Flush a trailing record that had no closing newline.
+  if (started || field.length > 0 || record.length > 0) endRecord();
+  return records;
+}
+
 // Parse a small "name,email" CSV. Header-tolerant: if the first row looks like a
 // header (contains "name"/"email" and no "@"), it is skipped. Accepts either
 // column order when a header names them; otherwise assumes name,email. Extra
-// columns are ignored, blank lines dropped.
+// columns are ignored, blank rows dropped, quoted commas preserved.
 export function parseAttendeeCsv(text: string): { name: string; email: string }[] {
-  const rows = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => line.split(",").map((c) => c.trim().replace(/^"|"$/g, "")));
+  const rows = parseCsvRecords(text)
+    .map((cols) => cols.map((c) => c.trim()))
+    .filter((cols) => cols.some((c) => c.length > 0));
   if (rows.length === 0) return [];
 
   let nameIdx = 0;

@@ -8,7 +8,13 @@ import Footer from "@/components/Footer";
 import { apiFetch, getStoredUser, isAuthenticated } from "@/lib/auth";
 
 type CheckinResult =
-  | { status: "ADMITTED" | "ALREADY" | "INVALID"; name?: string; ticketType?: string; checkedInAt?: string; reason?: string }
+  | {
+      status: "ADMITTED" | "ALREADY" | "INVALID" | "WRONG_EVENT";
+      name?: string;
+      ticketType?: string;
+      checkedInAt?: string;
+      reason?: string;
+    }
   | null;
 
 interface Html5QrcodeInstance {
@@ -91,23 +97,30 @@ export default function CheckinPage() {
         const res = await apiFetch("/api/bookings/checkin", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: c }),
+          // Bind the scan to THIS event so a ticket for another event of the same
+          // fest is rejected (WRONG_EVENT) rather than wrongly admitted here.
+          body: JSON.stringify({ code: c, eventId }),
         });
         const data = await res.json();
         const d = data.data || {};
+        // For WRONG_EVENT, surface which event the ticket actually belongs to.
+        const reason =
+          d.status === "WRONG_EVENT" && d.event?.name
+            ? `${d.reason || "This ticket is for a different event"} — ${d.event.name}`
+            : d.reason || data.error?.message;
         setResult({
           status: d.status || "INVALID",
           name: d.attendee?.name,
           ticketType: d.attendee?.ticketType,
           checkedInAt: d.checkedInAt,
-          reason: d.reason || data.error?.message,
+          reason,
         });
       } catch {
         setResult({ status: "INVALID", reason: "Network error — try again." });
       }
       setBusy(false);
     },
-    [busy]
+    [busy, eventId]
   );
 
   const stopCamera = React.useCallback(async () => {
@@ -162,7 +175,13 @@ export default function CheckinPage() {
           }`}
         >
           <div>
-            {result.status === "ADMITTED" ? "✓ ADMITTED" : result.status === "ALREADY" ? "ALREADY CHECKED IN" : "INVALID"}
+            {result.status === "ADMITTED"
+              ? "✓ ADMITTED"
+              : result.status === "ALREADY"
+              ? "ALREADY CHECKED IN"
+              : result.status === "WRONG_EVENT"
+              ? "WRONG EVENT"
+              : "INVALID"}
           </div>
           {result.name && (
             <div className="text-base font-medium mt-1">
@@ -173,7 +192,9 @@ export default function CheckinPage() {
           {result.status === "ALREADY" && result.checkedInAt && (
             <div className="text-sm font-normal mt-1">First admitted {new Date(result.checkedInAt).toLocaleString()}</div>
           )}
-          {result.status === "INVALID" && result.reason && <div className="text-sm font-normal mt-1">{result.reason}</div>}
+          {(result.status === "INVALID" || result.status === "WRONG_EVENT") && result.reason && (
+            <div className="text-sm font-normal mt-1">{result.reason}</div>
+          )}
         </div>
       )}
 

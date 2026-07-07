@@ -136,6 +136,25 @@ describe("parseAttendeeCsv (TIX-10)", () => {
     ]);
   });
 
+  it("preserves a comma inside a quoted field (RFC-4180)", () => {
+    expect(parseAttendeeCsv('"Smith, John",john@x.com')).toEqual([
+      { name: "Smith, John", email: "john@x.com" },
+    ]);
+  });
+
+  it("unescapes doubled quotes inside a quoted field", () => {
+    expect(parseAttendeeCsv('"Ann ""Annie"" Lee",ann@x.com')).toEqual([
+      { name: 'Ann "Annie" Lee', email: "ann@x.com" },
+    ]);
+  });
+
+  it("handles CRLF line endings", () => {
+    expect(parseAttendeeCsv("name,email\r\nAlice,a@x.com\r\nBob,b@x.com\r\n")).toEqual([
+      { name: "Alice", email: "a@x.com" },
+      { name: "Bob", email: "b@x.com" },
+    ]);
+  });
+
   it("returns an empty array for empty input", () => {
     expect(parseAttendeeCsv("")).toEqual([]);
   });

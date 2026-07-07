@@ -3,12 +3,21 @@
 import React from "react";
 import { getApiUrl } from "@/lib/auth";
 
-function gcalStamp(date: Date) {
-  const p = (n: number) => String(n).padStart(2, "0");
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+// FLOATING local time (no Z): startTime is a naive wall-clock string and no
+// timezone is stored, so emit the wall-clock value un-zoned. Google interprets a
+// dates= value without a Z in the viewer's own calendar timezone, so an 18:00
+// event stays 18:00 instead of being shifted by their UTC offset.
+function gcalFloating(date: Date) {
   return (
-    `${date.getUTCFullYear()}${p(date.getUTCMonth() + 1)}${p(date.getUTCDate())}` +
-    `T${p(date.getUTCHours())}${p(date.getUTCMinutes())}00Z`
+    `${date.getUTCFullYear()}${pad2(date.getUTCMonth() + 1)}${pad2(date.getUTCDate())}` +
+    `T${pad2(date.getUTCHours())}${pad2(date.getUTCMinutes())}00`
   );
+}
+// All-day events use the date-only "YYYYMMDD/YYYYMMDD" form (end exclusive).
+function gcalDateOnly(date: Date) {
+  return `${date.getUTCFullYear()}${pad2(date.getUTCMonth() + 1)}${pad2(date.getUTCDate())}`;
 }
 
 // TIX-09: add-to-calendar dropdown. Apple/Outlook download the backend .ics;
@@ -40,12 +49,24 @@ export default function AddToCalendar({
       const m = typeof startTime === "string" ? startTime.match(/^(\d{1,2}):(\d{2})/) : null;
       const start = new Date(base);
       if (m) start.setUTCHours(Number(m[1]), Number(m[2]), 0, 0);
+      const hasTime = !!m || base.getUTCHours() !== 0 || base.getUTCMinutes() !== 0;
+
       let end = endDate ? new Date(endDate) : new Date(NaN);
-      if (Number.isNaN(end.getTime())) end = new Date(start.getTime() + 2 * 3600 * 1000);
+      // Default/clamp: also fall back when the end isn't strictly after the start
+      // (mirrors the .ics fix so DTEND never precedes DTSTART).
+      if (Number.isNaN(end.getTime()) || end.getTime() <= start.getTime()) {
+        end = new Date(start.getTime());
+        if (hasTime) end.setUTCHours(end.getUTCHours() + 2);
+        else end.setUTCDate(end.getUTCDate() + 1);
+      }
+
+      const dates = hasTime
+        ? `${gcalFloating(start)}/${gcalFloating(end)}`
+        : `${gcalDateOnly(start)}/${gcalDateOnly(end)}`;
       const params = new URLSearchParams({
         action: "TEMPLATE",
         text: name || "Event",
-        dates: `${gcalStamp(start)}/${gcalStamp(end)}`,
+        dates,
         location: venue || "",
         details: description || "",
       });

@@ -2738,6 +2738,30 @@ describe("POST /api/bookings/checkin", () => {
     expect(res.body.data.status).toBe("INVALID");
     expect(prismaMock.attendee.updateMany).not.toHaveBeenCalled();
   });
+
+  it("rejects a ticket for a DIFFERENT event of the same fest (WRONG_EVENT) without admitting", async () => {
+    // Ticket is for event 5; the door scanner is bound to event 9 (same fest 3).
+    prismaMock.attendee.findUnique.mockResolvedValue(att());
+    const res = await request(app)
+      .post("/api/bookings/checkin")
+      .set("Authorization", asHost)
+      .send({ code: "c", eventId: 9 });
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("WRONG_EVENT");
+    expect(res.body.data.event).toMatchObject({ id: 5, name: "E" });
+    expect(prismaMock.attendee.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("admits when the scanner eventId matches the ticket's event", async () => {
+    prismaMock.attendee.findUnique.mockResolvedValue(att());
+    prismaMock.attendee.updateMany.mockResolvedValue({ count: 1 });
+    const res = await request(app)
+      .post("/api/bookings/checkin")
+      .set("Authorization", asHost)
+      .send({ code: "c", eventId: 5 });
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("ADMITTED");
+  });
 });
 
 // ==================== TIX-04: check-in undo ====================

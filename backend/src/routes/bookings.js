@@ -1639,6 +1639,10 @@ router.post("/checkin", writeLimiter, authenticateUser, async (req, res) => {
     if (!code) {
       return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "A ticket code is required" } });
     }
+    // Optional event binding: the per-event door scanner always sends the eventId
+    // it is scanning for. When present, a ticket for a DIFFERENT event is rejected
+    // even if it belongs to the same fest (see WRONG_EVENT below).
+    const scannerEventId = Number.isInteger(parseInt(req.body?.eventId)) ? parseInt(req.body.eventId) : null;
 
     const attendee = await prisma.attendee.findUnique({
       where: { ticketCode: code },
@@ -1659,6 +1663,22 @@ router.post("/checkin", writeLimiter, authenticateUser, async (req, res) => {
       allowed = event?.festId != null && (event.festId === managedFestId || event.festId === editorFestId);
     }
     if (!allowed) return forbid(res, "You cannot check in tickets for this event");
+
+    // Event-scoped guard: a fest can run several simultaneous events under one
+    // festId. If the scanner named an event, a ticket for a different event must
+    // NOT be admitted here (it would let the wrong person in and corrupt this
+    // event's admitted count). Report WRONG_EVENT so the operator sees the reason.
+    if (scannerEventId != null && event?.id !== scannerEventId) {
+      return res.json({
+        success: true,
+        data: {
+          status: "WRONG_EVENT",
+          reason: "This ticket is for a different event",
+          attendee: { id: attendee.id, name: attendee.name },
+          event: event ? { id: event.id, name: event.name } : null,
+        },
+      });
+    }
 
     // Only a paid (COMPLETED) ticket is valid at the door — a PENDING/CANCELLED/
     // REFUNDED booking's attendee must not be admitted.

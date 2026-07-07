@@ -15,8 +15,12 @@ describe("AddToCalendar (TIX-09)", () => {
       "http://localhost:4000/api/events/5/calendar.ics"
     );
     const google = screen.getByRole("link", { name: /google calendar/i });
-    expect(google.getAttribute("href")).toContain("calendar.google.com/calendar/render");
-    expect(google.getAttribute("href")).toContain("20260501T183000Z"); // start in UTC
+    const href = google.getAttribute("href") || "";
+    expect(href).toContain("calendar.google.com/calendar/render");
+    // FLOATING local time (no Z) so 18:30 stays 18:30 in the viewer's timezone
+    // instead of being shifted by their UTC offset.
+    expect(decodeURIComponent(href)).toContain("20260501T183000/20260501T203000");
+    expect(href).not.toContain("183000Z");
   });
 
   it("omits the Google link when there is no start date", async () => {

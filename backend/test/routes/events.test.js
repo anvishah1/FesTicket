@@ -2174,7 +2174,10 @@ describe("GET /api/events/:id/calendar.ics", () => {
     expect(res.headers["content-disposition"]).toMatch(/event-5\.ics/);
     expect(res.text).toContain("BEGIN:VCALENDAR");
     expect(res.text).toContain("SUMMARY:Spring Fest");
-    expect(res.text).toContain("DTSTART:20260501T180000Z");
+    // Floating local time (no Z) — see ics.js: the wall-clock 18:00 is preserved
+    // for the importer rather than declared as UTC.
+    expect(res.text).toContain("DTSTART:20260501T180000");
+    expect(res.text).not.toContain("DTSTART:20260501T180000Z");
   });
 
   it("400 when a published event has no date", async () => {

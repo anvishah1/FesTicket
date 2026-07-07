@@ -182,6 +182,12 @@ function getMailProvider() {
   };
 }
 
+// AUTH-01: is a real mail provider configured? Signup uses this to decide whether
+// to require email verification (verification is enforced only when we can send).
+export function isMailConfigured() {
+  return !!getMailProvider();
+}
+
 // Defensive EmailLog helpers — a logging failure must never break a send.
 async function createEmailLog(data) {
   try {
@@ -349,4 +355,49 @@ export async function sendBookingConfirmation(booking) {
     bookingId: booking.id,
     template: "booking_confirmation",
   });
+}
+
+// ==================== AUTH-01: transactional auth emails ====================
+
+// Verify-your-email (branded, with a CTA button). Non-blocking send.
+export async function sendVerificationEmail({ to, name, verifyLink }) {
+  const { html, text } = renderEmail({
+    preheader: "Confirm your email to activate your account",
+    heading: "Verify your email",
+    bodyHtml: `
+    <tr><td style="padding:0 0 16px;">Hi ${escapeHtml(name || "there")}, welcome to ${escapeHtml(APP_NAME)}! Please confirm this is your email to finish setting up your account.</td></tr>
+    <tr><td style="padding:0 0 8px;font-size:14px;color:#666666;">If the button doesn't work, paste this link into your browser:</td></tr>
+    <tr><td style="padding:0 0 8px;font-size:13px;color:${BRAND};word-break:break-all;">${escapeHtml(verifyLink)}</td></tr>`,
+    cta: { label: "Verify email", url: verifyLink },
+    footerNote: `If you didn't create a ${escapeHtml(APP_NAME)} account, you can ignore this email.`,
+  });
+  return sendMail({ to, subject: `Verify your ${APP_NAME} email`, html, text, template: "email_verification" });
+}
+
+// Password-reset link (branded, with a CTA button). Non-blocking send.
+export async function sendPasswordResetEmail({ to, name, resetLink }) {
+  const { html, text } = renderEmail({
+    preheader: "Reset your password",
+    heading: "Reset your password",
+    bodyHtml: `
+    <tr><td style="padding:0 0 16px;">Hi ${escapeHtml(name || "there")}, we received a request to reset your ${escapeHtml(APP_NAME)} password. This link expires in 30 minutes.</td></tr>
+    <tr><td style="padding:0 0 8px;font-size:14px;color:#666666;">If the button doesn't work, paste this link into your browser:</td></tr>
+    <tr><td style="padding:0 0 8px;font-size:13px;color:${BRAND};word-break:break-all;">${escapeHtml(resetLink)}</td></tr>`,
+    cta: { label: "Reset password", url: resetLink },
+    footerNote: `If you didn't request this, you can safely ignore this email — your password won't change.`,
+  });
+  return sendMail({ to, subject: `Reset your ${APP_NAME} password`, html, text, template: "password_reset" });
+}
+
+// Welcome email (sent after a user verifies / for auto-verified signups).
+export async function sendWelcomeEmail({ to, name }) {
+  const { html, text } = renderEmail({
+    preheader: `Welcome to ${APP_NAME}`,
+    heading: `Welcome to ${APP_NAME}`,
+    bodyHtml: `
+    <tr><td style="padding:0 0 16px;">Hi ${escapeHtml(name || "there")}, your ${escapeHtml(APP_NAME)} account is ready. Discover fests and book tickets any time.</td></tr>`,
+    cta: { label: "Browse events", url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/fests` },
+    footerNote: `Thanks for joining ${escapeHtml(APP_NAME)}.`,
+  });
+  return sendMail({ to, subject: `Welcome to ${APP_NAME}`, html, text, template: "welcome" });
 }

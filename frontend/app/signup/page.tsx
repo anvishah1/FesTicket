@@ -20,6 +20,8 @@ export default function SignUpPage() {
   const [captchaOk, setCaptchaOk] = React.useState(false); // demo checkbox for reCAPTCHA
   const [captchaToken, setCaptchaToken] = React.useState(""); // real Turnstile token (when configured)
   const [submitted, setSubmitted] = React.useState(false);
+  // AUTH-01: the API returns emailVerified:false when verification is enforced.
+  const [needsVerification, setNeedsVerification] = React.useState(false);
 
   // CAPTCHA: graceful degradation. When NEXT_PUBLIC_CAPTCHA_SITE_KEY is unset
   // (dev / E2E / tests) we keep the demo "I'm not a robot" checkbox gating and
@@ -117,6 +119,7 @@ export default function SignUpPage() {
         setLoading(false);
         return;
       }
+      setNeedsVerification(data?.data?.emailVerified === false);
       setSubmitted(true);
     } catch {
       setError("Could not reach server. Please try again.");
@@ -137,10 +140,15 @@ export default function SignUpPage() {
                 </svg>
               </div>
               <h2 className="text-2xl font-bold text-[#29104A] mb-2">
-                {wantsEditor ? "Request Submitted!" : "Account Created"}
+                {needsVerification ? "Verify your email" : wantsEditor ? "Request Submitted!" : "Account Created"}
               </h2>
               <p className="text-[#6B597F] mb-6">
-                {wantsEditor
+                {needsVerification
+                  ? "We've sent a verification link to your email. Click it to activate your account, then sign in." +
+                    (wantsEditor
+                      ? " Your request for organizer access is pending admin approval."
+                      : "")
+                  : wantsEditor
                   ? "Your account has been created and you can sign in now as a viewer. Your request for organizer access is pending admin approval — your role will be upgraded automatically once it's approved."
                   : "You can now sign in with your email and password."}
               </p>

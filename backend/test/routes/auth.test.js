@@ -36,6 +36,21 @@ vi.mock("bcrypt", () => ({
   },
 }));
 
+// AUTH-01: mock the email module so tests can toggle whether "mail is configured"
+// (which drives verification enforcement) without real sends. Default: unconfigured.
+const emailMock = vi.hoisted(() => ({
+  mailConfigured: { value: false },
+  sendVerificationEmail: vi.fn().mockResolvedValue({ sent: true }),
+  sendPasswordResetEmail: vi.fn().mockResolvedValue({ sent: true }),
+  sendWelcomeEmail: vi.fn().mockResolvedValue({ sent: true }),
+}));
+vi.mock("../../src/utils/email.js", () => ({
+  isMailConfigured: () => emailMock.mailConfigured.value,
+  sendVerificationEmail: emailMock.sendVerificationEmail,
+  sendPasswordResetEmail: emailMock.sendPasswordResetEmail,
+  sendWelcomeEmail: emailMock.sendWelcomeEmail,
+}));
+
 import router from "../../src/routes/auth.js";
 
 const app = makeApp(router, "/api/auth");
@@ -46,6 +61,11 @@ beforeEach(() => {
   // via mockResolvedValue, so re-establish bcrypt defaults each test.
   bcrypt.hash.mockResolvedValue("hashed-pw");
   bcrypt.compare.mockResolvedValue(true);
+  // Default every test to "mail unconfigured" (auto-verify path); AUTH-01 tests
+  // flip this on explicitly. Re-establish the resolved values cleared each test.
+  emailMock.mailConfigured.value = false;
+  emailMock.sendVerificationEmail.mockResolvedValue({ sent: true });
+  emailMock.sendPasswordResetEmail.mockResolvedValue({ sent: true });
 });
 
 // A password that satisfies signupSchema (upper/lower/number/special, 8-30 chars).
@@ -126,9 +146,9 @@ describe("POST /api/auth/signup", () => {
     expect(prismaMock.user.create).not.toHaveBeenCalled();
   });
 
-  it("creates a non-editor user and returns 201 (NODE_ENV=test verify message)", async () => {
+  it("creates an auto-verified non-editor user when mail is unconfigured (AUTH-01)", async () => {
     prismaMock.user.findUnique.mockResolvedValue(null);
-    prismaMock.user.create.mockResolvedValue({ id: 42, email: "a@b.com" });
+    prismaMock.user.create.mockResolvedValue({ id: 42, email: "a@b.com", emailVerified: true });
 
     const res = await request(app)
       .post("/api/auth/signup")
@@ -139,8 +159,9 @@ describe("POST /api/auth/signup", () => {
     // and every enveloped response carries success + requestId.
     expect(res.body.success).toBe(true);
     expect(res.body.requestId).toBeTruthy();
-    expect(res.body.message).toBe("Signup successful. Please verify your email.");
-    expect(res.body.data).toEqual({ userId: 42, createdRoleRequest: false });
+    // With no SMTP configured, verification is off: auto-verify + "can sign in".
+    expect(res.body.message).toBe("Signup successful. You can sign in.");
+    expect(res.body.data).toEqual({ userId: 42, createdRoleRequest: false, emailVerified: true });
     expect(bcrypt.hash).toHaveBeenCalledWith(GOOD_PW, 10);
     expect(prismaMock.user.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -207,6 +228,64 @@ describe("POST /api/auth/signup", () => {
 
     expect(res.status).toBe(500);
     expect(res.body.error.message).toBe("Internal server error");
+  });
+});
+
+/* =========================================================================
+ * AUTH-01: email verification (mail configured)
+ * ======================================================================= */
+describe("AUTH-01 email verification", () => {
+  it("signup creates emailVerified:false and sends a verification email when mail is configured", async () => {
+    emailMock.mailConfigured.value = true;
+    prismaMock.user.findUnique.mockResolvedValue(null);
+    prismaMock.user.create.mockResolvedValue({ id: 44, email: "v@b.com", name: "Vee", emailVerified: false });
+
+    const res = await request(app)
+      .post("/api/auth/signup")
+      .send({ email: "v@b.com", password: GOOD_PW, name: "Vee" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.message).toMatch(/verify your account/i);
+    expect(res.body.data.emailVerified).toBe(false);
+    expect(prismaMock.user.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ emailVerified: false }),
+    });
+    expect(emailMock.sendVerificationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "v@b.com" })
+    );
+  });
+
+  it("blocks signin for an unverified account when mail is configured (403 EMAIL_NOT_VERIFIED)", async () => {
+    emailMock.mailConfigured.value = true;
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 5, email: "v@b.com", password: "hashed-pw", role: "VIEWER", tokenVersion: 0,
+      failedLoginAttempts: 0, lockUntil: null, emailVerified: false,
+    });
+    const res = await request(app).post("/api/auth/signin").send({ email: "v@b.com", password: GOOD_PW });
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("EMAIL_NOT_VERIFIED");
+  });
+
+  it("resend-verification is enumeration-safe: same 200 for unknown, verified, and unverified", async () => {
+    emailMock.mailConfigured.value = true;
+    // Unknown email.
+    prismaMock.user.findUnique.mockResolvedValueOnce(null);
+    const r1 = await request(app).post("/api/auth/resend-verification").send({ email: "nope@b.com" });
+    // Already verified.
+    prismaMock.user.findUnique.mockResolvedValueOnce({ id: 6, email: "v@b.com", emailVerified: true });
+    const r2 = await request(app).post("/api/auth/resend-verification").send({ email: "v@b.com" });
+    // Unverified -> actually re-sends.
+    prismaMock.user.findUnique.mockResolvedValueOnce({ id: 7, email: "u@b.com", name: "U", emailVerified: false });
+    prismaMock.user.update.mockResolvedValue({ id: 7 });
+    const r3 = await request(app).post("/api/auth/resend-verification").send({ email: "u@b.com" });
+
+    for (const r of [r1, r2, r3]) {
+      expect(r.status).toBe(200);
+      expect(r.body.message).toMatch(/needs verification/i);
+    }
+    // Only the unverified case triggers a send.
+    expect(emailMock.sendVerificationEmail).toHaveBeenCalledTimes(1);
+    expect(emailMock.sendVerificationEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "u@b.com" }));
   });
 });
 

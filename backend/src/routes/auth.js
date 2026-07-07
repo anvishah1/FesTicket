@@ -10,6 +10,7 @@ import { signupSchema, signinSchema } from "../validators/authValidator.js";
 import { validate } from "../middleware/validate.js";
 import { loginLimiter, signupLimiter, writeLimiter } from "../middleware/rateLimiter.js";
 import { verifyCaptcha } from "../utils/captcha.js";
+import { sendVerificationEmail, sendPasswordResetEmail, isMailConfigured } from "../utils/email.js";
 
 const router = express.Router();
 
@@ -120,6 +121,11 @@ router.post("/signup", signupLimiter, validate(signupSchema), async (req, res) =
 
     const verifyToken = crypto.randomBytes(32).toString("hex");
 
+    // AUTH-01: enforce email verification ONLY when a mail provider is configured
+    // (so we can actually deliver the link). With SMTP unset, keep the previous
+    // auto-verify behaviour so local dev / E2E keep working unchanged.
+    const verificationOn = isMailConfigured();
+
     const user = await prisma.user.create({
       data: {
         email,
@@ -127,7 +133,7 @@ router.post("/signup", signupLimiter, validate(signupSchema), async (req, res) =
         name,
         organizationName: organizationName || null,
         emailVerifyToken: hashToken(verifyToken),
-        emailVerified: true
+        emailVerified: !verificationOn
       }
     });
 
@@ -154,19 +160,24 @@ router.post("/signup", signupLimiter, validate(signupSchema), async (req, res) =
       );
     }
 
-    if (process.env.NODE_ENV !== "development") {
+    // AUTH-01: when verification is on, e-mail the verify link (to the frontend
+    // /verify page, which calls /api/auth/verify-email). Non-blocking — a mail
+    // failure must never fail signup.
+    if (verificationOn) {
       const verifyLink =
-        `${process.env.BACKEND_URL || "http://localhost:4000"}/api/auth/verify-email?token=${verifyToken}`;
-      req.log.info({ verifyLink }, "Email verification link");
+        `${process.env.FRONTEND_URL || "http://localhost:3000"}/verify?token=${verifyToken}`;
+      sendVerificationEmail({ to: user.email, name: user.name, verifyLink }).catch((err) =>
+        req.log.error({ err }, "[auth] verification email failed")
+      );
     }
 
     res.ok(
-      { userId: user.id, createdRoleRequest: wantEditor },
+      { userId: user.id, createdRoleRequest: wantEditor, emailVerified: user.emailVerified },
       {
         status: 201,
-        message: process.env.NODE_ENV === "development"
-          ? "Signup successful. You can sign in."
-          : "Signup successful. Please verify your email.",
+        message: verificationOn
+          ? "Signup successful. Please check your email to verify your account."
+          : "Signup successful. You can sign in.",
       }
     );
 
@@ -246,6 +257,19 @@ router.post("/signin", loginLimiter, validate(signinSchema), async (req, res) =>
 
       return res.fail(401, "INVALID_CREDENTIALS", "Invalid credentials");
 
+    }
+
+    // AUTH-01: when verification is enforced (a mail provider is configured), block
+    // sign-in for an unverified account. Checked AFTER the password match so a
+    // wrong-password attempt never learns the verification status. Guarded by
+    // `=== false` + isMailConfigured() so dev/E2E (SMTP unset, no emailVerified
+    // flag) are unaffected.
+    if (isMailConfigured() && user.emailVerified === false) {
+      return res.fail(
+        403,
+        "EMAIL_NOT_VERIFIED",
+        "Please verify your email before signing in. Check your inbox for the verification link."
+      );
     }
 
     /* SUCCESSFUL LOGIN RESET */
@@ -557,7 +581,11 @@ router.post("/forgot-password", writeLimiter, async (req, res) => {
     const resetLink =
       `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset?token=${resetToken}`;
 
-    req.log.info({ resetLink }, "Password reset link");
+    // AUTH-01: send the branded reset email (non-blocking). The response stays the
+    // same generic message regardless, to avoid leaking whether the email exists.
+    sendPasswordResetEmail({ to: user.email, name: user.name, resetLink }).catch((err) =>
+      req.log.error({ err }, "[auth] reset email failed")
+    );
 
     res.ok(null, {
       message: "If this email exists, a reset link was sent."
@@ -692,6 +720,34 @@ router.get("/verify-email", async (req, res) => {
 
   }
 
+});
+
+/* ================= RESEND VERIFICATION ================= */
+// AUTH-01: enumeration-safe — always returns the same generic 200. Only actually
+// regenerates the token + re-sends when the user exists, is unverified, and mail
+// is configured.
+router.post("/resend-verification", writeLimiter, async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (typeof email === "string" && email && isMailConfigured()) {
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (user && !user.emailVerified) {
+        const verifyToken = crypto.randomBytes(32).toString("hex");
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { emailVerifyToken: hashToken(verifyToken) },
+        });
+        const verifyLink = `${process.env.FRONTEND_URL || "http://localhost:3000"}/verify?token=${verifyToken}`;
+        sendVerificationEmail({ to: user.email, name: user.name, verifyLink }).catch((err) =>
+          req.log.error({ err }, "[auth] resend verification email failed")
+        );
+      }
+    }
+    res.ok(null, { message: "If your account needs verification, a new link was sent." });
+  } catch (error) {
+    req.log.error({ err: error }, "Resend verification error");
+    res.fail(500, "SERVER_ERROR", "Server error");
+  }
 });
 
 export default router;

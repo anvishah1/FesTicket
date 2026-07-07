@@ -116,6 +116,8 @@ model Event {
   // FULL_UNTIL_CUTOFF (a refund is allowed up to startDate - refundCutoffHours).
   refundPolicy      RefundPolicy @default(NO_REFUND)
   refundCutoffHours Int?
+  // TIX-10: max tickets allowed per single order (null = no cap).
+  maxTicketsPerOrder Int?
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 

@@ -188,6 +188,56 @@ describe("POST /api/bookings", () => {
     );
   });
 
+  it("rejects an order that exceeds the event's maxTicketsPerOrder cap (TIX-10)", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({
+      id: 1,
+      status: "PUBLISHED",
+      visibility: "PUBLIC",
+      maxTicketsPerOrder: 2,
+      ticketTypes: [{ id: 10, name: "GA", price: 100, quantity: 50, sold: 0 }],
+    });
+
+    const res = await request(app)
+      .post("/api/bookings")
+      .send({
+        eventId: 1,
+        guestEmail: "g@x.com",
+        tickets: [{ ticketTypeId: 10, quantity: 3 }],
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.body.error.message).toMatch(/at most 2 tickets per order/i);
+    // Inventory must NOT be touched when the cap rejects the order.
+    expect(prismaMock.ticketType.updateMany).not.toHaveBeenCalled();
+    expect(prismaMock.booking.create).not.toHaveBeenCalled();
+  });
+
+  it("allows an order exactly at the maxTicketsPerOrder cap (TIX-10)", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({
+      id: 1,
+      status: "PUBLISHED",
+      visibility: "PUBLIC",
+      maxTicketsPerOrder: 2,
+      ticketTypes: [{ id: 10, name: "GA", price: 100, quantity: 50, sold: 0 }],
+    });
+    prismaMock.booking.create.mockResolvedValue({ id: 77, items: [] });
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.booking.findUnique.mockResolvedValue({ id: 77 });
+
+    const res = await request(app)
+      .post("/api/bookings")
+      .send({
+        eventId: 1,
+        guestEmail: "g@x.com",
+        tickets: [{ ticketTypeId: 10, quantity: 2 }],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+  });
+
   it("rounds fractional fees/tax consistently to 2 decimals (paise) — L9 canonical", async () => {
     // subtotal 111 exercises the case where the OLD unrounded backend and the
     // OLD whole-rupee frontend disagreed with each other AND with the charged

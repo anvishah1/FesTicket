@@ -58,6 +58,12 @@ const refundCutoffHoursLike = z.union([
   z.string().trim().regex(/^\d+$/, "refundCutoffHours must be a non-negative integer"),
 ]);
 
+// TIX-10: max tickets per order — a positive integer (>= 1) or null (no cap).
+const maxTicketsPerOrderLike = z.union([
+  z.number().int("maxTicketsPerOrder must be an integer").positive("maxTicketsPerOrder must be >= 1"),
+  z.string().trim().regex(/^\d+$/, "maxTicketsPerOrder must be a positive integer"),
+]);
+
 // A ticket type supplied inline when creating an event. price may be a number or
 // numeric string (the route parseFloat's it) and must be >= 0. `quantity` is
 // REQUIRED on create (a non-negative integer) — a create must not silently
@@ -113,6 +119,7 @@ export const createEventSchema = z
     visibility: visibility.optional(),
     refundPolicy: refundPolicy.optional(),
     refundCutoffHours: refundCutoffHoursLike.optional().nullable(),
+    maxTicketsPerOrder: maxTicketsPerOrderLike.optional().nullable(),
     ticketTypes: z.array(inlineTicketTypeSchema).optional().nullable(),
     questions: z.array(eventQuestionSchema).optional().nullable(),
   })

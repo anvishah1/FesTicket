@@ -1,5 +1,55 @@
 // frontend/components/AttendeeForm.tsx
 
+import { useRef, useState } from "react";
+
+// Read a File's text. Blob.text() is the modern path; fall back to FileReader
+// for environments (older browsers / jsdom) that don't implement Blob.text.
+function readFileText(file: File): Promise<string> {
+  if (typeof file.text === "function") return file.text();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.readAsText(file);
+  });
+}
+
+// Parse a small "name,email" CSV. Header-tolerant: if the first row looks like a
+// header (contains "name"/"email" and no "@"), it is skipped. Accepts either
+// column order when a header names them; otherwise assumes name,email. Extra
+// columns are ignored, blank lines dropped.
+export function parseAttendeeCsv(text: string): { name: string; email: string }[] {
+  const rows = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => line.split(",").map((c) => c.trim().replace(/^"|"$/g, "")));
+  if (rows.length === 0) return [];
+
+  let nameIdx = 0;
+  let emailIdx = 1;
+  let start = 0;
+  const first = rows[0].map((c) => c.toLowerCase());
+  const looksLikeHeader = !first.some((c) => c.includes("@")) && first.some((c) => c === "name" || c === "email");
+  if (looksLikeHeader) {
+    const n = first.indexOf("name");
+    const e = first.indexOf("email");
+    if (n !== -1) nameIdx = n;
+    if (e !== -1) emailIdx = e;
+    start = 1;
+  }
+
+  const out: { name: string; email: string }[] = [];
+  for (let i = start; i < rows.length; i++) {
+    const cols = rows[i];
+    const name = (cols[nameIdx] || "").trim();
+    const email = (cols[emailIdx] || "").trim();
+    if (!name && !email) continue;
+    out.push({ name, email });
+  }
+  return out;
+}
+
 export default function AttendeeForm({
   requiredCount,
   attendees,
@@ -9,6 +59,9 @@ export default function AttendeeForm({
   attendees: { name: string; email: string }[];
   onChange: (a: { name: string; email: string }[]) => void;
 }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+
   const add = () => {
     if (attendees.length >= requiredCount) return;
     onChange([...attendees, { name: "", email: "" }]);
@@ -24,11 +77,48 @@ export default function AttendeeForm({
     onChange(copy);
   };
 
+  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Allow re-importing the same file (onChange won't fire again otherwise).
+    if (fileRef.current) fileRef.current.value = "";
+    if (!file) return;
+    const text = await readFileText(file);
+    const parsed = parseAttendeeCsv(text);
+    if (parsed.length === 0) {
+      setImportMsg("No attendee rows found in that file.");
+      return;
+    }
+    // Never exceed the number of tickets being purchased.
+    const capped = parsed.slice(0, requiredCount);
+    onChange(capped);
+    setImportMsg(
+      parsed.length > requiredCount
+        ? `Imported ${capped.length} of ${parsed.length} rows (limited to ${requiredCount} ticket${requiredCount === 1 ? "" : "s"}).`
+        : `Imported ${capped.length} attendee${capped.length === 1 ? "" : "s"}.`
+    );
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="text-sm text-slate-700">Attendees ({attendees.length}/{requiredCount})</div>
-        <div>
+        <div className="flex items-center gap-3">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv,text/plain"
+            onChange={onImportFile}
+            className="hidden"
+            data-testid="attendee-csv-input"
+            aria-label="Import attendees from CSV"
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="text-sm text-primary-600 hover:underline"
+          >
+            Import from CSV
+          </button>
           <button
             type="button"
             onClick={add}
@@ -39,6 +129,12 @@ export default function AttendeeForm({
           </button>
         </div>
       </div>
+
+      {importMsg && (
+        <div className="text-xs text-slate-500" data-testid="csv-import-msg">
+          {importMsg} <span className="text-slate-400">Expected columns: name, email.</span>
+        </div>
+      )}
 
       <div className="space-y-3">
         {attendees.map((a, i) => (

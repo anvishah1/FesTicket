@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import AttendeeForm from "@/components/AttendeeForm";
+import AttendeeForm, { parseAttendeeCsv } from "@/components/AttendeeForm";
 
 describe("AttendeeForm", () => {
   it("renders the attendees count against the required count", () => {
@@ -95,5 +95,48 @@ describe("AttendeeForm", () => {
     );
     await userEvent.type(screen.getByLabelText("Email for attendee 1"), "z");
     expect(onChange).toHaveBeenCalledWith([{ name: "", email: "z" }]);
+  });
+
+  it("imports attendees from a CSV file, capped at requiredCount (TIX-10)", async () => {
+    const onChange = vi.fn();
+    render(<AttendeeForm requiredCount={2} attendees={[]} onChange={onChange} />);
+    const csv = "name,email\nAlice,a@x.com\nBob,b@x.com\nCarol,c@x.com\n";
+    const file = new File([csv], "attendees.csv", { type: "text/csv" });
+    await userEvent.upload(screen.getByTestId("attendee-csv-input"), file);
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith([
+        { name: "Alice", email: "a@x.com" },
+        { name: "Bob", email: "b@x.com" },
+      ])
+    );
+    expect(screen.getByTestId("csv-import-msg")).toHaveTextContent(/Imported 2 of 3 rows/i);
+  });
+});
+
+describe("parseAttendeeCsv (TIX-10)", () => {
+  it("skips a name,email header row", () => {
+    expect(parseAttendeeCsv("name,email\nAlice,a@x.com")).toEqual([{ name: "Alice", email: "a@x.com" }]);
+  });
+
+  it("respects header column order when reversed", () => {
+    expect(parseAttendeeCsv("email,name\na@x.com,Alice")).toEqual([{ name: "Alice", email: "a@x.com" }]);
+  });
+
+  it("assumes name,email when there is no header", () => {
+    expect(parseAttendeeCsv("Alice,a@x.com\nBob,b@x.com")).toEqual([
+      { name: "Alice", email: "a@x.com" },
+      { name: "Bob", email: "b@x.com" },
+    ]);
+  });
+
+  it("ignores blank lines, extra columns, and surrounding quotes", () => {
+    expect(parseAttendeeCsv('"Alice","a@x.com","GA"\n\n  \nBob,b@x.com')).toEqual([
+      { name: "Alice", email: "a@x.com" },
+      { name: "Bob", email: "b@x.com" },
+    ]);
+  });
+
+  it("returns an empty array for empty input", () => {
+    expect(parseAttendeeCsv("")).toEqual([]);
   });
 });

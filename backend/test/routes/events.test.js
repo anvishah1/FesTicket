@@ -376,6 +376,32 @@ describe("POST /api/events", () => {
     });
   });
 
+  it("persists a positive maxTicketsPerOrder cap (TIX-10)", async () => {
+    prismaMock.event.create.mockResolvedValue({ id: 110 });
+    prismaMock.event.findUnique.mockResolvedValue({ id: 110, ticketTypes: [] });
+    const res = await request(app)
+      .post("/api/events")
+      .set(...hostAuth)
+      .send({ name: "Capped", maxTicketsPerOrder: "4" });
+    expect(res.status).toBe(201);
+    expect(prismaMock.event.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ maxTicketsPerOrder: 4 }),
+    });
+  });
+
+  it("stores null (no cap) when maxTicketsPerOrder is omitted (TIX-10)", async () => {
+    prismaMock.event.create.mockResolvedValue({ id: 111 });
+    prismaMock.event.findUnique.mockResolvedValue({ id: 111, ticketTypes: [] });
+    const res = await request(app)
+      .post("/api/events")
+      .set(...hostAuth)
+      .send({ name: "Uncapped" });
+    expect(res.status).toBe(201);
+    expect(prismaMock.event.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ maxTicketsPerOrder: null }),
+    });
+  });
+
   it("creates ticket types in the transaction when provided", async () => {
     prismaMock.event.create.mockResolvedValue({ id: 100 });
     prismaMock.ticketType.createMany.mockResolvedValue({ count: 1 });
@@ -574,6 +600,43 @@ describe("PUT /api/events/:id", () => {
     });
     expect(prismaMock.event.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 5 } })
+    );
+  });
+
+  it("updates the maxTicketsPerOrder cap and clears it with null (TIX-10)", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 10 });
+    prismaMock.event.update.mockResolvedValue({ id: 5 });
+
+    const setRes = await request(app)
+      .put("/api/events/5")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ maxTicketsPerOrder: 3 });
+    expect(setRes.status).toBe(200);
+    expect(prismaMock.event.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ maxTicketsPerOrder: 3 }) })
+    );
+
+    const clearRes = await request(app)
+      .put("/api/events/5")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ maxTicketsPerOrder: null });
+    expect(clearRes.status).toBe(200);
+    expect(prismaMock.event.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ maxTicketsPerOrder: null }) })
+    );
+  });
+
+  it("leaves maxTicketsPerOrder unchanged when the key is absent (TIX-10)", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 10 });
+    prismaMock.event.update.mockResolvedValue({ id: 5 });
+
+    const res = await request(app)
+      .put("/api/events/5")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ name: "No cap change" });
+    expect(res.status).toBe(200);
+    expect(prismaMock.event.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ maxTicketsPerOrder: undefined }) })
     );
   });
 

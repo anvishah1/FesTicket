@@ -27,6 +27,9 @@ export interface TicketsData {
   // to NO_REFUND).
   refundPolicy?: RefundPolicy;
   refundCutoffHours?: string; // kept as a string for the input; parsed at submit
+  // TIX-10: optional per-order ticket cap. Kept as a string for the input; blank
+  // means "no cap". Parsed at submit by the create page.
+  maxTicketsPerOrder?: string;
 }
 
 export default function Tickets({ onNext, onChange, initialData }: TicketsProps) {
@@ -36,12 +39,13 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
   );
   const [refundPolicy, setRefundPolicy] = useState<RefundPolicy>(initialData?.refundPolicy ?? "NO_REFUND");
   const [refundCutoffHours, setRefundCutoffHours] = useState<string>(initialData?.refundCutoffHours ?? "48");
+  const [maxTicketsPerOrder, setMaxTicketsPerOrder] = useState<string>(initialData?.maxTicketsPerOrder ?? "");
 
   // Report every edit up so switching steps via the Sidebar never loses input.
   useEffect(() => {
-    onChange?.({ isPaid, tickets, refundPolicy, refundCutoffHours });
+    onChange?.({ isPaid, tickets, refundPolicy, refundCutoffHours, maxTicketsPerOrder });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPaid, tickets, refundPolicy, refundCutoffHours]);
+  }, [isPaid, tickets, refundPolicy, refundCutoffHours, maxTicketsPerOrder]);
 
   function addTicket() {
     setTickets([
@@ -78,6 +82,12 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
         return;
       }
     }
+    // TIX-10: a blank cap means "no cap"; a provided cap must be a positive integer.
+    const capTrimmed = maxTicketsPerOrder.trim();
+    if (capTrimmed && (!/^\d+$/.test(capTrimmed) || parseInt(capTrimmed) < 1)) {
+      showToast("Max tickets per order must be a whole number of at least 1 (or blank for no limit).", "error");
+      return;
+    }
     onNext({
       isPaid,
       tickets: validTickets.map((t) => ({
@@ -86,6 +96,7 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
       })),
       refundPolicy,
       refundCutoffHours,
+      maxTicketsPerOrder: capTrimmed,
     });
   };
 
@@ -262,6 +273,23 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
               />
             </div>
           )}
+        </div>
+
+        {/* TIX-10: per-order ticket cap */}
+        <div className="rounded-lg border border-[#C5BAC4] p-4 space-y-2">
+          <label htmlFor="max-per-order" className="block text-sm font-medium text-[#29104A]">
+            Max tickets per order
+          </label>
+          <input
+            id="max-per-order"
+            type="number"
+            min={1}
+            value={maxTicketsPerOrder}
+            onChange={(e) => setMaxTicketsPerOrder(e.target.value)}
+            placeholder="No limit"
+            className="w-40 rounded-lg border border-[#C5BAC4] px-3 py-2 text-sm text-[#29104A] focus:border-[#522C5D] focus:outline-none"
+          />
+          <p className="text-xs text-[#6B597F]">Leave blank to allow any number of tickets in a single order.</p>
         </div>
 
         {/* Save */}

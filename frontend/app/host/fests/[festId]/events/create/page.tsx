@@ -282,6 +282,10 @@ export default function EventCreatePage() {
             fullEventData.tickets?.refundPolicy === "FULL_UNTIL_CUTOFF"
               ? fullEventData.tickets?.refundCutoffHours || null
               : null,
+          // TIX-10: per-order ticket cap (blank -> null = no cap).
+          maxTicketsPerOrder: fullEventData.tickets?.maxTicketsPerOrder?.trim()
+            ? parseInt(fullEventData.tickets.maxTicketsPerOrder)
+            : null,
           ticketTypes: validTickets.map((t) => ({
             name: t.name,
             // Tickets.tsx keeps price in RUPEES; the API stores integer paise.

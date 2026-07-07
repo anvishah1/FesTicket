@@ -613,6 +613,7 @@ router.post("/", authenticateUser, authorizeRoles("EDITOR", "HOST", "ADMIN"), va
       discount,
       refundPolicy,
       refundCutoffHours,
+      maxTicketsPerOrder,
       ticketTypes,
       questions,
     } = req.body;
@@ -660,6 +661,9 @@ router.post("/", authenticateUser, authorizeRoles("EDITOR", "HOST", "ADMIN"), va
           status: status || "PUBLISHED",
           discount: discount || 0,
           ...normalizeRefundFields(refundPolicy, refundCutoffHours),
+          // TIX-10: per-order cap (>= 1, else no cap).
+          maxTicketsPerOrder:
+            maxTicketsPerOrder != null && parseInt(maxTicketsPerOrder) > 0 ? parseInt(maxTicketsPerOrder) : null,
         },
       });
 
@@ -738,6 +742,7 @@ router.put("/:id", authenticateUser, async (req, res) => {
       discount,
       refundPolicy,
       refundCutoffHours,
+      maxTicketsPerOrder,
     } = req.body;
 
     // Only the event's host (or an ADMIN of its fest) may update it.
@@ -818,6 +823,23 @@ router.put("/:id", authenticateUser, async (req, res) => {
       }
     }
 
+    // TIX-10: per-order cap. undefined => unchanged; null/""/<1 => clear the cap.
+    let nextMaxPerOrder; // undefined => unchanged
+    if (maxTicketsPerOrder !== undefined) {
+      if (maxTicketsPerOrder === null || maxTicketsPerOrder === "") {
+        nextMaxPerOrder = null;
+      } else {
+        const n = parseInt(maxTicketsPerOrder);
+        if (!Number.isFinite(n) || n < 1) {
+          return res.status(400).json({
+            success: false,
+            error: { code: "VALIDATION_ERROR", message: "maxTicketsPerOrder must be a positive integer" },
+          });
+        }
+        nextMaxPerOrder = n;
+      }
+    }
+
     const event = await prisma.event.update({
       where: { id: parseInt(id) },
       data: {
@@ -828,6 +850,7 @@ router.put("/:id", authenticateUser, async (req, res) => {
         category,
         refundPolicy: nextRefundPolicy,
         refundCutoffHours: nextRefundCutoffHours,
+        maxTicketsPerOrder: nextMaxPerOrder,
         // Distinguish "clear this date" (explicit null in the body) from "leave
         // unchanged" (key absent -> undefined). Previously a null could never
         // clear a date because it collapsed to undefined.

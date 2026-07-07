@@ -271,6 +271,16 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
         throw bookingError(409, "EVENT_NOT_BOOKABLE", "This event has already ended");
       }
 
+      // TIX-10: per-order ticket cap (null = no cap). Enforced server-side so a
+      // bypassed client cannot exceed it.
+      if (event.maxTicketsPerOrder != null && totalRequestedQty > event.maxTicketsPerOrder) {
+        throw bookingError(
+          400,
+          "VALIDATION_ERROR",
+          `You can book at most ${event.maxTicketsPerOrder} ticket${event.maxTicketsPerOrder === 1 ? "" : "s"} per order`
+        );
+      }
+
       // ATTENDEE-TICKET: every attendee.ticketTypeId (when provided) must be one
       // of THIS event's ticket types. A foreign/invalid id is a 400 — it must NOT
       // reach the raw Prisma insert (which would surface as an opaque 500 on the

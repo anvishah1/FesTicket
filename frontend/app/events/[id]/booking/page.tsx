@@ -42,6 +42,7 @@ interface EventData {
   discount?: number; // percentage 0..100 applied to the subtotal
   refundPolicy?: "NO_REFUND" | "FULL_ANYTIME" | "FULL_UNTIL_CUTOFF";
   refundCutoffHours?: number | null;
+  maxTicketsPerOrder?: number | null; // TIX-10: per-order cap (null = no cap)
   fest?: { name: string; college: string };
   questions?: EventQuestion[]; // custom registration questions (C4)
   ticketTypes: Array<{
@@ -151,7 +152,20 @@ export default function BookingPage() {
   function setQuantity(ticketId: string, qty: number) {
     const ticket = tickets.find((t) => t.id === ticketId);
     const maxAvailable = ticket?.available || 0;
-    setQuantities((s) => ({ ...s, [ticketId]: Math.max(0, Math.min(qty, maxAvailable)) }));
+    const maxPerOrder = event?.maxTicketsPerOrder ?? null;
+    setQuantities((s) => {
+      let cap = maxAvailable;
+      // TIX-10: honour the event's per-order cap across ALL ticket types — the
+      // most this type can take is the cap minus what the other types already hold.
+      if (maxPerOrder != null) {
+        const others = Object.entries(s).reduce(
+          (sum, [id, q]) => (id === ticketId ? sum : sum + q),
+          0
+        );
+        cap = Math.min(cap, Math.max(0, maxPerOrder - others));
+      }
+      return { ...s, [ticketId]: Math.max(0, Math.min(qty, cap)) };
+    });
   }
 
   const subtotal = tickets.reduce(
@@ -258,9 +272,15 @@ export default function BookingPage() {
 
   const totalTickets = Object.values(quantities).reduce((a, b) => a + b, 0);
   const requiredAttendees = totalTickets;
-  
+
+  // TIX-10: per-order cap. null = no cap. The selector already clamps to it, but
+  // this guards the submit and drives the message shown to the buyer.
+  const maxPerOrder = event?.maxTicketsPerOrder ?? null;
+  const overCap = maxPerOrder != null && totalTickets > maxPerOrder;
+
   const isValid =
     totalTickets > 0 &&
+    !overCap &&
     attendees.length === requiredAttendees &&
     attendees.every((a) => a.name.trim().length > 0 && a.email.trim().length > 0) &&
     guestInfo.email.trim().length > 0 &&
@@ -423,6 +443,12 @@ export default function BookingPage() {
 
             <h2 className="text-lg font-semibold">Choose tickets</h2>
             <p className="text-sm text-slate-500 mt-1 mb-4">Select the number of tickets you want to book.</p>
+
+            {maxPerOrder != null && (
+              <p className="text-xs text-slate-500 mb-3" data-testid="max-per-order-note">
+                Up to {maxPerOrder} ticket{maxPerOrder === 1 ? "" : "s"} per order.
+              </p>
+            )}
 
             {tickets.length === 0 ? (
               <div className="text-center py-8 text-slate-500">

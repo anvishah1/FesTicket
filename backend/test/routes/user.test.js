@@ -209,3 +209,91 @@ describe("POST /api/user/complete-profile", () => {
     expect(res.status).toBe(500);
   });
 });
+
+/* ==================== AUTH-04: PATCH /api/user/me ==================== */
+describe("PATCH /api/user/me", () => {
+  const auth = (id = 1) => ["Authorization", `Bearer ${signToken({ userId: id, role: "VIEWER" })}`];
+
+  it("401 without a token", async () => {
+    const res = await request(app).patch("/api/user/me").send({ name: "X" });
+    expect(res.status).toBe(401);
+  });
+
+  it("updates name/phone/organizationName and returns the user", async () => {
+    prismaMock.user.update.mockResolvedValue({
+      id: 1, email: "a@b.com", name: "New Name", phone: "123", organizationName: "Org", role: "VIEWER", profileCompleted: true,
+    });
+    const res = await request(app)
+      .patch("/api/user/me")
+      .set(...auth())
+      .send({ name: "New Name", phone: "123", organizationName: "Org" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.name).toBe("New Name");
+    expect(prismaMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 1 },
+        data: { name: "New Name", phone: "123", organizationName: "Org" },
+      })
+    );
+  });
+
+  it("400 on an invalid phone", async () => {
+    const res = await request(app)
+      .patch("/api/user/me")
+      .set(...auth())
+      .send({ phone: "abc!!!" });
+    expect(res.status).toBe(400);
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+  });
+});
+
+/* ==================== AUTH-04: DELETE /api/user/me ==================== */
+describe("DELETE /api/user/me", () => {
+  const auth = (id = 1) => ["Authorization", `Bearer ${signToken({ userId: id, role: "VIEWER" })}`];
+  const account = (over = {}) => ({ id: 1, email: "a@b.com", role: "VIEWER", managedFestId: null, ...over });
+
+  it("400 when confirmEmail does not match", async () => {
+    prismaMock.user.findUnique.mockResolvedValue(account());
+    const res = await request(app).delete("/api/user/me").set(...auth()).send({ confirmEmail: "wrong@b.com" });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("CONFIRM_MISMATCH");
+  });
+
+  it("409 when an ADMIN still manages a fest", async () => {
+    prismaMock.user.findUnique.mockResolvedValue(account({ role: "ADMIN", managedFestId: 7 }));
+    const res = await request(app).delete("/api/user/me").set(...auth()).send({ confirmEmail: "a@b.com" });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("OWNS_FEST");
+  });
+
+  it("409 when the user still hosts events", async () => {
+    prismaMock.user.findUnique.mockResolvedValue(account());
+    prismaMock.event.count.mockResolvedValue(3);
+    const res = await request(app).delete("/api/user/me").set(...auth()).send({ confirmEmail: "a@b.com" });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("OWNS_EVENTS");
+  });
+
+  it("soft-deletes: scrubs PII, anonymises the email, revokes tokens", async () => {
+    prismaMock.user.findUnique.mockResolvedValue(account());
+    prismaMock.event.count.mockResolvedValue(0);
+    prismaMock.user.update.mockResolvedValue({});
+    prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(app).delete("/api/user/me").set(...auth()).send({ confirmEmail: "a@b.com" });
+    expect(res.status).toBe(200);
+    expect(prismaMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 1 },
+        data: expect.objectContaining({
+          deletedAt: expect.any(Date),
+          email: "deleted+1@deleted.tiqr",
+          name: null,
+          password: null,
+          tokenVersion: { increment: 1 },
+        }),
+      })
+    );
+    expect(prismaMock.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { userId: 1 } });
+  });
+});

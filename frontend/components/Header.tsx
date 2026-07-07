@@ -154,6 +154,22 @@ export default function Header() {
                       Dashboard
                     </Link>
                   )}
+                  <Link
+                    href="/bookings"
+                    role="menuitem"
+                    onClick={() => setMenuOpen(false)}
+                    className="block px-4 py-2 text-[#2D1B4E] hover:bg-slate-100"
+                  >
+                    My bookings
+                  </Link>
+                  <Link
+                    href="/account"
+                    role="menuitem"
+                    onClick={() => setMenuOpen(false)}
+                    className="block px-4 py-2 text-[#2D1B4E] hover:bg-slate-100"
+                  >
+                    Account
+                  </Link>
                   <button
                     type="button"
                     role="menuitem"
@@ -231,6 +247,20 @@ export default function Header() {
                     Dashboard
                   </Link>
                 )}
+                <Link
+                  href="/bookings"
+                  onClick={() => setMobileOpen(false)}
+                  className="block px-2 py-2 rounded-lg text-white/90 hover:bg-white/10"
+                >
+                  My bookings
+                </Link>
+                <Link
+                  href="/account"
+                  onClick={() => setMobileOpen(false)}
+                  className="block px-2 py-2 rounded-lg text-white/90 hover:bg-white/10"
+                >
+                  Account
+                </Link>
                 <button
                   type="button"
                   onClick={handleLogout}

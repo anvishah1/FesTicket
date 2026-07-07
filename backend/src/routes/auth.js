@@ -765,4 +765,49 @@ router.post("/resend-verification", writeLimiter, async (req, res) => {
   }
 });
 
+/* ================= CHANGE PASSWORD (authenticated) ================= */
+// AUTH-04: verify the current password, enforce the full complexity policy, then
+// rotate — bump tokenVersion and delete all refresh tokens so EVERY session
+// (including the caller's) is revoked and must sign in again.
+router.post("/change-password", authenticateUser, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+      return res.fail(400, "VALIDATION_ERROR", "currentPassword and newPassword are required");
+    }
+    if (newPassword.length < 8 || newPassword.length > 30) {
+      return res.fail(400, "VALIDATION_ERROR", "Password must be 8–30 characters");
+    }
+    const complexity = [
+      [/[A-Z]/, "an uppercase letter"],
+      [/[a-z]/, "a lowercase letter"],
+      [/[0-9]/, "a number"],
+      [/[^A-Za-z0-9]/, "a special character"],
+    ];
+    for (const [re, label] of complexity) {
+      if (!re.test(newPassword)) {
+        return res.fail(400, "VALIDATION_ERROR", `Password must contain ${label}`);
+      }
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    if (!user || !user.password || !(await bcrypt.compare(currentPassword, user.password))) {
+      return res.fail(400, "INVALID_CREDENTIALS", "Current password is incorrect");
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashed, tokenVersion: { increment: 1 } },
+    });
+    // Revoke every session (mirrors reset-password) so old tokens stop working.
+    await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+
+    res.ok(null, { message: "Password changed. Please sign in again." });
+  } catch (error) {
+    req.log.error({ err: error }, "Change password error");
+    res.fail(500, "SERVER_ERROR", "Server error");
+  }
+});
+
 export default router;

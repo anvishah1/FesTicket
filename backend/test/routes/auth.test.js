@@ -1052,3 +1052,57 @@ describe("GET /api/auth/verify-email", () => {
     expect(res.body.error.message).toBe("Server error");
   });
 });
+
+/* =========================================================================
+ * AUTH-04: POST /api/auth/change-password (authenticated)
+ * ======================================================================= */
+describe("POST /api/auth/change-password", () => {
+  const authFor = (id = 3) => ["Authorization", `Bearer ${signToken({ userId: id, role: "VIEWER" })}`];
+
+  it("401 without a token", async () => {
+    const res = await request(app).post("/api/auth/change-password").send({});
+    expect(res.status).toBe(401);
+  });
+
+  it("400 when the current password is wrong", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ id: 3, password: "hashed-pw", tokenVersion: 0 });
+    bcrypt.compare.mockResolvedValue(false);
+    const res = await request(app)
+      .post("/api/auth/change-password")
+      .set(...authFor())
+      .send({ currentPassword: "wrong", newPassword: "NewPassword1!" });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("INVALID_CREDENTIALS");
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+  });
+
+  it("400 when the new password is too weak", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ id: 3, password: "hashed-pw", tokenVersion: 0 });
+    const res = await request(app)
+      .post("/api/auth/change-password")
+      .set(...authFor())
+      .send({ currentPassword: "Password1!", newPassword: "weak" });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+  });
+
+  it("changes the password, bumps tokenVersion, and revokes every session", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ id: 3, password: "hashed-pw", tokenVersion: 0 });
+    bcrypt.compare.mockResolvedValue(true);
+    prismaMock.user.update.mockResolvedValue({});
+    prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 2 });
+
+    const res = await request(app)
+      .post("/api/auth/change-password")
+      .set(...authFor())
+      .send({ currentPassword: "OldPassword1!", newPassword: "NewPassword1!" });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.user.update).toHaveBeenCalledWith({
+      where: { id: 3 },
+      data: expect.objectContaining({ password: "hashed-pw", tokenVersion: { increment: 1 } }),
+    });
+    expect(prismaMock.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { userId: 3 } });
+  });
+});

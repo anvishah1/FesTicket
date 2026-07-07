@@ -24,12 +24,16 @@ export const authenticateUser = async (req, res, next) => {
     try {
       const dbUser = await prisma.user.findUnique({
         where: { id: decoded.userId },
-        select: { tokenVersion: true },
+        select: { tokenVersion: true, deletedAt: true },
       });
       if (dbUser && (dbUser.tokenVersion ?? 0) !== (decoded.tokenVersion ?? 0)) {
         return res
           .status(401)
           .json({ message: "Session no longer valid. Please sign in again." });
+      }
+      // AUTH-04: a soft-deleted account is treated as nonexistent everywhere.
+      if (dbUser && dbUser.deletedAt) {
+        return res.status(401).json({ message: "Account no longer exists." });
       }
     } catch {
       // DB unavailable — fall through on the JWT's own validity rather than hard-failing.
@@ -62,10 +66,12 @@ export const optionalAuthenticate = async (req, res, next) => {
     try {
       const dbUser = await prisma.user.findUnique({
         where: { id: decoded.userId },
-        select: { tokenVersion: true },
+        select: { tokenVersion: true, deletedAt: true },
       });
       if (dbUser && (dbUser.tokenVersion ?? 0) !== (decoded.tokenVersion ?? 0)) {
         // stale token -> remain anonymous (do not set req.user)
+      } else if (dbUser && dbUser.deletedAt) {
+        // AUTH-04: soft-deleted account -> stay anonymous.
       } else {
         req.user = decoded;
       }

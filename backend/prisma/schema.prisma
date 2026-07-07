@@ -32,6 +32,10 @@ model User {
   failedLoginAttempts Int     @default(0)
   lockUntil         DateTime?
   tokenVersion      Int       @default(0) // bumped on password/role change to invalidate live access tokens
+  // AUTH-04: soft-delete. Non-null => the account is deleted (PII scrubbed). Every
+  // authenticated request and signin treats a deletedAt user as nonexistent. Soft
+  // (not hard) delete because User has non-cascading FKs (bookings, events, ...).
+  deletedAt         DateTime?
   managedFestId     Int?      @unique // for ADMIN: which fest they manage (key belongs to that fest)
   editorFestId      Int?      // for EDITOR: which fest they were approved for (from RoleRequest)
   createdAt         DateTime  @default(now())

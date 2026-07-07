@@ -573,6 +573,15 @@ router.get("/:id", optionalAuthenticate, async (req, res) => {
   }
 });
 
+// PAY-06: normalize the refund policy + cutoff. The cutoff only applies to
+// FULL_UNTIL_CUTOFF; it is cleared for the other policies so a stale value can't
+// be misread as an open window.
+function normalizeRefundFields(policy, cutoff) {
+  const p = ["NO_REFUND", "FULL_ANYTIME", "FULL_UNTIL_CUTOFF"].includes(policy) ? policy : "NO_REFUND";
+  const parsed = p === "FULL_UNTIL_CUTOFF" && cutoff != null && cutoff !== "" ? parseInt(cutoff) : NaN;
+  return { refundPolicy: p, refundCutoffHours: Number.isFinite(parsed) ? Math.max(0, parsed) : null };
+}
+
 // POST /api/events - Create a new event. Requires an authenticated EDITOR/HOST/ADMIN.
 // The event is always owned by the caller (hostId from the token); a supplied
 // festId must be the caller's own fest.
@@ -601,6 +610,8 @@ router.post("/", authenticateUser, authorizeRoles("EDITOR", "HOST", "ADMIN"), va
       visibility,
       status,
       discount,
+      refundPolicy,
+      refundCutoffHours,
       ticketTypes,
       questions,
     } = req.body;
@@ -647,6 +658,7 @@ router.post("/", authenticateUser, authorizeRoles("EDITOR", "HOST", "ADMIN"), va
           visibility: visibility || "PUBLIC",
           status: status || "PUBLISHED",
           discount: discount || 0,
+          ...normalizeRefundFields(refundPolicy, refundCutoffHours),
         },
       });
 
@@ -723,6 +735,8 @@ router.put("/:id", authenticateUser, async (req, res) => {
       visibility,
       status,
       discount,
+      refundPolicy,
+      refundCutoffHours,
     } = req.body;
 
     // Only the event's host (or an ADMIN of its fest) may update it.
@@ -774,6 +788,35 @@ router.put("/:id", authenticateUser, async (req, res) => {
       nextDiscount = Math.min(100, Math.max(0, d));
     }
 
+    // PAY-06 refund policy (PUT has no zod validator, so guard inline). undefined
+    // => leave unchanged. Switching to a non-cutoff policy clears the cutoff.
+    let nextRefundPolicy; // undefined => unchanged
+    let nextRefundCutoffHours; // undefined => unchanged
+    if (refundPolicy !== undefined && refundPolicy !== null) {
+      if (!["NO_REFUND", "FULL_ANYTIME", "FULL_UNTIL_CUTOFF"].includes(refundPolicy)) {
+        return res.status(400).json({
+          success: false,
+          error: { code: "VALIDATION_ERROR", message: "refundPolicy must be NO_REFUND, FULL_ANYTIME, or FULL_UNTIL_CUTOFF" },
+        });
+      }
+      nextRefundPolicy = refundPolicy;
+      if (refundPolicy !== "FULL_UNTIL_CUTOFF") nextRefundCutoffHours = null;
+    }
+    if (refundCutoffHours !== undefined) {
+      if (refundCutoffHours === null || refundCutoffHours === "") {
+        nextRefundCutoffHours = null;
+      } else {
+        const h = parseInt(refundCutoffHours);
+        if (!Number.isFinite(h) || h < 0) {
+          return res.status(400).json({
+            success: false,
+            error: { code: "VALIDATION_ERROR", message: "refundCutoffHours must be a non-negative integer" },
+          });
+        }
+        nextRefundCutoffHours = h;
+      }
+    }
+
     const event = await prisma.event.update({
       where: { id: parseInt(id) },
       data: {
@@ -782,6 +825,8 @@ router.put("/:id", authenticateUser, async (req, res) => {
         aboutEvent,
         image,
         category,
+        refundPolicy: nextRefundPolicy,
+        refundCutoffHours: nextRefundCutoffHours,
         // Distinguish "clear this date" (explicit null in the body) from "leave
         // unchanged" (key absent -> undefined). Previously a null could never
         // clear a date because it collapsed to undefined.

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import BookingsPage from "./page";
 
 vi.mock("@/components/Header", () => ({ default: () => <header /> }));
@@ -71,6 +72,38 @@ describe("BookingsPage (signed in)", () => {
     expect(screen.getByText("BK-1")).toBeInTheDocument();
     expect(screen.getAllByTestId("booking-card")).toHaveLength(2);
     expect(apiFetch).toHaveBeenCalledWith("/api/bookings/user/7");
+  });
+
+  it("requests a refund on a completed booking and reflects the new status (PAY-06)", async () => {
+    apiFetch
+      .mockResolvedValueOnce({
+        json: async () => ({
+          success: true,
+          data: [
+            {
+              id: 1,
+              bookingCode: "BK-1",
+              status: "COMPLETED",
+              total: 1000,
+              event: { name: "Fest Night", startDate: "2026-08-01" },
+              items: [],
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, message: "Booking fully refunded", data: { status: "REFUNDED" } }),
+      });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<BookingsPage />);
+    const btn = await screen.findByRole("button", { name: "Request refund" });
+    await userEvent.click(btn);
+
+    expect(apiFetch).toHaveBeenCalledWith("/api/bookings/1/request-refund", { method: "POST" });
+    expect(showToast).toHaveBeenCalledWith("Booking fully refunded", "success");
+    expect(await screen.findByText("REFUNDED")).toBeInTheDocument();
   });
 
   it("shows an empty state when the user has no bookings", async () => {

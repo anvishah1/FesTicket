@@ -2352,6 +2352,117 @@ describe("POST /api/bookings/:id/refund", () => {
   });
 });
 
+// ==================== PAY-06: buyer self-service request-refund ====================
+describe("POST /api/bookings/:id/request-refund", () => {
+  const buyerBooking = (over = {}) => ({
+    id: 5, status: "COMPLETED", total: 12036, refundedAmount: 0, userId: 20, bookingCode: "BKX", promoCodeId: null,
+    items: [{ ticketTypeId: 10, quantity: 2 }],
+    payment: { transactionId: "pay_1" },
+    event: { hostId: 7, festId: 3, name: "E", startDate: null, refundPolicy: "FULL_ANYTIME", refundCutoffHours: null },
+    ...over,
+  });
+  const asBuyer = auth({ userId: 20, role: "VIEWER" });
+
+  it("404 when the booking does not exist", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(null);
+    const res = await request(app).post("/api/bookings/5/request-refund").set("Authorization", asBuyer).send({});
+    expect(res.status).toBe(404);
+  });
+
+  it("403 for a caller who is neither the buyer nor the bookingCode holder", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(buyerBooking());
+    const res = await request(app)
+      .post("/api/bookings/5/request-refund")
+      .set("Authorization", auth({ userId: 999, role: "VIEWER" }))
+      .send({});
+    expect(res.status).toBe(403);
+  });
+
+  it("cancels a PENDING booking and restores inventory", async () => {
+    prismaMock.booking.findUnique
+      .mockResolvedValueOnce(buyerBooking({ status: "PENDING" }))
+      .mockResolvedValueOnce({ id: 5, status: "CANCELLED" });
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(app).post("/api/bookings/5/request-refund").set("Authorization", asBuyer).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/cancelled/i);
+    expect(prismaMock.booking.updateMany).toHaveBeenCalledWith({ where: { id: 5, status: "PENDING" }, data: { status: "CANCELLED" } });
+    expect(prismaMock.ticketType.updateMany).toHaveBeenCalledWith({ where: { id: 10, sold: { gte: 2 } }, data: { sold: { decrement: 2 } } });
+  });
+
+  it("rejects a COMPLETED booking under a NO_REFUND policy with 403 REFUND_NOT_ALLOWED", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(buyerBooking({ event: { ...buyerBooking().event, refundPolicy: "NO_REFUND" } }));
+    const res = await request(app).post("/api/bookings/5/request-refund").set("Authorization", asBuyer).send({});
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("REFUND_NOT_ALLOWED");
+    expect(prismaMock.booking.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("full-refunds a COMPLETED booking under FULL_ANYTIME (via the shared engine)", async () => {
+    prismaMock.booking.findUnique
+      .mockResolvedValueOnce(buyerBooking())
+      .mockResolvedValueOnce({ id: 5, status: "REFUNDED", refundedAmount: 12036 });
+    prismaMock.booking.updateMany.mockResolvedValueOnce({ count: 1 }); // full claim wins
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.booking.update.mockResolvedValue({});
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(app).post("/api/bookings/5/request-refund").set("Authorization", asBuyer).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/fully refunded/i);
+    expect(prismaMock.booking.update).toHaveBeenCalledWith({ where: { id: 5 }, data: { status: "REFUNDED" } });
+  });
+
+  it("allows FULL_UNTIL_CUTOFF while inside the window", async () => {
+    const startDate = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(); // 30 days out
+    prismaMock.booking.findUnique
+      .mockResolvedValueOnce(buyerBooking({ event: { ...buyerBooking().event, refundPolicy: "FULL_UNTIL_CUTOFF", refundCutoffHours: 48, startDate } }))
+      .mockResolvedValueOnce({ id: 5, status: "REFUNDED" });
+    prismaMock.booking.updateMany.mockResolvedValueOnce({ count: 1 });
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.booking.update.mockResolvedValue({});
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(app).post("/api/bookings/5/request-refund").set("Authorization", asBuyer).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/fully refunded/i);
+  });
+
+  it("rejects FULL_UNTIL_CUTOFF after the window with 409 REFUND_WINDOW_CLOSED", async () => {
+    const startDate = new Date(Date.now() + 1 * 3600 * 1000).toISOString(); // 1h out, cutoff 48h => closed
+    prismaMock.booking.findUnique.mockResolvedValue(
+      buyerBooking({ event: { ...buyerBooking().event, refundPolicy: "FULL_UNTIL_CUTOFF", refundCutoffHours: 48, startDate } })
+    );
+    const res = await request(app).post("/api/bookings/5/request-refund").set("Authorization", asBuyer).send({});
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("REFUND_WINDOW_CLOSED");
+    expect(prismaMock.booking.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("lets a guest with the bookingCode refund (no token)", async () => {
+    prismaMock.booking.findUnique
+      .mockResolvedValueOnce(buyerBooking({ userId: null }))
+      .mockResolvedValueOnce({ id: 5, status: "REFUNDED" });
+    prismaMock.booking.updateMany.mockResolvedValueOnce({ count: 1 });
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.booking.update.mockResolvedValue({});
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(app).post("/api/bookings/5/request-refund").send({ bookingCode: "BKX" });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/fully refunded/i);
+  });
+
+  it("returns 400 for a terminal (already REFUNDED) booking", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(buyerBooking({ status: "REFUNDED" }));
+    const res = await request(app).post("/api/bookings/5/request-refund").set("Authorization", asBuyer).send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("INVALID_STATE");
+  });
+});
+
 // ==================== PAY-04: promo codes ====================
 describe("promo codes at checkout", () => {
   const eventWithPromo = () => ({

@@ -52,34 +52,83 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function BookingCard({ booking }: { booking: BookingListItem }) {
+function BookingCard({
+  booking,
+  onChanged,
+}: {
+  booking: BookingListItem;
+  onChanged: (b: BookingListItem) => void;
+}) {
+  const [busy, setBusy] = useState(false);
   const totalTickets = (booking.items || []).reduce((s, i) => s + i.quantity, 0);
+  // PAY-06: a PENDING booking can be cancelled; a COMPLETED one can request a
+  // refund (the server enforces the event's refund policy and reports the outcome).
+  const canCancel = booking.status === "PENDING";
+  const canRefund = booking.status === "COMPLETED";
+
+  const act = async () => {
+    if (busy) return;
+    const verb = canCancel ? "cancel" : "request a refund for";
+    if (!window.confirm(`Are you sure you want to ${verb} this booking?`)) return;
+    setBusy(true);
+    try {
+      const res = await apiFetch(`/api/bookings/${booking.id}/request-refund`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(data.message || "Done", "success");
+        onChanged({ ...booking, status: data.data?.status || (canCancel ? "CANCELLED" : "REFUNDED") });
+      } else {
+        showToast(data.error?.message || "Request could not be completed", "error");
+      }
+    } catch {
+      showToast("Request failed. Please try again.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <Link
-      href={`/booking-confirmation?bookingCode=${encodeURIComponent(booking.bookingCode)}`}
-      className="block rounded-lg bg-white border p-5 shadow-sm hover:shadow-md transition-shadow"
+    <div
+      className="rounded-lg bg-white border shadow-sm hover:shadow-md transition-shadow"
       data-testid="booking-card"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h3 className="font-semibold">{booking.event?.name || "Event"}</h3>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {formatDate(booking.event?.startDate)}
-            {booking.event?.venue ? ` · ${booking.event.venue}` : ""}
-          </p>
-          <p className="text-xs text-slate-400 mt-1 font-mono">{booking.bookingCode}</p>
+      <Link
+        href={`/booking-confirmation?bookingCode=${encodeURIComponent(booking.bookingCode)}`}
+        className="block p-5"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="font-semibold">{booking.event?.name || "Event"}</h3>
+            <p className="text-sm text-slate-500 mt-0.5">
+              {formatDate(booking.event?.startDate)}
+              {booking.event?.venue ? ` · ${booking.event.venue}` : ""}
+            </p>
+            <p className="text-xs text-slate-400 mt-1 font-mono">{booking.bookingCode}</p>
+          </div>
+          <div className="text-right shrink-0">
+            <StatusBadge status={booking.status} />
+            <div className="font-bold mt-2">{formatPaise(booking.total ?? 0)}</div>
+            {totalTickets > 0 && (
+              <div className="text-xs text-slate-500">
+                {totalTickets} ticket{totalTickets === 1 ? "" : "s"}
+              </div>
+            )}
+          </div>
         </div>
-        <div className="text-right shrink-0">
-          <StatusBadge status={booking.status} />
-          <div className="font-bold mt-2">{formatPaise(booking.total ?? 0)}</div>
-          {totalTickets > 0 && (
-            <div className="text-xs text-slate-500">
-              {totalTickets} ticket{totalTickets === 1 ? "" : "s"}
-            </div>
-          )}
+      </Link>
+      {(canCancel || canRefund) && (
+        <div className="px-5 pb-4 -mt-1 flex justify-end">
+          <button
+            type="button"
+            onClick={act}
+            disabled={busy}
+            className="text-sm px-3 py-1.5 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {busy ? "Processing…" : canCancel ? "Cancel booking" : "Request refund"}
+          </button>
         </div>
-      </div>
-    </Link>
+      )}
+    </div>
   );
 }
 
@@ -177,7 +226,13 @@ export default function BookingsPage() {
             ) : (
               <div className="space-y-3" data-testid="booking-list">
                 {bookings.map((b) => (
-                  <BookingCard key={b.id} booking={b} />
+                  <BookingCard
+                    key={b.id}
+                    booking={b}
+                    onChanged={(updated) =>
+                      setBookings((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))
+                    }
+                  />
                 ))}
               </div>
             )

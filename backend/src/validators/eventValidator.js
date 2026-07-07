@@ -50,6 +50,14 @@ const eventStatus = z.enum([
 ]);
 const visibility = z.enum(["PUBLIC", "PRIVATE"]);
 
+// PAY-06: buyer refund policy + optional cutoff (hours before startDate). The
+// cutoff is a non-negative integer that may arrive as a number or digit string.
+const refundPolicy = z.enum(["NO_REFUND", "FULL_ANYTIME", "FULL_UNTIL_CUTOFF"]);
+const refundCutoffHoursLike = z.union([
+  z.number().int("refundCutoffHours must be an integer").nonnegative("refundCutoffHours must be >= 0"),
+  z.string().trim().regex(/^\d+$/, "refundCutoffHours must be a non-negative integer"),
+]);
+
 // A ticket type supplied inline when creating an event. price may be a number or
 // numeric string (the route parseFloat's it) and must be >= 0. `quantity` is
 // REQUIRED on create (a non-negative integer) — a create must not silently
@@ -103,6 +111,8 @@ export const createEventSchema = z
     discount: discountLike.optional().nullable(),
     status: storableEventStatus.optional(),
     visibility: visibility.optional(),
+    refundPolicy: refundPolicy.optional(),
+    refundCutoffHours: refundCutoffHoursLike.optional().nullable(),
     ticketTypes: z.array(inlineTicketTypeSchema).optional().nullable(),
     questions: z.array(eventQuestionSchema).optional().nullable(),
   })

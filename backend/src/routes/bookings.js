@@ -1211,12 +1211,111 @@ router.put("/:id/cancel", authenticateUser, async (req, res) => {
 
 // ==================== PAY-02: REFUNDS ====================
 
-// POST /api/bookings/:id/refund - full or partial refund of a COMPLETED booking.
-// Host of the event, or an ADMIN of the event's fest (buyers do NOT get this).
-// Body: { amount?: paise (omitted = full remaining), reason?: string }.
-router.post("/:id/refund", writeLimiter, authenticateUser, async (req, res) => {
+// Shared refund EXECUTOR, used by the host refund endpoint (full or partial) and
+// the buyer self-service request-refund (PAY-06, always full remaining). The
+// CALLER must have already verified ownership and that the booking is COMPLETED.
+// Returns { status, body } to send. Handles the self-heal of a ledger-full-but-
+// COMPLETED booking, the concurrency-safe two-attempt reservation, the gateway
+// call (real Razorpay or demo), and the finalize. `amountBody` null = full remaining.
+async function runRefund(booking, amountBody, reason, log) {
+  const bid = booking.id;
+
+  // Self-heal a booking whose refund ledger already reached the total but which
+  // was left COMPLETED — e.g. a finalize that threw AFTER the gateway refund
+  // succeeded. Finish the transition with NO new gateway call, restoring inventory
+  // + promo exactly once (guarded flip). Makes a stuck booking recoverable on retry.
+  if ((booking.refundedAmount || 0) >= booking.total) {
+    const healed = await prisma.$transaction(async (tx) => {
+      const flip = await tx.booking.updateMany({ where: { id: bid, status: "COMPLETED" }, data: { status: "REFUNDED" } });
+      await tx.payment.updateMany({ where: { bookingId: bid }, data: { refundedAmount: booking.total, status: "REFUNDED" } });
+      if (flip.count === 1) await restoreInventoryAndPromo(tx, booking);
+      return tx.booking.findUnique({
+        where: { id: bid },
+        include: { items: { include: { ticketType: true } }, payment: true, event: { select: { name: true } } },
+      });
+    });
+    return { status: 200, body: { success: true, data: healed, message: "Booking fully refunded" } };
+  }
+
+  const alreadyRefunded = booking.refundedAmount || 0;
+  const remaining = booking.total - alreadyRefunded; // paise
+  const amount = amountBody == null ? remaining : Math.round(Number(amountBody)); // paise
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { status: 400, body: { success: false, error: { code: "VALIDATION_ERROR", message: "Refund amount must be greater than 0" } } };
+  }
+  if (amount > remaining) {
+    return { status: 400, body: { success: false, error: { code: "VALIDATION_ERROR", message: "Refund amount exceeds the refundable balance" } } };
+  }
+
+  // Atomically RESERVE the refund before calling the gateway, and determine
+  // fullness FROM THE GUARD rather than the stale pre-read (so two concurrent
+  // partials that together reach the total can't both think they're partial and
+  // leave the booking stuck COMPLETED). First try to claim the FULL transition —
+  // this amount brings the ledger exactly to total — then fall back to a strictly
+  // partial claim. Whoever wins the full claim is the unique finalizer.
+  let nowFull = true;
+  let claim = await prisma.booking.updateMany({
+    where: { id: bid, status: "COMPLETED", refundedAmount: booking.total - amount },
+    data: { refundedAmount: { increment: amount }, refundReason: reason || undefined },
+  });
+  if (claim.count === 0) {
+    nowFull = false;
+    claim = await prisma.booking.updateMany({
+      where: { id: bid, status: "COMPLETED", refundedAmount: { lt: booking.total - amount } },
+      data: { refundedAmount: { increment: amount }, refundReason: reason || undefined },
+    });
+  }
+  if (claim.count === 0) {
+    return { status: 409, body: { success: false, error: { code: "INVALID_STATE", message: "Refund could not be reserved (already refunded or state changed)" } } };
+  }
+
+  // Issue the refund. Real Razorpay refund when configured + we have a captured
+  // payment; otherwise a demo refund. On gateway failure, release the reservation.
+  let refundId = "DEMO-REFUND";
+  const razorpay = getRazorpay();
   try {
-    const bid = parseInt(req.params.id);
+    if (razorpay && booking.payment?.transactionId) {
+      const r = await razorpay.payments.refund(booking.payment.transactionId, { amount, speed: "normal" });
+      refundId = r?.id || "REFUND";
+    }
+  } catch (err) {
+    await prisma.booking.updateMany({ where: { id: bid }, data: { refundedAmount: { decrement: amount } } });
+    log?.error({ err }, "Razorpay refund failed");
+    return { status: 502, body: { success: false, error: { code: "REFUND_FAILED", message: "Payment gateway refund failed" } } };
+  }
+
+  // Finalize: payment accounting + statuses; a FULL refund flips the booking to
+  // REFUNDED and restores inventory (floored). A partial refund keeps it COMPLETED
+  // and does NOT restore inventory. The two-attempt reservation above guarantees
+  // exactly one caller reaches nowFull, so the flip/restore is performed once.
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.payment.updateMany({
+      where: { bookingId: bid },
+      data: {
+        refundedAmount: { increment: amount },
+        refundId,
+        ...(nowFull ? { status: "REFUNDED" } : {}),
+      },
+    });
+    if (nowFull) {
+      await tx.booking.update({ where: { id: bid }, data: { status: "REFUNDED" } });
+      await restoreInventoryAndPromo(tx, booking); // PAY-04 + inventory
+    }
+    return tx.booking.findUnique({
+      where: { id: bid },
+      include: { items: { include: { ticketType: true } }, payment: true, event: { select: { name: true } } },
+    });
+  });
+
+  return { status: 200, body: { success: true, data: updated, message: nowFull ? "Booking fully refunded" : "Partial refund issued" } };
+}
+
+// POST /api/bookings/:id/refund - full or partial refund of a COMPLETED booking.
+// Host of the event, or an ADMIN of the event's fest (buyers use PAY-06's
+// request-refund instead). Body: { amount?: paise (omitted = full remaining), reason? }.
+router.post("/:id/refund", writeLimiter, authenticateUser, async (req, res) => {
+  const bid = parseInt(req.params.id);
+  try {
     const { amount: amountBody, reason } = req.body || {};
 
     const booking = await prisma.booking.findUnique({
@@ -1242,106 +1341,81 @@ router.post("/:id/refund", writeLimiter, authenticateUser, async (req, res) => {
       });
     }
 
-    // Self-heal a booking whose refund ledger already reached the total but which
-    // was left COMPLETED — e.g. a finalize that threw AFTER the gateway refund
-    // succeeded. Finish the transition with NO new gateway call, restoring
-    // inventory + promo exactly once (guarded flip). This makes such a stuck
-    // booking recoverable by simply retrying the refund.
-    if ((booking.refundedAmount || 0) >= booking.total) {
-      const healed = await prisma.$transaction(async (tx) => {
-        const flip = await tx.booking.updateMany({ where: { id: bid, status: "COMPLETED" }, data: { status: "REFUNDED" } });
-        await tx.payment.updateMany({ where: { bookingId: bid }, data: { refundedAmount: booking.total, status: "REFUNDED" } });
-        if (flip.count === 1) await restoreInventoryAndPromo(tx, booking);
-        return tx.booking.findUnique({
-          where: { id: bid },
-          include: { items: { include: { ticketType: true } }, payment: true, event: { select: { name: true } } },
-        });
-      });
-      return res.json({ success: true, data: healed, message: "Booking fully refunded" });
-    }
-
-    const alreadyRefunded = booking.refundedAmount || 0;
-    const remaining = booking.total - alreadyRefunded; // paise
-    const amount = amountBody == null ? remaining : Math.round(Number(amountBody)); // paise
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Refund amount must be greater than 0" } });
-    }
-    if (amount > remaining) {
-      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Refund amount exceeds the refundable balance" } });
-    }
-
-    // Atomically RESERVE the refund before calling the gateway, and determine
-    // fullness FROM THE GUARD rather than the stale pre-read (so two concurrent
-    // partials that together reach the total can't both think they're partial and
-    // leave the booking stuck COMPLETED). First try to claim the FULL transition —
-    // this amount brings the ledger exactly to total — then fall back to a strictly
-    // partial claim. Whoever wins the full claim is the unique finalizer.
-    let nowFull = true;
-    let claim = await prisma.booking.updateMany({
-      where: { id: bid, status: "COMPLETED", refundedAmount: booking.total - amount },
-      data: { refundedAmount: { increment: amount }, refundReason: reason || undefined },
-    });
-    if (claim.count === 0) {
-      nowFull = false;
-      claim = await prisma.booking.updateMany({
-        where: { id: bid, status: "COMPLETED", refundedAmount: { lt: booking.total - amount } },
-        data: { refundedAmount: { increment: amount }, refundReason: reason || undefined },
-      });
-    }
-    if (claim.count === 0) {
-      return res.status(409).json({
-        success: false,
-        error: { code: "INVALID_STATE", message: "Refund could not be reserved (already refunded or state changed)" },
-      });
-    }
-
-    // Issue the refund. Real Razorpay refund when configured + we have a captured
-    // payment; otherwise a demo refund. On gateway failure, release the reservation.
-    let refundId = "DEMO-REFUND";
-    const razorpay = getRazorpay();
-    try {
-      if (razorpay && booking.payment?.transactionId) {
-        const r = await razorpay.payments.refund(booking.payment.transactionId, { amount, speed: "normal" });
-        refundId = r?.id || "REFUND";
-      }
-    } catch (err) {
-      await prisma.booking.updateMany({ where: { id: bid }, data: { refundedAmount: { decrement: amount } } });
-      req.log.error({ err }, "Razorpay refund failed");
-      return res.status(502).json({ success: false, error: { code: "REFUND_FAILED", message: "Payment gateway refund failed" } });
-    }
-
-    // Finalize: payment accounting + statuses; a FULL refund flips the booking to
-    // REFUNDED and restores inventory (floored). A partial refund keeps it
-    // COMPLETED and does NOT restore inventory. The two-attempt reservation above
-    // guarantees exactly one caller reaches nowFull, so the flip/restore is
-    // performed once.
-    const updated = await prisma.$transaction(async (tx) => {
-      await tx.payment.updateMany({
-        where: { bookingId: bid },
-        data: {
-          refundedAmount: { increment: amount },
-          refundId,
-          ...(nowFull ? { status: "REFUNDED" } : {}),
-        },
-      });
-      if (nowFull) {
-        await tx.booking.update({ where: { id: bid }, data: { status: "REFUNDED" } });
-        await restoreInventoryAndPromo(tx, booking); // PAY-04 + inventory
-      }
-      return tx.booking.findUnique({
-        where: { id: bid },
-        include: { items: { include: { ticketType: true } }, payment: true, event: { select: { name: true } } },
-      });
-    });
-
-    return res.json({
-      success: true,
-      data: updated,
-      message: nowFull ? "Booking fully refunded" : "Partial refund issued",
-    });
+    const { status, body } = await runRefund(booking, amountBody, reason, req.log);
+    return res.status(status).json(body);
   } catch (error) {
     req.log.error({ err: error, bookingId: bid }, "Refund error");
     return res.status(500).json({ success: false, error: { code: "REFUND_ERROR", message: "Failed to process refund" } });
+  }
+});
+
+// PAY-06: POST /api/bookings/:id/request-refund - BUYER self-service cancel/refund.
+// Auth: the booking's buyer OR the guest bookingCode holder (callerOwnsBooking).
+// A PENDING booking is cancelled (no money); a COMPLETED booking is refunded in
+// FULL via the shared refund engine, but ONLY when the event's refundPolicy allows.
+router.post("/:id/request-refund", writeLimiter, optionalAuthenticate, async (req, res) => {
+  const bid = parseInt(req.params.id);
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bid },
+      include: {
+        items: true,
+        payment: true,
+        event: {
+          select: { hostId: true, festId: true, name: true, startDate: true, refundPolicy: true, refundCutoffHours: true },
+        },
+      },
+    });
+    if (!booking) {
+      return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Booking not found" } });
+    }
+    if (!(await callerOwnsBooking(req, booking))) return forbid(res);
+
+    // A still-unpaid booking: cancel it (no money moved), restoring inventory + promo.
+    if (booking.status === "PENDING") {
+      const cancelled = await prisma.$transaction(async (tx) => {
+        const flip = await tx.booking.updateMany({ where: { id: bid, status: "PENDING" }, data: { status: "CANCELLED" } });
+        if (flip.count === 0) throw bookingError(409, "INVALID_STATE", "Booking is no longer pending and cannot be cancelled");
+        for (const item of booking.items) {
+          await tx.ticketType.updateMany({ where: { id: item.ticketTypeId, sold: { gte: item.quantity } }, data: { sold: { decrement: item.quantity } } });
+        }
+        await releasePromoRedemption(tx, booking.promoCodeId);
+        return tx.booking.findUnique({ where: { id: bid }, include: { event: { select: { name: true } }, items: { include: { ticketType: true } } } });
+      });
+      return res.json({ success: true, data: cancelled, message: "Booking cancelled" });
+    }
+
+    if (booking.status !== "COMPLETED") {
+      return res.status(400).json({ success: false, error: { code: "INVALID_STATE", message: "This booking cannot be refunded" } });
+    }
+
+    // Evaluate the event's refund policy.
+    const policy = booking.event?.refundPolicy || "NO_REFUND";
+    if (policy === "NO_REFUND") {
+      return res.status(403).json({ success: false, error: { code: "REFUND_NOT_ALLOWED", message: "This event does not allow buyer refunds" } });
+    }
+    if (policy === "FULL_UNTIL_CUTOFF") {
+      const startDate = booking.event?.startDate ? new Date(booking.event.startDate) : null;
+      const cutoffHours = booking.event?.refundCutoffHours;
+      // Only enforce a window when BOTH the start date and cutoff are known. A null
+      // startDate can't be evaluated, so treat it like FULL_ANYTIME (allow).
+      if (startDate && cutoffHours != null) {
+        const deadline = new Date(startDate.getTime() - cutoffHours * 3600 * 1000);
+        if (new Date() > deadline) {
+          return res.status(409).json({ success: false, error: { code: "REFUND_WINDOW_CLOSED", message: "The refund window for this event has closed" } });
+        }
+      }
+    }
+
+    // FULL_ANYTIME, or FULL_UNTIL_CUTOFF within the window: full refund via PAY-02.
+    const { status, body } = await runRefund(booking, undefined, "Buyer self-service refund", req.log);
+    return res.status(status).json(body);
+  } catch (error) {
+    if (error.expose && error.status && error.code) {
+      return res.status(error.status).json({ success: false, error: { code: error.code, message: error.message } });
+    }
+    req.log.error({ err: error, bookingId: bid }, "Request-refund error");
+    return res.status(500).json({ success: false, error: { code: "REFUND_ERROR", message: "Failed to process refund request" } });
   }
 });
 

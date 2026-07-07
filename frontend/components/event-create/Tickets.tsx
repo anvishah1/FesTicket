@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { showToast } from "@/lib/toast";
+import type { RefundPolicy } from "@/lib/refundPolicy";
 
 interface TicketsProps {
   onNext: (data: TicketsData) => void;
@@ -21,6 +22,11 @@ export type TicketType = {
 export interface TicketsData {
   isPaid: boolean;
   tickets: TicketType[];
+  // PAY-06: buyer refund policy for this event (optional so older callers/tests
+  // that build TicketsData without them still typecheck; the component defaults
+  // to NO_REFUND).
+  refundPolicy?: RefundPolicy;
+  refundCutoffHours?: string; // kept as a string for the input; parsed at submit
 }
 
 export default function Tickets({ onNext, onChange, initialData }: TicketsProps) {
@@ -28,12 +34,14 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
   const [tickets, setTickets] = useState<TicketType[]>(
     initialData?.tickets || [{ id: 1, name: "General Admission", price: 0, quantity: 100, description: "" }]
   );
+  const [refundPolicy, setRefundPolicy] = useState<RefundPolicy>(initialData?.refundPolicy ?? "NO_REFUND");
+  const [refundCutoffHours, setRefundCutoffHours] = useState<string>(initialData?.refundCutoffHours ?? "48");
 
   // Report every edit up so switching steps via the Sidebar never loses input.
   useEffect(() => {
-    onChange?.({ isPaid, tickets });
+    onChange?.({ isPaid, tickets, refundPolicy, refundCutoffHours });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPaid, tickets]);
+  }, [isPaid, tickets, refundPolicy, refundCutoffHours]);
 
   function addTicket() {
     setTickets([
@@ -76,6 +84,8 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
         ...t,
         price: isPaid ? t.price : 0,
       })),
+      refundPolicy,
+      refundCutoffHours,
     });
   };
 
@@ -220,6 +230,39 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
         >
           + Add Another Ticket Type
         </button>
+
+        {/* PAY-06: Refund policy */}
+        <div className="rounded-lg border border-[#C5BAC4] p-4 space-y-3">
+          <label htmlFor="refund-policy" className="block text-sm font-medium text-[#29104A]">
+            Refund policy
+          </label>
+          <select
+            id="refund-policy"
+            value={refundPolicy}
+            onChange={(e) => setRefundPolicy(e.target.value as RefundPolicy)}
+            className="w-full rounded-lg border border-[#C5BAC4] px-3 py-2 text-sm text-[#29104A] focus:border-[#522C5D] focus:outline-none"
+          >
+            <option value="NO_REFUND">No refunds</option>
+            <option value="FULL_ANYTIME">Full refund any time before the event</option>
+            <option value="FULL_UNTIL_CUTOFF">Full refund up to a cutoff before the event</option>
+          </select>
+          {refundPolicy === "FULL_UNTIL_CUTOFF" && (
+            <div>
+              <label htmlFor="refund-cutoff" className="mb-1 block text-xs text-[#6B597F]">
+                Refund cutoff (hours before the event start)
+              </label>
+              <input
+                id="refund-cutoff"
+                type="number"
+                min={0}
+                value={refundCutoffHours}
+                onChange={(e) => setRefundCutoffHours(e.target.value)}
+                placeholder="48"
+                className="w-40 rounded-lg border border-[#C5BAC4] px-3 py-2 text-sm text-[#29104A] focus:border-[#522C5D] focus:outline-none"
+              />
+            </div>
+          )}
+        </div>
 
         {/* Save */}
         <button

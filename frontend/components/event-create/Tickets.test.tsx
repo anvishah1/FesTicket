@@ -193,4 +193,26 @@ describe("Tickets", () => {
       description: "Front row seats",
     });
   });
+
+  it("defaults to NO_REFUND and hides the cutoff input (PAY-06)", async () => {
+    const onNext = vi.fn();
+    render(<Tickets onNext={onNext} />);
+    expect((screen.getByLabelText("Refund policy") as HTMLSelectElement).value).toBe("NO_REFUND");
+    expect(screen.queryByLabelText(/Refund cutoff/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
+    expect((onNext.mock.calls[0][0] as TicketsData).refundPolicy).toBe("NO_REFUND");
+  });
+
+  it("submits a FULL_UNTIL_CUTOFF policy with its cutoff hours (PAY-06)", async () => {
+    const onNext = vi.fn();
+    render(<Tickets onNext={onNext} />);
+    await userEvent.selectOptions(screen.getByLabelText("Refund policy"), "FULL_UNTIL_CUTOFF");
+    const cutoff = screen.getByLabelText(/Refund cutoff/i);
+    await userEvent.clear(cutoff);
+    await userEvent.type(cutoff, "72");
+    await userEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
+    const payload = onNext.mock.calls[0][0] as TicketsData;
+    expect(payload.refundPolicy).toBe("FULL_UNTIL_CUTOFF");
+    expect(payload.refundCutoffHours).toBe("72");
+  });
 });

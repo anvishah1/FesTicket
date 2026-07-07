@@ -276,6 +276,12 @@ export default function EventCreatePage() {
           venueAddress: isOnline ? null : loc.address || null,
           onlineLink: isOnline ? loc.meetingLink || null : null,
           meetingLink: isOnline ? loc.meetingLink || null : null,
+          // PAY-06: buyer refund policy (+ cutoff hours for FULL_UNTIL_CUTOFF).
+          refundPolicy: fullEventData.tickets?.refundPolicy || "NO_REFUND",
+          refundCutoffHours:
+            fullEventData.tickets?.refundPolicy === "FULL_UNTIL_CUTOFF"
+              ? fullEventData.tickets?.refundCutoffHours || null
+              : null,
           ticketTypes: validTickets.map((t) => ({
             name: t.name,
             // Tickets.tsx keeps price in RUPEES; the API stores integer paise.

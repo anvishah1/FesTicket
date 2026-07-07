@@ -108,6 +108,10 @@ model Event {
   visibility       Visibility  @default(PUBLIC)
   status           EventStatus @default(PUBLISHED)
   discount         Float       @default(0)
+  // PAY-06: buyer refund policy. refundCutoffHours applies only to
+  // FULL_UNTIL_CUTOFF (a refund is allowed up to startDate - refundCutoffHours).
+  refundPolicy      RefundPolicy @default(NO_REFUND)
+  refundCutoffHours Int?
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 
@@ -138,6 +142,13 @@ enum EventStatus {
 enum Visibility {
   PUBLIC
   PRIVATE
+}
+
+// PAY-06: how buyers may self-service refund a completed booking.
+enum RefundPolicy {
+  NO_REFUND
+  FULL_ANYTIME
+  FULL_UNTIL_CUTOFF
 }
 
 // ==================== TICKETS ====================

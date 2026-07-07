@@ -12,6 +12,7 @@ import Link from "next/link";
 import Footer from "@/components/Footer";
 import { apiFetch, getApiUrl } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
+import { refundPolicyText } from "@/lib/refundPolicy";
 import { formatPaise } from "@/lib/format";
 
 type TicketType = {
@@ -39,6 +40,8 @@ interface EventData {
   endDate: string;
   image: string;
   discount?: number; // percentage 0..100 applied to the subtotal
+  refundPolicy?: "NO_REFUND" | "FULL_ANYTIME" | "FULL_UNTIL_CUTOFF";
+  refundCutoffHours?: number | null;
   fest?: { name: string; college: string };
   questions?: EventQuestion[]; // custom registration questions (C4)
   ticketTypes: Array<{
@@ -563,7 +566,7 @@ export default function BookingPage() {
             <h3 className="font-semibold">Important</h3>
             <ul className="list-disc pl-5 mt-3 text-sm text-slate-600 space-y-2">
               <li>Tickets are non-transferable after registration.</li>
-              <li>Refund policy: full refund up to 7 days before the event.</li>
+              <li>Refund policy: {refundPolicyText(event?.refundPolicy, event?.refundCutoffHours)}</li>
               <li>Attendees must carry a valid ID for check-in.</li>
             </ul>
           </div>

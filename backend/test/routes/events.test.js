@@ -350,6 +350,32 @@ describe("POST /api/events", () => {
     expect(prismaMock.ticketType.createMany).not.toHaveBeenCalled();
   });
 
+  it("persists a FULL_UNTIL_CUTOFF refund policy with its cutoff (PAY-06)", async () => {
+    prismaMock.event.create.mockResolvedValue({ id: 101 });
+    prismaMock.event.findUnique.mockResolvedValue({ id: 101, ticketTypes: [] });
+    const res = await request(app)
+      .post("/api/events")
+      .set(...hostAuth)
+      .send({ name: "Refundable", refundPolicy: "FULL_UNTIL_CUTOFF", refundCutoffHours: "48" });
+    expect(res.status).toBe(201);
+    expect(prismaMock.event.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ refundPolicy: "FULL_UNTIL_CUTOFF", refundCutoffHours: 48 }),
+    });
+  });
+
+  it("clears the cutoff when the policy is not FULL_UNTIL_CUTOFF (PAY-06)", async () => {
+    prismaMock.event.create.mockResolvedValue({ id: 102 });
+    prismaMock.event.findUnique.mockResolvedValue({ id: 102, ticketTypes: [] });
+    const res = await request(app)
+      .post("/api/events")
+      .set(...hostAuth)
+      .send({ name: "Anytime", refundPolicy: "FULL_ANYTIME", refundCutoffHours: "48" });
+    expect(res.status).toBe(201);
+    expect(prismaMock.event.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ refundPolicy: "FULL_ANYTIME", refundCutoffHours: null }),
+    });
+  });
+
   it("creates ticket types in the transaction when provided", async () => {
     prismaMock.event.create.mockResolvedValue({ id: 100 });
     prismaMock.ticketType.createMany.mockResolvedValue({ count: 1 });

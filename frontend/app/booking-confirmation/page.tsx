@@ -56,18 +56,53 @@ export default function BookingConfirmationPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    // TIX-08: cache name must match BOOKINGS_CACHE in public/sw.js so the SW's
+    // offline fallback can also serve what we write here.
+    const BOOKINGS_CACHE = "tiqr-bookings-v1";
+
     const fetchBooking = async () => {
       if (!bookingCode) {
         setLoading(false);
         return;
       }
+      // Public guest endpoint keyed by the unguessable bookingCode (no auth).
+      const url = `${getApiUrl()}/api/bookings/code/${encodeURIComponent(bookingCode)}`;
       try {
-        // Public guest endpoint keyed by the unguessable bookingCode (no auth).
-        const res = await fetch(`${getApiUrl()}/api/bookings/code/${encodeURIComponent(bookingCode)}`);
+        const res = await fetch(url);
         const data = await res.json();
-        if (data.success) setBooking(data.data);
+        if (data.success) {
+          setBooking(data.data);
+          // TIX-08: persist this booking so the QR still renders at the gate with
+          // no signal. We write from the app layer (not just via the SW) because
+          // on the very first visit the SW isn't controlling this page yet, so
+          // the network fetch above bypasses it. One online view is enough.
+          if (typeof caches !== "undefined") {
+            try {
+              const cache = await caches.open(BOOKINGS_CACHE);
+              await cache.put(
+                url,
+                new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } })
+              );
+            } catch {
+              /* cache writes are best-effort */
+            }
+          }
+        }
       } catch (error) {
         console.error("Failed to fetch booking:", error);
+        // TIX-08: offline — fall back to the copy saved on a previous online view.
+        if (typeof caches !== "undefined") {
+          try {
+            const cache = await caches.open(BOOKINGS_CACHE);
+            const hit = await cache.match(url);
+            if (hit) {
+              const data = await hit.json();
+              if (data.success) setBooking(data.data);
+            }
+          } catch {
+            /* no cached copy — fall through to the not-found/offline state */
+          }
+        }
       } finally {
         setLoading(false);
       }
@@ -103,13 +138,18 @@ export default function BookingConfirmationPage() {
   }
 
   if (!booking) {
+    // TIX-08: distinguish "genuinely not found" from "offline and this ticket
+    // was never saved for offline use", so a gate scan with no signal is clear.
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
     return (
       <div className="min-h-screen bg-[var(--bg)]">
         <Header />
         <main className="container py-10 text-center">
-          <h1 className="text-2xl font-bold">Booking not found</h1>
+          <h1 className="text-2xl font-bold">{offline ? "You're offline" : "Booking not found"}</h1>
           <p className="text-slate-500 mt-2">
-            We couldn&apos;t find a booking for that code.
+            {offline
+              ? "This ticket wasn't saved for offline use. Reconnect to load it."
+              : "We couldn't find a booking for that code."}
           </p>
           <div className="mt-4 flex items-center justify-center gap-3">
             <Link href="/bookings" className="px-4 py-2 bg-primary-600 text-white rounded-md">

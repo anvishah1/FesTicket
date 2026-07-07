@@ -1,6 +1,6 @@
 import "../globals.css";
 import "leaflet/dist/leaflet.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import ClientRoot from "./_ClientRoot";
 
 export const metadata: Metadata = {
@@ -14,6 +14,15 @@ export const metadata: Metadata = {
   description:
     "tiqr is the fastest way to discover, book, and manage tickets for college fest events. Browse fests, grab your passes, and organise events all in one place.",
   applicationName: "tiqr",
+  // TIX-08: Next auto-links the manifest from app/manifest.ts, but declaring it
+  // keeps the intent explicit. appleWebApp enables iOS "Add to Home Screen" with
+  // a standalone shell and the correct title.
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "tiqr",
+  },
   openGraph: {
     title: "tiqr — Events & ticketing for college fests",
     description:
@@ -29,7 +38,14 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
   },
+};
+
+// TIX-08: PWA theme color for the browser/OS chrome (must match the manifest
+// theme_color and the brand primary).
+export const viewport: Viewport = {
+  themeColor: "#522C5D",
 };
 
 export default function RootLayout({

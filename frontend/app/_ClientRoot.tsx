@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import CompleteProfileModal from "@/components/CompleteProfileModal";
 import Toaster from "@/components/Toaster";
+import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import {
   getApiUrl,
   getAccessToken,
@@ -70,6 +71,7 @@ export default function ClientRoot({
 
   return (
     <>
+      <ServiceWorkerRegistrar />
       <Toaster />
       {!loading && (
         <CompleteProfileModal

@@ -177,6 +177,9 @@ model TicketType {
 model Booking {
   id           Int           @id @default(autoincrement())
   bookingCode  String        @unique @default(cuid())
+  // PAY-07: stable GST-invoice number, assigned once when the booking completes
+  // (format TIQR-<year>-<id>). Null until completion; unique across all bookings.
+  invoiceNumber String?      @unique
   eventId      Int
   userId       Int?
   guestEmail   String?

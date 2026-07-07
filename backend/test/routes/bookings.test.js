@@ -2463,6 +2463,64 @@ describe("POST /api/bookings/:id/request-refund", () => {
   });
 });
 
+// ==================== PAY-07: GST invoice PDF ====================
+describe("GET /api/bookings/:id/invoice", () => {
+  const inv = (over = {}) => ({
+    id: 5, bookingCode: "BKX", status: "COMPLETED", invoiceNumber: "TIQR-2026-5", userId: 20,
+    subtotal: 20000, discount: 0, promoDiscount: 0, platformFee: 400, tax: 3672, total: 24072, refundedAmount: 0,
+    guestName: null, guestEmail: null, purchaseDate: "2026-01-02T00:00:00.000Z", createdAt: "2026-01-01T00:00:00.000Z",
+    items: [{ quantity: 2, unitPrice: 10000, totalPrice: 20000, ticketType: { name: "GA" } }],
+    payment: { transactionId: "pay_1" },
+    user: { name: "Alice", email: "a@x.com" },
+    event: { hostId: 7, festId: 3, name: "E", venue: "Hall", startDate: "2026-08-01", fest: { name: "F", college: "C" } },
+    ...over,
+  });
+  const asBuyer = auth({ userId: 20, role: "VIEWER" });
+  // Collect the binary PDF response into a Buffer (supertest won't parse PDFs).
+  const asBuffer = (r) =>
+    r.buffer(true).parse((res, cb) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => cb(null, Buffer.concat(chunks)));
+    });
+
+  it("404 when the booking is missing", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(null);
+    const res = await request(app).get("/api/bookings/5/invoice").set("Authorization", asBuyer);
+    expect(res.status).toBe(404);
+  });
+
+  it("403 for a non-owner without the bookingCode", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(inv());
+    const res = await request(app).get("/api/bookings/5/invoice").set("Authorization", auth({ userId: 999, role: "VIEWER" }));
+    expect(res.status).toBe(403);
+  });
+
+  it("400 for a PENDING booking (no invoice for unpaid orders)", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(inv({ status: "PENDING" }));
+    const res = await request(app).get("/api/bookings/5/invoice").set("Authorization", asBuyer);
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("INVALID_STATE");
+  });
+
+  it("streams a PDF invoice for the buyer of a completed booking", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(inv());
+    const res = await asBuffer(request(app).get("/api/bookings/5/invoice").set("Authorization", asBuyer));
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/application\/pdf/);
+    expect(res.headers["content-disposition"]).toMatch(/invoice-BKX\.pdf/);
+    // Real PDF payload starts with the %PDF magic bytes.
+    expect(res.body.slice(0, 4).toString()).toBe("%PDF");
+  });
+
+  it("lets a guest download the invoice via ?code=", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(inv({ userId: null }));
+    const res = await asBuffer(request(app).get("/api/bookings/5/invoice?code=BKX"));
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/application\/pdf/);
+  });
+});
+
 // ==================== PAY-04: promo codes ====================
 describe("promo codes at checkout", () => {
   const eventWithPromo = () => ({

@@ -239,6 +239,18 @@ export default function BookingConfirmationPage() {
             </div>
           </div>
 
+          {/* PAY-07: a paid/refunded booking can download its GST invoice PDF. */}
+          {(booking.status === "COMPLETED" || booking.status === "REFUNDED") && (
+            <a
+              href={`${getApiUrl()}/api/bookings/${booking.id}/invoice?code=${encodeURIComponent(booking.bookingCode)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-center px-4 py-3 mb-3 rounded-md border border-primary-600 text-primary-700 hover:bg-primary-50 font-semibold"
+            >
+              Download tax invoice (PDF)
+            </a>
+          )}
+
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Link

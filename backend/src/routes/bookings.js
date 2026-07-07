@@ -10,6 +10,7 @@ import { validate } from "../middleware/validate.js";
 import { createBookingSchema } from "../validators/bookingValidator.js";
 import { bookingError } from "../utils/AppError.js";
 import { parsePagination, buildPagination } from "../utils/pagination.js";
+import { streamInvoicePdf } from "../utils/invoice.js";
 
 const router = Router();
 
@@ -73,6 +74,10 @@ const mapRazorpayMethod = (m) => {
 // Sum of ticket quantities across a booking's items
 const sumTicketQuantity = (items) => items.reduce((s, i) => s + i.quantity, 0);
 
+// PAY-07: stable GST-invoice number assigned once at completion. bookingId is
+// unique, so TIQR-<year>-<id> is unique and reproducible on every PDF render.
+const invoiceNumberFor = (bookingId) => `TIQR-${new Date().getFullYear()}-${bookingId}`;
+
 // PAY-03: all money is INTEGER PAISE. Fees are computed with integer arithmetic
 // (Math.round yields whole paise), so there is no binary-float drift and the
 // stored total is exactly reproducible by the frontend from the same subtotal.
@@ -126,7 +131,7 @@ async function settleBookingAsPaid(bookingId, { transactionId, method }) {
   const won = await prisma.$transaction(async (tx) => {
     const flip = await tx.booking.updateMany({
       where: { id: bookingId, status: "PENDING" },
-      data: { status: "COMPLETED", purchaseDate: new Date() },
+      data: { status: "COMPLETED", purchaseDate: new Date(), invoiceNumber: invoiceNumberFor(bookingId) },
     });
     if (flip.count === 0) return false;
     await tx.payment.updateMany({
@@ -523,6 +528,11 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
             paymentDate: new Date(),
           },
         });
+        // PAY-07: a free booking is COMPLETED on creation, so assign its invoice now.
+        await tx.booking.update({
+          where: { id: newBooking.id },
+          data: { invoiceNumber: invoiceNumberFor(newBooking.id) },
+        });
       }
 
       // 7. Return complete booking
@@ -870,7 +880,7 @@ router.put("/:id/complete", writeLimiter, optionalAuthenticate, async (req, res)
     const booking = await prisma.$transaction(async (tx) => {
       const updatedBooking = await tx.booking.update({
         where: { id: bid },
-        data: { status: "COMPLETED", purchaseDate: new Date() },
+        data: { status: "COMPLETED", purchaseDate: new Date(), invoiceNumber: invoiceNumberFor(bid) },
         include: {
           event: true,
           items: { include: { ticketType: true } },
@@ -1416,6 +1426,44 @@ router.post("/:id/request-refund", writeLimiter, optionalAuthenticate, async (re
     }
     req.log.error({ err: error, bookingId: bid }, "Request-refund error");
     return res.status(500).json({ success: false, error: { code: "REFUND_ERROR", message: "Failed to process refund request" } });
+  }
+});
+
+// PAY-07: GET /api/bookings/:id/invoice - stream a PDF GST tax-invoice/receipt.
+// Ownership: the buyer / event host / fest ADMIN (callerOwnsBooking) OR a guest
+// presenting the bookingCode via ?code=. Only COMPLETED/REFUNDED bookings.
+router.get("/:id/invoice", optionalAuthenticate, async (req, res) => {
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: parseInt(req.params.id) },
+      include: {
+        items: { include: { ticketType: { select: { name: true } } } },
+        payment: true,
+        user: { select: { name: true, email: true } },
+        event: {
+          select: {
+            hostId: true, festId: true, name: true, venue: true, startDate: true,
+            fest: { select: { name: true, college: true } },
+          },
+        },
+      },
+    });
+    if (!booking) {
+      return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Booking not found" } });
+    }
+    // Ownership: buyer/host/admin (via req.user) OR the guest bookingCode (?code=).
+    const codeOk = req.query.code && booking.bookingCode && req.query.code === booking.bookingCode;
+    if (!codeOk && !(await callerOwnsBooking(req, booking))) return forbid(res);
+
+    if (booking.status !== "COMPLETED" && booking.status !== "REFUNDED") {
+      return res.status(400).json({ success: false, error: { code: "INVALID_STATE", message: "An invoice is only available for a completed booking" } });
+    }
+
+    streamInvoicePdf(res, { booking, event: booking.event, fest: booking.event?.fest });
+  } catch (error) {
+    req.log.error({ err: error, bookingId: req.params.id }, "Invoice generation failed");
+    if (res.headersSent) return res.end();
+    return res.status(500).json({ success: false, error: { code: "INVOICE_ERROR", message: "Failed to generate invoice" } });
   }
 });
 

@@ -287,6 +287,11 @@ export async function sendBookingConfirmation(booking) {
   const total = booking.total ?? 0;
   const buyerName = booking.guestName || booking.user?.name || "Guest";
 
+  // PAY-07: a link to download the GST invoice PDF. The invoice endpoint lives on
+  // the API; PUBLIC_API_URL overrides the localhost default for real deployments.
+  const apiBase = process.env.PUBLIC_API_URL || `http://localhost:${process.env.PORT || 4000}`;
+  const invoiceUrl = `${apiBase}/api/bookings/${booking.id}/invoice?code=${encodeURIComponent(booking.bookingCode)}`;
+
   const bodyHtml = `
     <tr><td style="padding:0 0 16px;">Hi ${escapeHtml(buyerName)}, your booking is confirmed. Keep this email as your receipt.</td></tr>
     <tr><td style="padding:0 0 4px;font-weight:600;">Booking ID</td></tr>
@@ -324,6 +329,9 @@ export async function sendBookingConfirmation(booking) {
         ${tax > 0 ? `<tr style="border-bottom:1px solid #eeeeee;"><td style="padding:8px 0;">Tax</td><td align="right" style="padding:8px 0;">${money(tax)}</td></tr>` : ""}
         <tr><td style="padding:12px 0 0;font-weight:700;">Total paid</td><td align="right" style="padding:12px 0 0;font-weight:700;">${money(total)}</td></tr>
       </table>
+    </td></tr>
+    <tr><td style="padding:18px 0 0;">
+      <a href="${escapeHtml(invoiceUrl)}" style="color:${BRAND};text-decoration:underline;font-weight:600;">Download your GST invoice (PDF)</a>
     </td></tr>`;
 
   const { html, text } = renderEmail({

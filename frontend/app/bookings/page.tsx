@@ -117,7 +117,17 @@ function BookingCard({
         </div>
       </Link>
       {(canCancel || canRefund) && (
-        <div className="px-5 pb-4 -mt-1 flex justify-end">
+        <div className="px-5 pb-4 -mt-1 flex justify-end gap-2">
+          {/* NOTIF-02: let a distracted buyer resume payment on a PENDING booking. */}
+          {canCancel && booking.event?.id != null && (
+            <Link
+              href={`/events/${booking.event.id}/payment?bookingCode=${encodeURIComponent(booking.bookingCode)}`}
+              className="text-sm px-3 py-1.5 rounded-md bg-primary-600 hover:bg-primary-700 text-white font-semibold"
+              data-testid="complete-payment"
+            >
+              Complete payment
+            </Link>
+          )}
           <button
             type="button"
             onClick={act}

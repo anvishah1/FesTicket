@@ -208,6 +208,9 @@ model Booking {
   refundedAmount Int         @default(0) // paise refunded so far (PAY-02)
   refundReason String?
   purchaseDate DateTime?
+  // NOTIF-02: stamped once when the abandoned-checkout recovery email is sent, so
+  // a later sweep pass never re-sends for the same PENDING booking.
+  recoveryEmailSentAt DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 

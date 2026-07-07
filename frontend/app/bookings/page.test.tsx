@@ -58,7 +58,7 @@ describe("BookingsPage (signed in)", () => {
             bookingCode: "BK-2",
             status: "PENDING",
             total: 500,
-            event: { name: "Comedy Show", startDate: "2026-09-01" },
+            event: { id: 9, name: "Comedy Show", startDate: "2026-09-01" },
             items: [{ quantity: 1, ticketType: { name: "VIP", price: 500 } }],
           },
         ],
@@ -72,6 +72,11 @@ describe("BookingsPage (signed in)", () => {
     expect(screen.getByText("BK-1")).toBeInTheDocument();
     expect(screen.getAllByTestId("booking-card")).toHaveLength(2);
     expect(apiFetch).toHaveBeenCalledWith("/api/bookings/user/7");
+    // NOTIF-02: a PENDING booking offers a "Complete payment" resume link to the
+    // payment page; a COMPLETED booking does not.
+    const resume = screen.getByTestId("complete-payment");
+    expect(resume).toHaveAttribute("href", "/events/9/payment?bookingCode=BK-2");
+    expect(screen.getAllByTestId("complete-payment")).toHaveLength(1);
   });
 
   it("requests a refund on a completed booking and reflects the new status (PAY-06)", async () => {

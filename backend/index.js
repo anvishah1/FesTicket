@@ -20,6 +20,7 @@ import eventsRouter from "./src/routes/events.js";
 import bookingsRouter, {
   expireStalePendingBookings,
   reconcileStalePaidOrders,
+  sendAbandonedCheckoutReminders,
   razorpayWebhookHandler,
 } from "./src/routes/bookings.js";
 import authRoutes from "./src/routes/auth.js";
@@ -270,6 +271,11 @@ async function runStaleSweepTick() {
       logger.info({ job: "stale-sweep", skipped: true }, "stale-sweep skipped (lock held by another instance)");
       return;
     }
+    // NOTIF-02: nudge stalled checkouts (10-min threshold) BEFORE the 15-min
+    // expiry sweep below cancels them, so a recoverable buyer gets the mail first.
+    const { sent: recovered } = await sendAbandonedCheckoutReminders();
+    if (recovered) logger.info({ job: "checkout-recovery", sent: recovered }, "checkout-recovery");
+
     const { expired, durationMs } = await expireStalePendingBookings();
     logger.info({ job: "stale-sweep", expired, durationMs, skipped: false }, "stale-sweep");
     // PAY-01: recover any stuck orderId-set bookings whose capture the webhook

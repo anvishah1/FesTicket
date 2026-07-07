@@ -553,6 +553,54 @@ export async function sendBookingExpired(booking) {
   });
 }
 
+// ==================== NOTIF-02: abandoned-checkout recovery ====================
+
+// Recovery nudge for a PENDING booking whose payment stalled. NON-transactional
+// (marketing category): the caller must first check isOptedIn for a registered
+// buyer; guests have no prefs. Deep-links back to the payment page to resume.
+export async function sendAbandonedCheckout(booking) {
+  const to = booking.guestEmail || booking.user?.email;
+  if (!to) return { sent: false, reason: "no_email" };
+  const event = booking.event || {};
+  const eventName = event.name || "your event";
+  const buyerName = booking.guestName || booking.user?.name || "there";
+  const resumeUrl = event.id
+    ? `${FRONTEND()}/events/${event.id}/payment?bookingCode=${encodeURIComponent(booking.bookingCode)}`
+    : `${FRONTEND()}/booking-confirmation?bookingCode=${encodeURIComponent(booking.bookingCode)}`;
+
+  const money = (n) =>
+    `₹${(Number(n ?? 0) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const ticketLines = (booking.items || [])
+    .map((i) => `${escapeHtml(i.ticketType?.name || "Ticket")} × ${i.quantity || 0}`)
+    .join("<br>");
+
+  // NOTIF-09: recovery is marketing — attach unsubscribe headers + footer link
+  // (only for a registered buyer; guests have no userId).
+  const unsub = unsubscribeFor(booking.userId, "marketing");
+  const bodyHtml = `
+    <tr><td style="padding:0 0 16px;">Hi ${escapeHtml(buyerName)}, your tickets for <strong>${escapeHtml(eventName)}</strong> are still held — but only for a few more minutes. Finish your payment to lock them in.</td></tr>
+    ${ticketLines ? `<tr><td style="padding:0 0 16px;">${ticketLines}</td></tr>` : ""}
+    <tr><td style="padding:0 0 16px;font-weight:600;">Total due: ${money(booking.total)}</td></tr>`;
+  const { html, text } = renderEmail({
+    preheader: `Your ${eventName} tickets are still held`,
+    heading: "Complete your booking",
+    bodyHtml,
+    cta: { label: "Complete payment", url: resumeUrl },
+    footerNote: unsub
+      ? `You're getting this because you started a booking. <a href="${escapeHtml(unsub.url)}" style="color:#666;">Unsubscribe</a>.`
+      : `You're getting this because you started a booking.`,
+  });
+  return sendMail({
+    to,
+    subject: `Finish your booking – ${eventName}`,
+    html,
+    text,
+    bookingId: booking.id,
+    template: "abandoned_checkout",
+    headers: unsub?.headers,
+  });
+}
+
 // Welcome email (sent after a user verifies / for auto-verified signups).
 export async function sendWelcomeEmail({ to, name }) {
   const { html, text } = renderEmail({

@@ -10,6 +10,7 @@ import requestLogger from "../../src/middleware/requestLogger.js";
 import router, {
   expireStalePendingBookings,
   reconcileStalePaidOrders,
+  sendAbandonedCheckoutReminders,
   BOOKING_HOLD_MS,
   razorpayWebhookHandler,
 } from "../../src/routes/bookings.js";
@@ -18,6 +19,7 @@ import {
   sendBookingCancelled,
   sendPaymentFailed,
   sendBookingExpired,
+  sendAbandonedCheckout,
 } from "../../src/utils/email.js";
 
 vi.mock("@prisma/client");
@@ -28,6 +30,7 @@ vi.mock("../../src/utils/email.js", () => ({
   sendBookingCancelled: vi.fn(async () => ({ sent: false })),
   sendPaymentFailed: vi.fn(async () => ({ sent: false })),
   sendBookingExpired: vi.fn(async () => ({ sent: false })),
+  sendAbandonedCheckout: vi.fn(async () => ({ sent: true })),
 }));
 
 // supertest hammers the same IP, so neutralise the rate limiters (bookingLimiter
@@ -2088,6 +2091,72 @@ describe("GET /api/bookings/fest/:festId", () => {
       .set("Authorization", auth({ userId: 1, role: "ADMIN" }));
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe("FETCH_ERROR");
+  });
+});
+
+// ==================== sendAbandonedCheckoutReminders (NOTIF-02) ====================
+
+describe("sendAbandonedCheckoutReminders", () => {
+  const candidate = (over = {}) => ({
+    id: 1, bookingCode: "BK1", guestEmail: "g@x.com", userId: null, total: 24072,
+    event: { id: 9, name: "Fest" }, items: [{ ticketType: { name: "GA" }, quantity: 2 }], user: null,
+    ...over,
+  });
+
+  it("emails each stalled PENDING booking once, claiming it atomically first", async () => {
+    prismaMock.booking.findMany.mockResolvedValue([candidate()]);
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 }); // claim wins
+    const result = await sendAbandonedCheckoutReminders();
+    expect(result.sent).toBe(1);
+    // Query: only PENDING, older than the cutoff, not yet reminded.
+    const whereArg = prismaMock.booking.findMany.mock.calls[0][0].where;
+    expect(whereArg.status).toBe("PENDING");
+    expect(whereArg.recoveryEmailSentAt).toBeNull();
+    expect(whereArg.createdAt.lt).toBeInstanceOf(Date);
+    // Claim stamp guarded on recoveryEmailSentAt: null (idempotent across passes).
+    expect(prismaMock.booking.updateMany).toHaveBeenCalledWith({
+      where: { id: 1, recoveryEmailSentAt: null, status: "PENDING" },
+      data: { recoveryEmailSentAt: expect.any(Date) },
+    });
+    expect(sendAbandonedCheckout).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips a booking with no resolvable email", async () => {
+    prismaMock.booking.findMany.mockResolvedValue([candidate({ guestEmail: null, user: null })]);
+    const result = await sendAbandonedCheckoutReminders();
+    expect(result.sent).toBe(0);
+    expect(prismaMock.booking.updateMany).not.toHaveBeenCalled();
+    expect(sendAbandonedCheckout).not.toHaveBeenCalled();
+  });
+
+  it("skips a registered buyer who opted out of marketing (NOTIF-09)", async () => {
+    prismaMock.booking.findMany.mockResolvedValue([
+      candidate({ guestEmail: null, userId: 42, user: { email: "u@x.com", notifyMarketing: false } }),
+    ]);
+    const result = await sendAbandonedCheckoutReminders();
+    expect(result.sent).toBe(0);
+    expect(sendAbandonedCheckout).not.toHaveBeenCalled();
+  });
+
+  it("does not double-send when the atomic claim is lost (count 0)", async () => {
+    prismaMock.booking.findMany.mockResolvedValue([candidate()]);
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 0 }); // another pass took it
+    const result = await sendAbandonedCheckoutReminders();
+    expect(result.sent).toBe(0);
+    expect(sendAbandonedCheckout).not.toHaveBeenCalled();
+  });
+
+  it("releases the claim (unstamps) when the send transiently fails", async () => {
+    prismaMock.booking.findMany.mockResolvedValue([candidate()]);
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 });
+    sendAbandonedCheckout.mockResolvedValueOnce({ sent: false, error: new Error("smtp down") });
+    const result = await sendAbandonedCheckoutReminders();
+    expect(result.sent).toBe(0);
+    // Two updateMany calls: the claim, then the release back to null.
+    expect(prismaMock.booking.updateMany).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { recoveryEmailSentAt: null },
+    });
   });
 });
 

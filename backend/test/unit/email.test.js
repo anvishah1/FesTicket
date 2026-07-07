@@ -23,6 +23,7 @@ import {
   sendBookingCancelled,
   sendPaymentFailed,
   sendBookingExpired,
+  sendAbandonedCheckout,
   htmlToText,
   renderEmail,
 } from "../../src/utils/email.js";
@@ -237,6 +238,43 @@ describe("lifecycle emails (NOTIF-06)", () => {
     const result = await sendBookingExpired({ ...base, user: { email: "u@x.com", name: "U" } });
     expect(result).toEqual({ sent: true });
     expect(sendMailMock.mock.calls[0][0].to).toBe("u@x.com");
+  });
+});
+
+describe("sendAbandonedCheckout (NOTIF-02)", () => {
+  const base = {
+    id: 3,
+    bookingCode: "TIQR-REC",
+    guestName: "Buyer",
+    total: 24072,
+    event: { id: 9, name: "Autumn Fest" },
+    items: [{ ticketType: { name: "GA" }, quantity: 2 }],
+  };
+
+  it("skips cleanly when no email resolves", async () => {
+    setSmtpConfigured();
+    const result = await sendAbandonedCheckout({ ...base });
+    expect(result).toEqual({ sent: false, reason: "no_email" });
+    expect(sendMailMock).not.toHaveBeenCalled();
+  });
+
+  it("guest booking: sends a resume link with NO List-Unsubscribe header", async () => {
+    setSmtpConfigured();
+    const result = await sendAbandonedCheckout({ ...base, guestEmail: "g@x.com" });
+    expect(result).toEqual({ sent: true });
+    const arg = sendMailMock.mock.calls[0][0];
+    expect(arg.html).toContain("/events/9/payment?bookingCode=TIQR-REC");
+    // Guests have no userId -> no unsubscribe headers.
+    expect(arg.headers?.["List-Unsubscribe"]).toBeUndefined();
+  });
+
+  it("registered buyer: attaches List-Unsubscribe headers (marketing)", async () => {
+    setSmtpConfigured();
+    const result = await sendAbandonedCheckout({ ...base, userId: 42, user: { email: "u@x.com" } });
+    expect(result).toEqual({ sent: true });
+    const arg = sendMailMock.mock.calls[0][0];
+    expect(arg.headers["List-Unsubscribe"]).toMatch(/api\/unsubscribe\?token=/);
+    expect(arg.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
   });
 });
 

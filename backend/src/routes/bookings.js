@@ -8,6 +8,7 @@ import {
   sendBookingCancelled,
   sendPaymentFailed,
   sendBookingExpired,
+  sendAbandonedCheckout,
 } from "../utils/email.js";
 import { authenticateUser, optionalAuthenticate, authorizeRoles } from "../middleware/authMiddleware.js";
 import { bookingLimiter, writeLimiter } from "../middleware/rateLimiter.js";
@@ -2106,6 +2107,53 @@ router.post("/admin/sweep-stale", authenticateUser, authorizeRoles("ADMIN"), asy
 // NOTE: this does NOT start a timer. A scheduled job / cron (e.g. every few
 // minutes) should import and call this; wiring an interval here would fire once
 // per server process and is out of scope for a route module.
+// NOTIF-02: email buyers whose PENDING booking has stalled a "finish your
+// payment" nudge — once each — BEFORE the 15-min expiry sweep cancels it. The
+// default 10-min threshold is strictly less than BOOKING_HOLD_MS (15 min) so the
+// recovery mail always precedes cancellation. Marketing-gated for registered
+// buyers (NOTIF-09); guests (no prefs) always get it when an email resolves.
+export async function sendAbandonedCheckoutReminders(remindAfterMs = 10 * 60 * 1000) {
+  const started = Date.now();
+  const cutoff = new Date(Date.now() - remindAfterMs);
+
+  const candidates = await prisma.booking.findMany({
+    where: { status: "PENDING", createdAt: { lt: cutoff }, recoveryEmailSentAt: null },
+    include: {
+      event: { select: { id: true, name: true } },
+      items: { include: { ticketType: { select: { name: true } } } },
+      user: { select: { email: true, name: true, notifyMarketing: true } },
+    },
+  });
+
+  let sent = 0;
+  for (const booking of candidates) {
+    const to = booking.guestEmail || booking.user?.email;
+    if (!to) continue; // no resolvable recipient — skip cleanly
+    // NOTIF-09: a registered buyer who opted out of marketing is skipped.
+    if (booking.userId && booking.user && booking.user.notifyMarketing === false) continue;
+
+    // Claim atomically FIRST so two overlapping sweep passes can never both email
+    // the same booking (spamming the buyer is the worse failure). Only the winner
+    // (count === 1) proceeds.
+    const claim = await prisma.booking.updateMany({
+      where: { id: booking.id, recoveryEmailSentAt: null, status: "PENDING" },
+      data: { recoveryEmailSentAt: new Date() },
+    });
+    if (claim.count !== 1) continue;
+
+    const result = await sendAbandonedCheckout(booking).catch((err) => ({ sent: false, error: err }));
+    // A TRANSIENT send failure releases the claim so a later pass retries; a
+    // deterministic skip (no provider / no email) keeps the stamp (nothing to retry).
+    if (result && result.sent === false && result.error) {
+      await prisma.booking.updateMany({ where: { id: booking.id }, data: { recoveryEmailSentAt: null } });
+    } else if (result?.sent) {
+      sent += 1;
+    }
+  }
+
+  return { sent, durationMs: Date.now() - started };
+}
+
 export async function expireStalePendingBookings(olderThanMs = BOOKING_HOLD_MS) {
   const started = Date.now();
   const cutoff = new Date(Date.now() - olderThanMs);

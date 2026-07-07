@@ -88,9 +88,9 @@ describe("SignUpPage captcha (M4)", () => {
     expect(submit).toBeEnabled();
   });
 
-  it("renders the Google sign-up button disabled (coming soon) and never navigates", async () => {
+  it("renders the Google button disabled (coming soon) and never navigates (AUTH-05 unconfigured)", async () => {
     render(<SignUpPage />);
-    const googleBtn = screen.getByRole("button", { name: /sign up with google/i });
+    const googleBtn = screen.getByRole("button", { name: /sign in with google/i });
     expect(googleBtn).toBeDisabled();
     await userEvent.click(googleBtn);
     expect(push).not.toHaveBeenCalled();

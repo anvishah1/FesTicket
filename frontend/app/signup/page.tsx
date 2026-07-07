@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { getApiUrl } from "@/lib/auth";
+import { getApiUrl, setAuth } from "@/lib/auth";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -20,6 +21,31 @@ export default function SignUpPage() {
   const [captchaOk, setCaptchaOk] = React.useState(false); // demo checkbox for reCAPTCHA
   const [captchaToken, setCaptchaToken] = React.useState(""); // real Turnstile token (when configured)
   const [submitted, setSubmitted] = React.useState(false);
+
+  // AUTH-05: Google sign-up/in — exchange the ID token for a session + redirect.
+  async function handleGoogleCredential(idToken: string) {
+    setError(null);
+    try {
+      const res = await fetch(`${getApiUrl()}/api/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error?.message || "Google sign-in failed.");
+        return;
+      }
+      const { accessToken, refreshToken, user } = data.data;
+      setAuth(accessToken, refreshToken, user);
+      if (user.role === "ADMIN") router.push("/admin/dashboard");
+      else if (user.role === "EDITOR" || user.role === "HOST") router.push("/host/dashboard");
+      else router.push("/");
+    } catch {
+      setError("Could not reach server. Please try again.");
+    }
+  }
+
   // AUTH-01: the API returns emailVerified:false when verification is enforced.
   const [needsVerification, setNeedsVerification] = React.useState(false);
 
@@ -195,17 +221,8 @@ export default function SignUpPage() {
             <div className="w-full max-w-md bg-[#29104A] rounded-2xl shadow-md p-8 border border-[#3D1B5C]">
               <h2 className="text-2xl font-bold text-center mb-4 text-white">Sign Up</h2>
 
-              {/* Google sign-up — not implemented yet, shown disabled ("Coming soon"). */}
-              <button
-                type="button"
-                disabled
-                aria-disabled="true"
-                title="Coming soon"
-                className="w-full flex items-center justify-center gap-3 border border-[#6B597F] bg-[#DEDCDC] rounded-lg px-4 py-3 opacity-60 cursor-not-allowed"
-              >
-                <img src="/google-icon.svg" alt="Google" className="w-5 h-5" />
-                <span className="text-sm font-medium text-[#29104A]">Sign Up with Google (coming soon)</span>
-              </button>
+              {/* AUTH-05: real Google sign-up (disabled affordance when unconfigured). */}
+              <GoogleSignInButton onCredential={handleGoogleCredential} />
 
               <div className="flex items-center gap-3 mt-4">
                 <div className="flex-grow border-t border-white/30" />

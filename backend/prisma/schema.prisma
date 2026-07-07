@@ -26,6 +26,10 @@ model User {
   profileCompleted  Boolean   @default(false)
   emailVerified     Boolean   @default(false)
   emailVerifyToken  String?
+  // AUTH-05: link a Google account by its stable `sub` (not just email) so a
+  // password account can't be hijacked by an email match. avatarUrl is optional.
+  googleId          String?   @unique
+  avatarUrl         String?
   resetPasswordToken  String?
   resetPasswordExpiry DateTime?
   lastLogin         DateTime?

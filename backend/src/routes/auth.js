@@ -11,6 +11,7 @@ import { validate } from "../middleware/validate.js";
 import { loginLimiter, signupLimiter, writeLimiter } from "../middleware/rateLimiter.js";
 import { verifyCaptcha } from "../utils/captcha.js";
 import { sendVerificationEmail, sendPasswordResetEmail, sendMagicLink, isMailConfigured } from "../utils/email.js";
+import { OAuth2Client } from "google-auth-library";
 
 const router = express.Router();
 
@@ -21,6 +22,19 @@ const router = express.Router();
  */
 function hashToken(t) {
   return crypto.createHash("sha256").update(String(t)).digest("hex");
+}
+
+/*
+ * AUTH-05: lazily build the Google ID-token verifier. Returns null when
+ * GOOGLE_CLIENT_ID is unset so /api/auth/google can 503 gracefully (mirrors the
+ * Razorpay-optional pattern). Exposed for tests to mock the verify call.
+ */
+let _googleClient = null;
+export function getGoogleClient() {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) return null;
+  if (!_googleClient) _googleClient = new OAuth2Client(clientId);
+  return _googleClient;
 }
 
 /*
@@ -738,6 +752,70 @@ router.post("/reset-password", async (req, res) => {
 
   }
 
+});
+
+/* ================= AUTH-05: GOOGLE SIGN-IN ================= */
+
+// POST /api/auth/google { idToken } — verify a Google ID token server-side, find
+// or create the user by stable googleId (or link a verified email), and issue the
+// normal session. 503 when GOOGLE_CLIENT_ID is unset (graceful).
+router.post("/google", loginLimiter, async (req, res) => {
+  try {
+    const client = getGoogleClient();
+    if (!client) return res.fail(503, "GOOGLE_DISABLED", "Google sign-in is not configured");
+
+    const { idToken } = req.body || {};
+    if (typeof idToken !== "string" || !idToken) {
+      return res.fail(400, "VALIDATION_ERROR", "idToken is required");
+    }
+
+    let payload;
+    try {
+      const ticket = await client.verifyIdToken({ idToken, audience: process.env.GOOGLE_CLIENT_ID });
+      payload = ticket.getPayload();
+    } catch {
+      return res.fail(401, "GOOGLE_INVALID", "Could not verify Google sign-in");
+    }
+    // A Google account whose email isn't verified must not be trusted for linking.
+    if (!payload?.sub || !payload.email || payload.email_verified === false) {
+      return res.fail(401, "GOOGLE_INVALID", "Google account email is not verified");
+    }
+
+    const googleId = payload.sub;
+    const email = payload.email.toLowerCase();
+
+    // Prefer the stable googleId; fall back to a verified-email match to LINK an
+    // existing (possibly password) account — safe because Google asserted the
+    // email is verified (proves mailbox control, like a password reset).
+    let user =
+      (await prisma.user.findFirst({ where: { googleId, deletedAt: null } })) ||
+      (await prisma.user.findFirst({ where: { email, deletedAt: null } }));
+
+    if (user) {
+      if (!user.googleId) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { googleId, emailVerified: true, avatarUrl: user.avatarUrl || payload.picture || null },
+        });
+      }
+    } else {
+      user = await prisma.user.create({
+        data: {
+          email,
+          password: null,
+          name: payload.name || null,
+          googleId,
+          emailVerified: true,
+          avatarUrl: payload.picture || null,
+        },
+      });
+    }
+
+    return await issueSession(user, req, res, "Signed in with Google");
+  } catch (err) {
+    req.log.error({ err }, "Google sign-in error");
+    return res.fail(500, "SERVER_ERROR", "Server error");
+  }
 });
 
 /* ================= AUTH-06: MAGIC-LINK (PASSWORDLESS) ================= */

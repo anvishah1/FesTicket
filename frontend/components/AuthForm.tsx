@@ -6,22 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import cx from "clsx";
 import { getApiUrl, setAuth } from "@/lib/auth";
-
-function SocialButton({ children }: { children: React.ReactNode; }) {
-  // Google OAuth is not implemented yet. Render the button disabled ("Coming
-  // soon") rather than routing to a protected/fake page.
-  return (
-    <button
-      type="button"
-      disabled
-      aria-disabled="true"
-      title="Coming soon"
-      className="w-full flex items-center justify-center gap-3 border border-[#6B597F] bg-[#DEDCDC] rounded-lg px-4 py-3 opacity-60 cursor-not-allowed"
-    >
-      {children}
-    </button>
-  );
-}
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 
 export default function AuthForm() {
   const router = useRouter();
@@ -67,6 +52,30 @@ export default function AuthForm() {
   }, [captchaSiteKey]);
 
   const canSubmit = email.trim().length > 0 && password.trim().length > 0;
+
+  // AUTH-05: exchange a Google ID token for a session, then role-redirect.
+  async function handleGoogleCredential(idToken: string) {
+    setError(null);
+    try {
+      const res = await fetch(`${getApiUrl()}/api/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error?.message || "Google sign-in failed.");
+        return;
+      }
+      const { accessToken, refreshToken, user } = data.data;
+      setAuth(accessToken, refreshToken, user);
+      if (user.role === "ADMIN") router.push("/admin/dashboard");
+      else if (user.role === "EDITOR" || user.role === "HOST") router.push("/host/dashboard");
+      else router.push("/");
+    } catch {
+      setError("Could not reach server. Please try again.");
+    }
+  }
 
   // AUTH-06: passwordless "email me a sign-in link".
   const [magicBusy, setMagicBusy] = React.useState(false);
@@ -147,13 +156,8 @@ export default function AuthForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Google sign-in — not implemented yet, shown disabled ("Coming soon"). */}
-      <SocialButton>
-        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden className="inline-block">
-          <path fill="#EA4335" d="M12 11v3h6.5c-.3 1.7-1.8 5-6.5 5a7 7 0 1 1 0-14c1.9 0 3.2.8 4.1 1.6l2.8-2.9C18.9 2 15.9 1 12 1 6.5 1 2 5.5 2 11s4.5 10 10 10c5.7 0 9.9-4.1 9.9-9.9 0-.7-.1-1.4-.3-2H12z"/>
-        </svg>
-        <span className="text-sm font-medium">Sign in with Google (coming soon)</span>
-      </SocialButton>
+      {/* AUTH-05: real Google sign-in (disabled affordance when unconfigured). */}
+      <GoogleSignInButton onCredential={handleGoogleCredential} />
 
       <div className="flex items-center gap-3">
         <div className="flex-grow border-t border-[#6B597F]" />

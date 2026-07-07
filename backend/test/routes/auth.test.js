@@ -53,6 +53,20 @@ vi.mock("../../src/utils/email.js", () => ({
   sendMagicLink: emailMock.sendMagicLink,
 }));
 
+// AUTH-05: mock the Google verifier so tests control the returned payload.
+const googleMock = vi.hoisted(() => ({
+  payload: { sub: "g-123", email: "g@x.com", email_verified: true, name: "Goog", picture: "http://p" },
+  shouldThrow: false,
+}));
+vi.mock("google-auth-library", () => ({
+  OAuth2Client: class {
+    async verifyIdToken() {
+      if (googleMock.shouldThrow) throw new Error("invalid token");
+      return { getPayload: () => googleMock.payload };
+    }
+  },
+}));
+
 import router from "../../src/routes/auth.js";
 
 const app = makeApp(router, "/api/auth");
@@ -1196,5 +1210,69 @@ describe("POST /api/auth/magic-link/verify", () => {
     const res = await request(app).post("/api/auth/magic-link/verify").send({ token: "goodtoken" });
     expect(res.status).toBe(400);
     expect(prismaMock.refreshToken.create).not.toHaveBeenCalled();
+  });
+});
+
+// ==================== AUTH-05: Google sign-in ====================
+describe("POST /api/auth/google", () => {
+  beforeEach(() => {
+    delete process.env.GOOGLE_CLIENT_ID;
+    googleMock.shouldThrow = false;
+    googleMock.payload = { sub: "g-123", email: "g@x.com", email_verified: true, name: "Goog", picture: "http://p" };
+  });
+
+  it("503 when GOOGLE_CLIENT_ID is unset (graceful)", async () => {
+    const res = await request(app).post("/api/auth/google").send({ idToken: "x" });
+    expect(res.status).toBe(503);
+    expect(res.body.error.code).toBe("GOOGLE_DISABLED");
+  });
+
+  it("creates a new user for a fresh verified email and issues a session", async () => {
+    process.env.GOOGLE_CLIENT_ID = "cid.apps.googleusercontent.com";
+    prismaMock.user.findFirst.mockResolvedValue(null); // no googleId, no email match
+    prismaMock.user.create.mockResolvedValue({ id: 20, email: "g@x.com", role: "VIEWER", tokenVersion: 0, googleId: "g-123" });
+    prismaMock.refreshToken.create.mockResolvedValue({ id: 1 });
+    prismaMock.refreshToken.findMany.mockResolvedValue([]);
+
+    const res = await request(app).post("/api/auth/google").send({ idToken: "valid" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.accessToken).toBeTruthy();
+    expect(res.body.data.user).toMatchObject({ id: 20, email: "g@x.com" });
+    expect(prismaMock.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ email: "g@x.com", googleId: "g-123", emailVerified: true, password: null }) })
+    );
+  });
+
+  it("links googleId to an existing email account (no duplicate)", async () => {
+    process.env.GOOGLE_CLIENT_ID = "cid";
+    prismaMock.user.findFirst
+      .mockResolvedValueOnce(null) // by googleId
+      .mockResolvedValueOnce({ id: 30, email: "g@x.com", role: "HOST", tokenVersion: 0, googleId: null, avatarUrl: null }); // by email
+    prismaMock.user.update.mockResolvedValue({ id: 30, email: "g@x.com", role: "HOST", tokenVersion: 0, googleId: "g-123" });
+    prismaMock.refreshToken.create.mockResolvedValue({ id: 1 });
+    prismaMock.refreshToken.findMany.mockResolvedValue([]);
+
+    const res = await request(app).post("/api/auth/google").send({ idToken: "valid" });
+    expect(res.status).toBe(200);
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
+    expect(prismaMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 30 }, data: expect.objectContaining({ googleId: "g-123" }) })
+    );
+  });
+
+  it("401 for an invalid/forged idToken", async () => {
+    process.env.GOOGLE_CLIENT_ID = "cid";
+    googleMock.shouldThrow = true;
+    const res = await request(app).post("/api/auth/google").send({ idToken: "bad" });
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe("GOOGLE_INVALID");
+  });
+
+  it("401 when the Google email is not verified", async () => {
+    process.env.GOOGLE_CLIENT_ID = "cid";
+    googleMock.payload = { sub: "g-9", email: "g@x.com", email_verified: false };
+    const res = await request(app).post("/api/auth/google").send({ idToken: "valid" });
+    expect(res.status).toBe(401);
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
   });
 });

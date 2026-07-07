@@ -11,6 +11,7 @@ import router, {
   expireStalePendingBookings,
   reconcileStalePaidOrders,
   sendAbandonedCheckoutReminders,
+  sendEventReminders,
   BOOKING_HOLD_MS,
   razorpayWebhookHandler,
 } from "../../src/routes/bookings.js";
@@ -20,6 +21,7 @@ import {
   sendPaymentFailed,
   sendBookingExpired,
   sendAbandonedCheckout,
+  sendEventReminder,
 } from "../../src/utils/email.js";
 
 vi.mock("@prisma/client");
@@ -31,6 +33,7 @@ vi.mock("../../src/utils/email.js", () => ({
   sendPaymentFailed: vi.fn(async () => ({ sent: false })),
   sendBookingExpired: vi.fn(async () => ({ sent: false })),
   sendAbandonedCheckout: vi.fn(async () => ({ sent: true })),
+  sendEventReminder: vi.fn(async () => ({ sent: true })),
 }));
 
 // supertest hammers the same IP, so neutralise the rate limiters (bookingLimiter
@@ -2091,6 +2094,63 @@ describe("GET /api/bookings/fest/:festId", () => {
       .set("Authorization", auth({ userId: 1, role: "ADMIN" }));
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe("FETCH_ERROR");
+  });
+});
+
+// ==================== sendEventReminders (NOTIF-03) ====================
+
+describe("sendEventReminders", () => {
+  const booking = (over = {}) => ({
+    id: 1, bookingCode: "BK1", guestEmail: "g@x.com", userId: null, status: "COMPLETED",
+    event: { id: 9, name: "Fest", startDate: "2026-09-01T18:00:00Z", venue: "Hall" },
+    user: null,
+    ...over,
+  });
+
+  it("logs then sends a reminder for each completed booking in a window", async () => {
+    // First window (T24) returns one booking; second window (T1) returns none.
+    prismaMock.booking.findMany.mockResolvedValueOnce([booking()]).mockResolvedValueOnce([]);
+    prismaMock.reminderLog.create.mockResolvedValue({ id: 1 });
+
+    const result = await sendEventReminders();
+    expect(result.sent).toBe(1);
+
+    // The dedup row is written BEFORE the send (kind from the T24 window).
+    expect(prismaMock.reminderLog.create).toHaveBeenCalledWith({ data: { bookingId: 1, kind: "T24" } });
+    expect(sendEventReminder).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "T24");
+
+    // The query excludes bookings already reminded for that kind.
+    const whereArg = prismaMock.booking.findMany.mock.calls[0][0].where;
+    expect(whereArg.status).toBe("COMPLETED");
+    expect(whereArg.reminders).toEqual({ none: { kind: "T24" } });
+    expect(whereArg.event.startDate.gte).toBeInstanceOf(Date);
+  });
+
+  it("skips (no send) when the dedup insert throws — a concurrent sweep won it", async () => {
+    prismaMock.booking.findMany.mockResolvedValueOnce([booking()]).mockResolvedValueOnce([]);
+    prismaMock.reminderLog.create.mockRejectedValue(new Error("unique violation"));
+    const result = await sendEventReminders();
+    expect(result.sent).toBe(0);
+    expect(sendEventReminder).not.toHaveBeenCalled();
+  });
+
+  it("skips a registered buyer who opted out of reminders (NOTIF-09)", async () => {
+    prismaMock.booking.findMany
+      .mockResolvedValueOnce([booking({ guestEmail: null, userId: 42, user: { email: "u@x.com", notifyReminders: false } })])
+      .mockResolvedValueOnce([]);
+    const result = await sendEventReminders();
+    expect(result.sent).toBe(0);
+    expect(prismaMock.reminderLog.create).not.toHaveBeenCalled();
+    expect(sendEventReminder).not.toHaveBeenCalled();
+  });
+
+  it("skips a booking with no resolvable email", async () => {
+    prismaMock.booking.findMany
+      .mockResolvedValueOnce([booking({ guestEmail: null, user: null })])
+      .mockResolvedValueOnce([]);
+    const result = await sendEventReminders();
+    expect(result.sent).toBe(0);
+    expect(sendEventReminder).not.toHaveBeenCalled();
   });
 });
 

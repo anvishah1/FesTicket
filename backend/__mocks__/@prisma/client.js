@@ -49,6 +49,7 @@ const MODEL_KEYS = [
   "promoCode",
   "eventQuestion",
   "attendeeAnswer",
+  "reminderLog",
 ];
 
 function makeModel() {

@@ -5,6 +5,7 @@ import prisma from "../prisma.js";
 import logger from "./logger.js";
 import { walletAvailability } from "./wallet.js";
 import { signUnsubscribeToken } from "./notifications.js";
+import { buildEventIcs } from "./ics.js";
 
 // NOTIF-09: build the RFC-8058 List-Unsubscribe headers + a public unsubscribe
 // URL for a NON-transactional email to a registered user. Returns null for a
@@ -597,6 +598,78 @@ export async function sendAbandonedCheckout(booking) {
     text,
     bookingId: booking.id,
     template: "abandoned_checkout",
+    headers: unsub?.headers,
+  });
+}
+
+// ==================== NOTIF-03: event reminders (T-24h / T-1h) ====================
+
+// Pre-event nudge for a COMPLETED booking. Embeds a scannable QR (bookingCode),
+// attaches a calendar .ics, and links to Google Maps directions. NON-transactional
+// (reminders category): the caller (sendEventReminders) checks isOptedIn first.
+export async function sendEventReminder(booking, kind) {
+  const to = booking.guestEmail || booking.user?.email;
+  if (!to) return { sent: false, reason: "no_email" };
+  const event = booking.event || {};
+  const eventName = event.name || "your event";
+  const buyerName = booking.guestName || booking.user?.name || "there";
+  const when = kind === "T1" ? "starting in about an hour" : "coming up in 24 hours";
+
+  const eventDate = event.startDate
+    ? new Date(event.startDate).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+    : "—";
+  const eventTime = event.startTime || "—";
+  const venue = event.venue || "";
+  const destination = event.venueAddress || event.venue || "";
+  const directionsUrl = destination
+    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`
+    : null;
+
+  // Inline QR (cid) + calendar attachment. Both best-effort.
+  const attachments = [];
+  let qrHtml = "";
+  try {
+    const qrBuffer = await QRCode.toBuffer(booking.bookingCode, { width: 240, margin: 1 });
+    attachments.push({ filename: "ticket-qr.png", content: qrBuffer, cid: "reminder-qr" });
+    qrHtml = `<tr><td style="padding:0 0 16px;text-align:center;"><img src="cid:reminder-qr" alt="Ticket QR" width="180" height="180" style="display:block;margin:0 auto;" /></td></tr>`;
+  } catch {
+    /* QR is best-effort — the code text below remains the fallback */
+  }
+  try {
+    const ics = buildEventIcs(event);
+    if (ics) attachments.push({ filename: "event.ics", content: ics, contentType: "text/calendar; charset=utf-8" });
+  } catch {
+    /* calendar attachment is best-effort */
+  }
+
+  const unsub = unsubscribeFor(booking.userId, "reminders");
+  const bodyHtml = `
+    <tr><td style="padding:0 0 16px;">Hi ${escapeHtml(buyerName)}, <strong>${escapeHtml(eventName)}</strong> is ${when}. Here's your ticket — show this QR at the entrance.</td></tr>
+    ${qrHtml}
+    <tr><td style="padding:0 0 4px;font-weight:600;">Booking ID</td></tr>
+    <tr><td style="padding:0 0 16px;font-family:monospace;font-size:18px;color:${BRAND};">${escapeHtml(booking.bookingCode)}</td></tr>
+    <tr><td style="padding:0 0 16px;">
+      <div style="font-weight:600;">${escapeHtml(eventName)}</div>
+      <div style="font-size:14px;color:#666666;">${escapeHtml(eventDate)} · ${escapeHtml(eventTime)}</div>
+      ${venue ? `<div style="font-size:14px;color:#666666;">${escapeHtml(venue)}</div>` : ""}
+    </td></tr>
+    ${directionsUrl ? `<tr><td style="padding:0 0 8px;"><a href="${escapeHtml(directionsUrl)}" style="color:${BRAND};text-decoration:underline;font-weight:600;">Get directions</a></td></tr>` : ""}`;
+  const { html, text } = renderEmail({
+    preheader: `${eventName} is ${when}`,
+    heading: kind === "T1" ? "Starting soon" : "See you tomorrow",
+    bodyHtml,
+    footerNote: unsub
+      ? `A reminder for an event you booked. <a href="${escapeHtml(unsub.url)}" style="color:#666;">Unsubscribe from reminders</a>.`
+      : `A reminder for an event you booked.`,
+  });
+  return sendMail({
+    to,
+    subject: `Reminder: ${eventName} is ${when}`,
+    html,
+    text,
+    bookingId: booking.id,
+    template: `event_reminder_${kind}`,
+    attachments: attachments.length ? attachments : undefined,
     headers: unsub?.headers,
   });
 }

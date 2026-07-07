@@ -21,6 +21,7 @@ import bookingsRouter, {
   expireStalePendingBookings,
   reconcileStalePaidOrders,
   sendAbandonedCheckoutReminders,
+  sendEventReminders,
   razorpayWebhookHandler,
 } from "./src/routes/bookings.js";
 import authRoutes from "./src/routes/auth.js";
@@ -278,6 +279,12 @@ async function runStaleSweepTick() {
 
     const { expired, durationMs } = await expireStalePendingBookings();
     logger.info({ job: "stale-sweep", expired, durationMs, skipped: false }, "stale-sweep");
+
+    // NOTIF-03: T-24h / T-1h event reminders (QR + .ics + directions), deduped per
+    // (booking, kind). Runs on this 5-min tick; the 20-min window + ReminderLog
+    // guard mean each reminder sends exactly once as its event crosses the mark.
+    const { sent: reminded } = await sendEventReminders();
+    if (reminded) logger.info({ job: "event-reminders", sent: reminded }, "event-reminders");
     // PAY-01: recover any stuck orderId-set bookings whose capture the webhook
     // missed (best-effort; no-op when Razorpay is unconfigured).
     const { settled, released, checked } = await reconcileStalePaidOrders();

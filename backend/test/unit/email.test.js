@@ -24,6 +24,7 @@ import {
   sendPaymentFailed,
   sendBookingExpired,
   sendAbandonedCheckout,
+  sendEventReminder,
   htmlToText,
   renderEmail,
 } from "../../src/utils/email.js";
@@ -275,6 +276,51 @@ describe("sendAbandonedCheckout (NOTIF-02)", () => {
     const arg = sendMailMock.mock.calls[0][0];
     expect(arg.headers["List-Unsubscribe"]).toMatch(/api\/unsubscribe\?token=/);
     expect(arg.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+  });
+});
+
+describe("sendEventReminder (NOTIF-03)", () => {
+  const base = {
+    id: 4,
+    bookingCode: "TIQR-REM",
+    guestName: "Buyer",
+    event: {
+      id: 9,
+      name: "Autumn Fest",
+      startDate: "2026-09-01T00:00:00.000Z",
+      startTime: "18:00",
+      venue: "Main Hall",
+      venueAddress: "12 College Rd, Pune",
+    },
+  };
+
+  it("skips cleanly when no email resolves", async () => {
+    setSmtpConfigured();
+    const result = await sendEventReminder({ ...base }, "T24");
+    expect(result).toEqual({ sent: false, reason: "no_email" });
+    expect(sendMailMock).not.toHaveBeenCalled();
+  });
+
+  it("embeds a QR, attaches an .ics, and links Google Maps directions", async () => {
+    setSmtpConfigured();
+    const result = await sendEventReminder({ ...base, guestEmail: "g@x.com" }, "T1");
+    expect(result).toEqual({ sent: true });
+    const arg = sendMailMock.mock.calls[0][0];
+    expect(arg.subject).toMatch(/about an hour/i);
+    expect(arg.html).toContain('src="cid:reminder-qr"');
+    expect(arg.html).toContain("google.com/maps/dir/");
+    const qr = arg.attachments.find((a) => a.cid === "reminder-qr");
+    expect(Buffer.isBuffer(qr.content)).toBe(true);
+    const ics = arg.attachments.find((a) => a.filename === "event.ics");
+    expect(ics).toBeTruthy();
+    expect(String(ics.content)).toContain("BEGIN:VCALENDAR");
+  });
+
+  it("registered buyer: attaches List-Unsubscribe headers (reminders category)", async () => {
+    setSmtpConfigured();
+    await sendEventReminder({ ...base, userId: 7, user: { email: "u@x.com" } }, "T24");
+    const arg = sendMailMock.mock.calls[0][0];
+    expect(arg.headers["List-Unsubscribe"]).toMatch(/api\/unsubscribe\?token=/);
   });
 });
 

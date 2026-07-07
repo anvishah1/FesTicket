@@ -9,6 +9,7 @@ import {
   sendPaymentFailed,
   sendBookingExpired,
   sendAbandonedCheckout,
+  sendEventReminder,
 } from "../utils/email.js";
 import { authenticateUser, optionalAuthenticate, authorizeRoles } from "../middleware/authMiddleware.js";
 import { bookingLimiter, writeLimiter } from "../middleware/rateLimiter.js";
@@ -2148,6 +2149,62 @@ export async function sendAbandonedCheckoutReminders(remindAfterMs = 10 * 60 * 1
       await prisma.booking.updateMany({ where: { id: booking.id }, data: { recoveryEmailSentAt: null } });
     } else if (result?.sent) {
       sent += 1;
+    }
+  }
+
+  return { sent, durationMs: Date.now() - started };
+}
+
+// NOTIF-03: email each COMPLETED buyer a QR + .ics + directions reminder as the
+// event approaches, deduped per (booking, kind) by the ReminderLog @@unique. The
+// windows are [target, target+WINDOW): WINDOW must be >= the schedule interval so
+// no event slips between ticks; any overlap is absorbed by the dedup guard.
+const REMINDER_WINDOW_MS = 20 * 60 * 1000;
+
+export async function sendEventReminders() {
+  const started = Date.now();
+  const now = Date.now();
+  const windows = [
+    { kind: "T24", start: new Date(now + 24 * 3600 * 1000), end: new Date(now + 24 * 3600 * 1000 + REMINDER_WINDOW_MS) },
+    { kind: "T1", start: new Date(now + 1 * 3600 * 1000), end: new Date(now + 1 * 3600 * 1000 + REMINDER_WINDOW_MS) },
+  ];
+
+  let sent = 0;
+  for (const w of windows) {
+    const bookings = await prisma.booking.findMany({
+      where: {
+        status: "COMPLETED",
+        event: { startDate: { gte: w.start, lt: w.end } },
+        reminders: { none: { kind: w.kind } }, // not already reminded for this kind
+      },
+      include: {
+        event: {
+          select: {
+            id: true, name: true, startDate: true, startTime: true, endDate: true, endTime: true,
+            venue: true, venueAddress: true, onlineLink: true, isOnline: true, description: true,
+          },
+        },
+        user: { select: { email: true, name: true, notifyReminders: true } },
+      },
+    });
+
+    for (const booking of bookings) {
+      const to = booking.guestEmail || booking.user?.email;
+      if (!to) continue; // no recipient — skip cleanly
+      // NOTIF-09: a registered buyer who opted out of reminders is skipped.
+      if (booking.userId && booking.user && booking.user.notifyReminders === false) continue;
+
+      // Insert the dedup row FIRST; the @@unique([bookingId,kind]) makes a racing
+      // duplicate throw, so we skip rather than double-send. Reminders are
+      // best-effort: on a transient send failure we keep the log (accept a rare
+      // missed reminder over risking a duplicate).
+      try {
+        await prisma.reminderLog.create({ data: { bookingId: booking.id, kind: w.kind } });
+      } catch {
+        continue; // already logged by a concurrent sweep
+      }
+      const result = await sendEventReminder(booking, w.kind).catch((err) => ({ sent: false, error: err }));
+      if (result?.sent) sent += 1;
     }
   }
 

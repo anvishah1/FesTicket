@@ -221,6 +221,7 @@ model Booking {
   attendees    Attendee[]
   payment      Payment?
   answers      AttendeeAnswer[]
+  reminders    ReminderLog[] // NOTIF-03
 
   // Composite indexes back the hottest queries: eventId+status (host event
   // bookings / buyers), status+createdAt (stale-pending sweep), guestEmail
@@ -232,6 +233,25 @@ model Booking {
   @@index([status, createdAt])
   @@index([guestEmail])
   @@index([userId])
+}
+
+// NOTIF-03: dedup guard for event-reminder emails. The @@unique([bookingId,kind])
+// makes each (booking, reminder-kind) send exactly-once even if two sweeps overlap
+// (the duplicate insert is caught, not fatal).
+enum ReminderKind {
+  T24
+  T1
+}
+
+model ReminderLog {
+  id        Int          @id @default(autoincrement())
+  bookingId Int
+  kind      ReminderKind
+  sentAt    DateTime     @default(now())
+  booking   Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, kind])
+  @@index([bookingId])
 }
 
 model BookingItem {

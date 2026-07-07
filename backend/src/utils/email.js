@@ -674,6 +674,88 @@ export async function sendEventReminder(booking, kind) {
   });
 }
 
+// ==================== NOTIF-05: organizer sales notifications ====================
+
+const rupees = (n) =>
+  `₹${(Number(n ?? 0) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// "New sale" alert to organizers on a booking completion. One email per
+// recipient (each with their own unsubscribe token). sales_alerts category —
+// the caller must have already filtered opted-out recipients.
+export async function sendNewSaleAlert(booking, recipients) {
+  const event = booking.event || {};
+  const eventName = event.name || "your event";
+  const buyerName = booking.guestName || booking.user?.name || "A guest";
+  const ticketCount = (booking.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
+
+  const results = [];
+  for (const r of recipients || []) {
+    if (!r?.email) continue;
+    const unsub = unsubscribeFor(r.id, "sales_alerts");
+    const bodyHtml = `
+      <tr><td style="padding:0 0 16px;">Good news — a new booking just came in for <strong>${escapeHtml(eventName)}</strong>.</td></tr>
+      <tr><td style="padding:0 0 6px;">Buyer: <strong>${escapeHtml(buyerName)}</strong></td></tr>
+      <tr><td style="padding:0 0 6px;">Tickets: <strong>${ticketCount}</strong></td></tr>
+      <tr><td style="padding:0 0 16px;">Amount: <strong>${rupees(booking.total)}</strong></td></tr>`;
+    const { html, text } = renderEmail({
+      preheader: `New booking for ${eventName}`,
+      heading: "New ticket sale 🎉",
+      bodyHtml,
+      cta: { label: "Open dashboard", url: `${FRONTEND()}/host/dashboard` },
+      footerNote: unsub
+        ? `Sale alerts for events you organize. <a href="${escapeHtml(unsub.url)}" style="color:#666;">Unsubscribe</a>.`
+        : `Sale alerts for events you organize.`,
+    });
+    results.push(
+      await sendMail({
+        to: r.email,
+        subject: `New sale: ${eventName} (${rupees(booking.total)})`,
+        html,
+        text,
+        bookingId: booking.id,
+        template: "new_sale_alert",
+        headers: unsub?.headers,
+      })
+    );
+  }
+  return results;
+}
+
+// Once-a-day per-fest sales digest to organizers. sales_digest category.
+export async function sendSalesDigest(fest, recipients, stats) {
+  const festName = fest?.name || "your fest";
+  const results = [];
+  for (const r of recipients || []) {
+    if (!r?.email) continue;
+    const unsub = unsubscribeFor(r.id, "sales_digest");
+    const bodyHtml = `
+      <tr><td style="padding:0 0 16px;">Here's how <strong>${escapeHtml(festName)}</strong> is doing.</td></tr>
+      <tr><td style="padding:0 0 6px;">Tickets sold: <strong>${stats?.ticketsSold ?? 0}</strong></td></tr>
+      <tr><td style="padding:0 0 6px;">Revenue: <strong>${rupees(stats?.revenue)}</strong></td></tr>
+      <tr><td style="padding:0 0 16px;">Tickets remaining: <strong>${stats?.remaining ?? 0}</strong></td></tr>`;
+    const { html, text } = renderEmail({
+      preheader: `${festName}: ${stats?.ticketsSold ?? 0} sold, ${rupees(stats?.revenue)} revenue`,
+      heading: `${festName} — daily summary`,
+      bodyHtml,
+      cta: { label: "Open dashboard", url: `${FRONTEND()}/host/dashboard` },
+      footerNote: unsub
+        ? `Your daily sales digest. <a href="${escapeHtml(unsub.url)}" style="color:#666;">Unsubscribe</a>.`
+        : `Your daily sales digest.`,
+    });
+    results.push(
+      await sendMail({
+        to: r.email,
+        subject: `Daily sales digest – ${festName}`,
+        html,
+        text,
+        template: "sales_digest",
+        headers: unsub?.headers,
+      })
+    );
+  }
+  return results;
+}
+
 // Welcome email (sent after a user verifies / for auto-verified signups).
 export async function sendWelcomeEmail({ to, name }) {
   const { html, text } = renderEmail({

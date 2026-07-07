@@ -12,6 +12,7 @@ import router, {
   reconcileStalePaidOrders,
   sendAbandonedCheckoutReminders,
   sendEventReminders,
+  sendDailySalesDigests,
   BOOKING_HOLD_MS,
   razorpayWebhookHandler,
 } from "../../src/routes/bookings.js";
@@ -22,6 +23,8 @@ import {
   sendBookingExpired,
   sendAbandonedCheckout,
   sendEventReminder,
+  sendNewSaleAlert,
+  sendSalesDigest,
 } from "../../src/utils/email.js";
 
 vi.mock("@prisma/client");
@@ -34,6 +37,8 @@ vi.mock("../../src/utils/email.js", () => ({
   sendBookingExpired: vi.fn(async () => ({ sent: false })),
   sendAbandonedCheckout: vi.fn(async () => ({ sent: true })),
   sendEventReminder: vi.fn(async () => ({ sent: true })),
+  sendNewSaleAlert: vi.fn(async () => [{ sent: true }]),
+  sendSalesDigest: vi.fn(async () => [{ sent: true }]),
 }));
 
 // supertest hammers the same IP, so neutralise the rate limiters (bookingLimiter
@@ -2094,6 +2099,65 @@ describe("GET /api/bookings/fest/:festId", () => {
       .set("Authorization", auth({ userId: 1, role: "ADMIN" }));
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe("FETCH_ERROR");
+  });
+});
+
+// ==================== sendDailySalesDigests (NOTIF-05) ====================
+
+describe("sendDailySalesDigests", () => {
+  it("early-exits without touching fests when no organizer is due today", async () => {
+    prismaMock.user.count.mockResolvedValue(0);
+    const result = await sendDailySalesDigests();
+    expect(result.sent).toBe(0);
+    expect(prismaMock.fest.findMany).not.toHaveBeenCalled();
+  });
+
+  it("claims each due recipient once and sends a per-fest digest with real stats", async () => {
+    prismaMock.user.count.mockResolvedValue(1);
+    prismaMock.fest.findMany.mockResolvedValue([{ id: 3, name: "Spring" }]);
+    // Admin + host resolution.
+    prismaMock.user.findMany
+      .mockResolvedValueOnce([{ id: 10, email: "admin@x.com", notifySalesDigest: true, lastSalesDigestAt: null }]) // admins
+      .mockResolvedValueOnce([]); // hosts
+    // Stats: ticket types (remaining) + completed bookings (sold + revenue).
+    prismaMock.ticketType.findMany.mockResolvedValue([{ quantity: 100, sold: 30 }]);
+    prismaMock.booking.findMany.mockResolvedValue([{ total: 12000, items: [{ quantity: 2 }] }]);
+    prismaMock.user.updateMany.mockResolvedValue({ count: 1 }); // claim wins
+
+    const result = await sendDailySalesDigests();
+    expect(result.sent).toBe(1);
+    expect(sendSalesDigest).toHaveBeenCalledWith(
+      { id: 3, name: "Spring" },
+      [expect.objectContaining({ id: 10 })],
+      { ticketsSold: 2, revenue: 12000, remaining: 70 }
+    );
+  });
+
+  it("skips a fest with zero completed sales (no empty digest)", async () => {
+    prismaMock.user.count.mockResolvedValue(1);
+    prismaMock.fest.findMany.mockResolvedValue([{ id: 3, name: "Spring" }]);
+    prismaMock.user.findMany
+      .mockResolvedValueOnce([{ id: 10, email: "admin@x.com", notifySalesDigest: true, lastSalesDigestAt: null }])
+      .mockResolvedValueOnce([]);
+    prismaMock.ticketType.findMany.mockResolvedValue([{ quantity: 100, sold: 0 }]);
+    prismaMock.booking.findMany.mockResolvedValue([]); // no completed sales
+    const result = await sendDailySalesDigests();
+    expect(result.sent).toBe(0);
+    expect(sendSalesDigest).not.toHaveBeenCalled();
+  });
+
+  it("does not double-send when the once-a-day claim is lost (count 0)", async () => {
+    prismaMock.user.count.mockResolvedValue(1);
+    prismaMock.fest.findMany.mockResolvedValue([{ id: 3, name: "Spring" }]);
+    prismaMock.user.findMany
+      .mockResolvedValueOnce([{ id: 10, email: "admin@x.com", notifySalesDigest: true, lastSalesDigestAt: null }])
+      .mockResolvedValueOnce([]);
+    prismaMock.ticketType.findMany.mockResolvedValue([{ quantity: 10, sold: 5 }]);
+    prismaMock.booking.findMany.mockResolvedValue([{ total: 5000, items: [{ quantity: 1 }] }]);
+    prismaMock.user.updateMany.mockResolvedValue({ count: 0 }); // already digested today
+    const result = await sendDailySalesDigests();
+    expect(result.sent).toBe(0);
+    expect(sendSalesDigest).not.toHaveBeenCalled();
   });
 });
 

@@ -44,6 +44,9 @@ model User {
   notifySalesAlerts Boolean   @default(true) // NOTIF-05 per-sale alerts to organizers
   notifySalesDigest Boolean   @default(true) // NOTIF-05 daily sales digest
   notifyMarketing   Boolean   @default(true) // recovery / promotional
+  // NOTIF-05: last time this organizer received the daily sales digest — the
+  // per-user once-a-day idempotency guard.
+  lastSalesDigestAt DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

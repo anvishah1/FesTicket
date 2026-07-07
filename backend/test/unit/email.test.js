@@ -25,6 +25,8 @@ import {
   sendBookingExpired,
   sendAbandonedCheckout,
   sendEventReminder,
+  sendNewSaleAlert,
+  sendSalesDigest,
   htmlToText,
   renderEmail,
 } from "../../src/utils/email.js";
@@ -321,6 +323,42 @@ describe("sendEventReminder (NOTIF-03)", () => {
     await sendEventReminder({ ...base, userId: 7, user: { email: "u@x.com" } }, "T24");
     const arg = sendMailMock.mock.calls[0][0];
     expect(arg.headers["List-Unsubscribe"]).toMatch(/api\/unsubscribe\?token=/);
+  });
+});
+
+describe("organizer sales emails (NOTIF-05)", () => {
+  it("sendNewSaleAlert emails each recipient with buyer/ticket/amount + unsub header", async () => {
+    setSmtpConfigured();
+    const booking = {
+      id: 5, total: 24072, guestName: "Xavier",
+      event: { name: "Autumn Fest" }, items: [{ quantity: 2 }],
+    };
+    const results = await sendNewSaleAlert(booking, [
+      { id: 10, email: "host@x.com" },
+      { id: 11, email: "admin@x.com" },
+    ]);
+    expect(results).toHaveLength(2);
+    expect(sendMailMock).toHaveBeenCalledTimes(2);
+    const first = sendMailMock.mock.calls[0][0];
+    expect(first.subject).toContain("New sale");
+    expect(first.html).toContain("Xavier");
+    expect(first.html).toContain("₹240.72"); // 24072 paise
+    expect(first.headers["List-Unsubscribe"]).toMatch(/api\/unsubscribe\?token=/);
+  });
+
+  it("sendSalesDigest renders the fest stats to each recipient", async () => {
+    setSmtpConfigured();
+    const results = await sendSalesDigest(
+      { id: 3, name: "Spring Fest" },
+      [{ id: 10, email: "admin@x.com" }],
+      { ticketsSold: 42, revenue: 500000, remaining: 8 }
+    );
+    expect(results).toHaveLength(1);
+    const arg = sendMailMock.mock.calls[0][0];
+    expect(arg.subject).toContain("Spring Fest");
+    expect(arg.html).toContain("42");
+    expect(arg.html).toContain("₹5,000.00"); // 500000 paise
+    expect(arg.html).toContain("8");
   });
 });
 

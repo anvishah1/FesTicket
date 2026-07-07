@@ -10,6 +10,8 @@ import {
   sendBookingExpired,
   sendAbandonedCheckout,
   sendEventReminder,
+  sendNewSaleAlert,
+  sendSalesDigest,
 } from "../utils/email.js";
 import { authenticateUser, optionalAuthenticate, authorizeRoles } from "../middleware/authMiddleware.js";
 import { bookingLimiter, writeLimiter } from "../middleware/rateLimiter.js";
@@ -202,6 +204,37 @@ async function markPaymentFailedAndNotify(bookingId, log) {
     );
   } catch (e) {
     log?.error?.({ err: e, bookingId }, "[email] markPaymentFailedAndNotify error");
+  }
+}
+
+// NOTIF-05: on a booking completion, email the event's host + the fest ADMIN a
+// "new sale" alert (fire-and-forget, opt-out respected). `booking.event` must
+// carry hostId + festId. De-dupes the two recipients when host === admin.
+async function notifyNewSale(booking, log) {
+  try {
+    const event = booking?.event;
+    if (!event) return;
+    const recipients = [];
+    if (event.hostId != null) {
+      const host = await prisma.user.findUnique({
+        where: { id: event.hostId },
+        select: { id: true, email: true, name: true, notifySalesAlerts: true },
+      });
+      if (host?.email) recipients.push(host);
+    }
+    if (event.festId != null) {
+      const admin = await prisma.user.findFirst({
+        where: { managedFestId: event.festId },
+        select: { id: true, email: true, name: true, notifySalesAlerts: true },
+      });
+      if (admin?.email && !recipients.some((r) => r.id === admin.id)) recipients.push(admin);
+    }
+    // NOTIF-09: drop opted-out recipients.
+    const optedIn = recipients.filter((r) => r.notifySalesAlerts !== false);
+    if (optedIn.length === 0) return;
+    await sendNewSaleAlert(booking, optedIn);
+  } catch (e) {
+    log?.error?.({ err: e, bookingId: booking?.id }, "[email] new-sale alert failed");
   }
 }
 
@@ -603,7 +636,8 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
         where: { id: newBooking.id },
         include: {
           event: {
-            select: { id: true, name: true, venue: true, startDate: true, image: true },
+            // hostId/festId feed the NOTIF-05 new-sale alert recipients.
+            select: { id: true, name: true, venue: true, startDate: true, image: true, hostId: true, festId: true },
           },
           items: {
             include: { ticketType: { select: { id: true, name: true, price: true } } },
@@ -622,6 +656,7 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
       sendBookingConfirmation(booking.full).catch((e) =>
         req.log.error({ err: e }, "[email] Booking confirmation failed")
       );
+      notifyNewSale(booking.full, req.log); // NOTIF-05
     }
 
     res.status(201).json({
@@ -879,6 +914,7 @@ router.post("/:id/verify-payment", writeLimiter, optionalAuthenticate, async (re
     }
 
     sendBookingConfirmation(settled).catch((e) => req.log.error({ err: e }, "[email] Booking confirmation failed"));
+    notifyNewSale(settled, req.log); // NOTIF-05
 
     res.json({
       success: true,
@@ -982,6 +1018,7 @@ router.put("/:id/complete", writeLimiter, optionalAuthenticate, async (req, res)
     });
 
     sendBookingConfirmation(booking).catch((e) => req.log.error({ err: e }, "[email] Booking confirmation failed"));
+    notifyNewSale(booking, req.log); // NOTIF-05
 
     res.json({
       success: true,
@@ -2211,6 +2248,84 @@ export async function sendEventReminders() {
   return { sent, durationMs: Date.now() - started };
 }
 
+// NOTIF-05: snapshot sales stats for a fest — tickets sold + revenue (paise) from
+// COMPLETED bookings, and remaining inventory across the fest's ticket types.
+async function computeFestSalesStats(festId) {
+  const ticketTypes = await prisma.ticketType.findMany({
+    where: { event: { festId } },
+    select: { quantity: true, sold: true },
+  });
+  const remaining = ticketTypes.reduce((s, t) => s + Math.max(0, (t.quantity || 0) - (t.sold || 0)), 0);
+
+  const bookings = await prisma.booking.findMany({
+    where: { status: "COMPLETED", event: { festId } },
+    select: { total: true, items: { select: { quantity: true } } },
+  });
+  let ticketsSold = 0;
+  let revenue = 0;
+  for (const b of bookings) {
+    revenue += b.total || 0; // paise (PAY-03)
+    ticketsSold += (b.items || []).reduce((s, i) => s + (i.quantity || 0), 0);
+  }
+  return { ticketsSold, revenue, remaining };
+}
+
+// NOTIF-05: once-a-day (IST) per-fest sales digest to the fest ADMIN + its event
+// hosts. Idempotent via a per-user lastSalesDigestAt claim so a restart mid-day
+// never double-sends. Fests with zero completed sales are skipped.
+export async function sendDailySalesDigests(now = new Date()) {
+  const started = Date.now();
+  const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
+  const ist = new Date(now.getTime() + IST_OFFSET_MS);
+  // UTC instant of the current IST calendar day's midnight.
+  const todayStart = new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()) - IST_OFFSET_MS);
+  const dueFilter = { OR: [{ lastSalesDigestAt: null }, { lastSalesDigestAt: { lt: todayStart } }] };
+
+  // Cheap early-out: is any ORGANIZER (fest admin or event host) due today? Most
+  // ticks after the daily run find none and skip the per-fest work entirely.
+  const dueCount = await prisma.user.count({
+    where: {
+      notifySalesDigest: true,
+      AND: [dueFilter, { OR: [{ managedFestId: { not: null } }, { hostedEvents: { some: {} } }] }],
+    },
+  });
+  if (dueCount === 0) return { sent: 0, durationMs: Date.now() - started };
+
+  let sent = 0;
+  const fests = await prisma.fest.findMany({ select: { id: true, name: true } });
+  for (const fest of fests) {
+    const admins = await prisma.user.findMany({
+      where: { managedFestId: fest.id },
+      select: { id: true, email: true, name: true, notifySalesDigest: true, lastSalesDigestAt: true },
+    });
+    const hosts = await prisma.user.findMany({
+      where: { hostedEvents: { some: { festId: fest.id } } },
+      select: { id: true, email: true, name: true, notifySalesDigest: true, lastSalesDigestAt: true },
+    });
+    const byId = new Map();
+    for (const u of [...admins, ...hosts]) {
+      if (u.email && u.notifySalesDigest !== false) byId.set(u.id, u);
+    }
+    const due = [...byId.values()].filter((u) => !u.lastSalesDigestAt || u.lastSalesDigestAt < todayStart);
+    if (due.length === 0) continue;
+
+    const stats = await computeFestSalesStats(fest.id);
+    if (stats.ticketsSold === 0) continue; // no empty digests
+
+    for (const r of due) {
+      // Claim once-per-day atomically so a re-run/second replica can't double-send.
+      const claim = await prisma.user.updateMany({
+        where: { id: r.id, ...dueFilter },
+        data: { lastSalesDigestAt: now },
+      });
+      if (claim.count !== 1) continue;
+      const res = await sendSalesDigest(fest, [r], stats).catch(() => null);
+      if (Array.isArray(res) && res.some((x) => x?.sent)) sent += 1;
+    }
+  }
+  return { sent, durationMs: Date.now() - started };
+}
+
 export async function expireStalePendingBookings(olderThanMs = BOOKING_HOLD_MS) {
   const started = Date.now();
   const cutoff = new Date(Date.now() - olderThanMs);
@@ -2330,6 +2445,7 @@ export async function razorpayWebhookHandler(req, res) {
           sendBookingConfirmation(updated).catch((err) =>
             req.log?.error({ err }, "[webhook] confirmation email failed")
           );
+          notifyNewSale(updated, req.log); // NOTIF-05 (winner-only settle -> no dup)
         }
       }
     } else if (event.event === "payment.failed" && entity?.order_id) {
@@ -2381,6 +2497,7 @@ export async function reconcileStalePaidOrders(olderThanMs = 30 * 60 * 1000, lim
         if (updated) {
           settled += 1;
           sendBookingConfirmation(updated).catch(() => {});
+          notifyNewSale(updated, null); // NOTIF-05 (winner-only settle -> no dup)
         }
       } else {
         // No captured payment after the window: the order was abandoned or every

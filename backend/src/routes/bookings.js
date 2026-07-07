@@ -11,6 +11,13 @@ import { createBookingSchema } from "../validators/bookingValidator.js";
 import { bookingError } from "../utils/AppError.js";
 import { parsePagination, buildPagination } from "../utils/pagination.js";
 import { streamInvoicePdf } from "../utils/invoice.js";
+import {
+  getAppleWalletConfig,
+  getGoogleWalletConfig,
+  walletAvailability,
+  buildApplePkpass,
+  buildGoogleSaveUrl,
+} from "../utils/wallet.js";
 
 const router = Router();
 
@@ -1037,6 +1044,92 @@ router.get("/code/:bookingCode", async (req, res) => {
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch booking" },
     });
+  }
+});
+
+// ==================== TIX-07: WALLET PASSES ====================
+
+// GET /api/bookings/wallet/availability - which wallet integrations are live.
+// Public + no secrets: lets the UI show/hide the Apple/Google buttons without a
+// download probe. Placed before the /:id style routes so it isn't shadowed.
+router.get("/wallet/availability", (req, res) => {
+  res.json({ success: true, data: walletAvailability() });
+});
+
+// Fetch a COMPLETED booking (by unguessable code) + choose the attendee whose
+// pass to build. Presenting the bookingCode proves access to the whole booking,
+// so any attendee within it may be selected via ?ticketCode=. Returns
+// { error } tuple or { booking, attendee } for the wallet handlers below.
+async function loadBookingForPass(req) {
+  const booking = await prisma.booking.findUnique({
+    where: { bookingCode: req.params.bookingCode },
+    include: {
+      event: { select: bookingEventSelect },
+      items: { include: { ticketType: { select: { name: true } } } },
+      attendees: { include: { ticketType: { select: { name: true } } } },
+    },
+  });
+  if (!booking) return { error: { status: 404, code: "NOT_FOUND", message: "Booking not found" } };
+  if (booking.status !== "COMPLETED") {
+    return { error: { status: 400, code: "INVALID_STATE", message: "A wallet pass is only available for a completed booking" } };
+  }
+
+  const attendees = booking.attendees || [];
+  const wanted = req.query.ticketCode ? String(req.query.ticketCode) : null;
+  let picked = wanted ? attendees.find((a) => a.ticketCode === wanted) : attendees[0];
+  const attendee = picked
+    ? { name: picked.name, ticketCode: picked.ticketCode, ticketType: picked.ticketType?.name }
+    : // Order-level fallback for legacy bookings that have no attendee rows.
+      {
+        name: booking.guestName || "Guest",
+        ticketCode: booking.bookingCode,
+        ticketType: booking.items?.[0]?.ticketType?.name,
+      };
+  return { booking, attendee };
+}
+
+// GET /api/bookings/code/:bookingCode/apple-pass - stream a signed .pkpass.
+// PUBLIC BY CODE (like the confirmation read). 503 WALLET_DISABLED when Apple
+// signing certs aren't configured, so the button can be hidden.
+router.get("/code/:bookingCode/apple-pass", async (req, res) => {
+  try {
+    if (!getAppleWalletConfig()) {
+      return res.status(503).json({ success: false, error: { code: "WALLET_DISABLED", message: "Apple Wallet is not configured" } });
+    }
+    const { error, booking, attendee } = await loadBookingForPass(req);
+    if (error) return res.status(error.status).json({ success: false, error: { code: error.code, message: error.message } });
+
+    const buffer = await buildApplePkpass({ event: booking.event, attendee });
+    res.setHeader("Content-Type", "application/vnd.apple.pkpass");
+    res.setHeader("Content-Disposition", `attachment; filename="${booking.bookingCode}.pkpass"`);
+    return res.send(buffer);
+  } catch (error) {
+    req.log.error({ err: error, bookingCode: req.params.bookingCode }, "Apple pass generation failed");
+    if (res.headersSent) return res.end();
+    return res.status(500).json({ success: false, error: { code: "WALLET_ERROR", message: "Failed to generate the Apple Wallet pass" } });
+  }
+});
+
+// GET /api/bookings/code/:bookingCode/google-pass - return { saveUrl }.
+// PUBLIC BY CODE. 503 WALLET_DISABLED when Google issuer creds aren't configured.
+router.get("/code/:bookingCode/google-pass", async (req, res) => {
+  try {
+    if (!getGoogleWalletConfig()) {
+      return res.status(503).json({ success: false, error: { code: "WALLET_DISABLED", message: "Google Wallet is not configured" } });
+    }
+    const { error, booking, attendee } = await loadBookingForPass(req);
+    if (error) return res.status(error.status).json({ success: false, error: { code: error.code, message: error.message } });
+
+    const saveUrl = buildGoogleSaveUrl({ event: booking.event, attendee });
+    // ?redirect=1 bounces straight to Google (used by email links, which can't
+    // fetch JSON); the default returns { saveUrl } for the in-app button.
+    if (req.query.redirect === "1" || req.query.redirect === "true") {
+      return res.redirect(302, saveUrl);
+    }
+    return res.json({ success: true, data: { saveUrl } });
+  } catch (error) {
+    req.log.error({ err: error, bookingCode: req.params.bookingCode }, "Google pass generation failed");
+    return res.status(500).json({ success: false, error: { code: "WALLET_ERROR", message: "Failed to generate the Google Wallet link" } });
   }
 });
 

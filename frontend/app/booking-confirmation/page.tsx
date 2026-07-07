@@ -10,6 +10,7 @@ import { getApiUrl } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
 import { QRCodeSVG } from "qrcode.react";
 import AddToCalendar from "@/components/AddToCalendar";
+import WalletButtons from "@/components/WalletButtons";
 
 interface ConfirmationBooking {
   id: number;
@@ -54,6 +55,8 @@ export default function BookingConfirmationPage() {
   const [booking, setBooking] = useState<ConfirmationBooking | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  // TIX-07: which wallet integrations are live (drives whether the buttons show).
+  const [wallet, setWallet] = useState<{ apple: boolean; google: boolean }>({ apple: false, google: false });
 
   useEffect(() => {
     // TIX-08: cache name must match BOOKINGS_CACHE in public/sw.js so the SW's
@@ -109,6 +112,26 @@ export default function BookingConfirmationPage() {
     };
     fetchBooking();
   }, [bookingCode]);
+
+  // TIX-07: probe wallet availability once so the buttons only render when the
+  // backend can actually issue passes (503 -> hidden). Failures leave both off.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${getApiUrl()}/api/bookings/wallet/availability`);
+        const body = await res.json();
+        if (!cancelled && body?.success && body.data) {
+          setWallet({ apple: !!body.data.apple, google: !!body.data.google });
+        }
+      } catch {
+        /* leave both off */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const copyCode = async () => {
     if (!booking?.bookingCode) return;
@@ -294,8 +317,20 @@ export default function BookingConfirmationPage() {
                       </div>
                       {/* TIX-02: each attendee gets their own scannable ticket QR. */}
                       {att.ticketCode && (
-                        <div className="shrink-0 bg-white p-1.5 rounded border" data-testid="attendee-qr">
-                          <QRCodeSVG value={att.ticketCode} size={64} />
+                        <div className="shrink-0 flex flex-col items-end gap-1.5">
+                          <div className="bg-white p-1.5 rounded border" data-testid="attendee-qr">
+                            <QRCodeSVG value={att.ticketCode} size={64} />
+                          </div>
+                          {/* TIX-07: per-attendee wallet passes (completed bookings only). */}
+                          {isCompleted && (wallet.apple || wallet.google) && (
+                            <WalletButtons
+                              bookingCode={booking.bookingCode}
+                              ticketCode={att.ticketCode}
+                              apple={wallet.apple}
+                              google={wallet.google}
+                              compact
+                            />
+                          )}
                         </div>
                       )}
                     </li>
@@ -331,6 +366,16 @@ export default function BookingConfirmationPage() {
           >
             Print / download tickets
           </Link>
+
+          {/* TIX-07: order-level wallet passes for completed bookings that have no
+              per-attendee rows (the buttons above cover the per-attendee case). */}
+          {isCompleted &&
+            !(booking.attendees && booking.attendees.length > 0) &&
+            (wallet.apple || wallet.google) && (
+              <div className="mb-3 flex justify-center">
+                <WalletButtons bookingCode={booking.bookingCode} apple={wallet.apple} google={wallet.google} />
+              </div>
+            )}
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3">

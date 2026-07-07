@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
 import express from "express";
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import { prismaMock, resetPrismaMock } from "@prisma/client";
 import { makeApp } from "../helpers/makeApp.js";
 import { signToken } from "../helpers/auth.js";
@@ -1337,6 +1338,101 @@ describe("GET /api/bookings/code/:bookingCode", () => {
     const res = await request(app).get("/api/bookings/code/BK6");
     expect(res.status).toBe(200);
     expect(res.body.data.expiresAt).toBeNull();
+  });
+});
+
+// ==================== TIX-07: WALLET PASSES ====================
+
+describe("TIX-07 wallet passes", () => {
+  const WALLET_ENV = [
+    "APPLE_WALLET_PASS_TYPE_ID", "APPLE_WALLET_TEAM_ID", "APPLE_WALLET_SIGNER_CERT",
+    "APPLE_WALLET_SIGNER_KEY", "APPLE_WALLET_WWDR_CERT",
+    "GOOGLE_WALLET_ISSUER_ID", "GOOGLE_WALLET_SA_EMAIL", "GOOGLE_WALLET_SA_KEY",
+  ];
+  afterEach(() => {
+    for (const k of WALLET_ENV) delete process.env[k];
+  });
+
+  it("availability reports both wallets off when unconfigured", async () => {
+    const res = await request(app).get("/api/bookings/wallet/availability");
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ apple: false, google: false });
+  });
+
+  it("apple-pass returns 503 WALLET_DISABLED when unconfigured", async () => {
+    const res = await request(app).get("/api/bookings/code/BK5/apple-pass");
+    expect(res.status).toBe(503);
+    expect(res.body.error.code).toBe("WALLET_DISABLED");
+    // Must not even hit the DB when the wallet is off.
+    expect(prismaMock.booking.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("google-pass returns 503 WALLET_DISABLED when unconfigured", async () => {
+    const res = await request(app).get("/api/bookings/code/BK5/google-pass");
+    expect(res.status).toBe(503);
+    expect(res.body.error.code).toBe("WALLET_DISABLED");
+  });
+
+  describe("with Google configured", () => {
+    let publicKey;
+    beforeEach(() => {
+      const kp = crypto.generateKeyPairSync("rsa", {
+        modulusLength: 2048,
+        publicKeyEncoding: { type: "spki", format: "pem" },
+        privateKeyEncoding: { type: "pkcs8", format: "pem" },
+      });
+      publicKey = kp.publicKey;
+      process.env.GOOGLE_WALLET_ISSUER_ID = "3388000000022222228";
+      process.env.GOOGLE_WALLET_SA_EMAIL = "sa@example.iam.gserviceaccount.com";
+      process.env.GOOGLE_WALLET_SA_KEY = kp.privateKey;
+    });
+
+    it("returns a save URL embedding the attendee ticketCode for a COMPLETED booking", async () => {
+      prismaMock.booking.findUnique.mockResolvedValue({
+        id: 5, bookingCode: "BK5", status: "COMPLETED", guestName: "Guesty",
+        event: { name: "Spring Fest", venue: "Hall", startDate: "2026-05-01T18:00:00Z" },
+        items: [{ ticketType: { name: "GA" } }],
+        attendees: [{ name: "Alice", ticketCode: "tkt_alice", ticketType: { name: "VIP" } }],
+      });
+      const res = await request(app).get("/api/bookings/code/BK5/google-pass");
+      expect(res.status).toBe(200);
+      expect(res.body.data.saveUrl).toMatch(/^https:\/\/pay\.google\.com\/gp\/v\/save\//);
+      const token = res.body.data.saveUrl.split("/save/")[1];
+      const decoded = jwt.verify(token, publicKey, { algorithms: ["RS256"] });
+      expect(decoded.payload.eventTicketObjects[0].barcode.value).toBe("tkt_alice");
+    });
+
+    it("selects the attendee named by ?ticketCode=", async () => {
+      prismaMock.booking.findUnique.mockResolvedValue({
+        id: 5, bookingCode: "BK5", status: "COMPLETED",
+        event: { name: "Spring Fest" }, items: [],
+        attendees: [
+          { name: "Alice", ticketCode: "tkt_alice", ticketType: { name: "GA" } },
+          { name: "Bob", ticketCode: "tkt_bob", ticketType: { name: "GA" } },
+        ],
+      });
+      const res = await request(app).get("/api/bookings/code/BK5/google-pass?ticketCode=tkt_bob");
+      expect(res.status).toBe(200);
+      const decoded = jwt.decode(res.body.data.saveUrl.split("/save/")[1]);
+      expect(decoded.payload.eventTicketObjects[0].barcode.value).toBe("tkt_bob");
+      expect(decoded.payload.eventTicketObjects[0].ticketHolderName).toBe("Bob");
+    });
+
+    it("returns 404 when the code matches no booking", async () => {
+      prismaMock.booking.findUnique.mockResolvedValue(null);
+      const res = await request(app).get("/api/bookings/code/NOPE/google-pass");
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe("NOT_FOUND");
+    });
+
+    it("returns 400 INVALID_STATE for a non-COMPLETED booking", async () => {
+      prismaMock.booking.findUnique.mockResolvedValue({
+        id: 5, bookingCode: "BK5", status: "PENDING", event: {}, items: [], attendees: [],
+      });
+      const res = await request(app).get("/api/bookings/code/BK5/google-pass");
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("INVALID_STATE");
+    });
   });
 });
 

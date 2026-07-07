@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import QRCode from "qrcode";
 import prisma from "../prisma.js";
 import logger from "./logger.js";
+import { walletAvailability } from "./wallet.js";
 
 const MAIL_FROM = process.env.MAIL_FROM || process.env.SMTP_USER || "noreply@tiqr.events";
 const APP_NAME = process.env.APP_NAME || "tiqr";
@@ -304,6 +305,14 @@ export async function sendBookingConfirmation(booking) {
   // TIX-09: add-to-calendar link (only when we know the event id).
   const calendarUrl = booking.event?.id ? `${apiBase}/api/events/${booking.event.id}/calendar.ics` : null;
 
+  // TIX-07: wallet links, included ONLY when the wallet is configured (mirrors
+  // the graceful-degradation pattern). Google uses the redirect mode so the link
+  // works straight from an email client.
+  const wallet = walletAvailability();
+  const codeParam = encodeURIComponent(booking.bookingCode);
+  const applePassUrl = wallet.apple ? `${apiBase}/api/bookings/code/${codeParam}/apple-pass` : null;
+  const googlePassUrl = wallet.google ? `${apiBase}/api/bookings/code/${codeParam}/google-pass?redirect=1` : null;
+
   // TIX-01: attach the booking QR as an inline cid image. Best-effort — the plain
   // bookingCode above stays as the fallback if the client strips inline images or
   // QR generation fails.
@@ -361,6 +370,12 @@ export async function sendBookingConfirmation(booking) {
     </td></tr>
     ${calendarUrl ? `<tr><td style="padding:8px 0 0;">
       <a href="${escapeHtml(calendarUrl)}" style="color:${BRAND};text-decoration:underline;font-weight:600;">Add to calendar</a>
+    </td></tr>` : ""}
+    ${applePassUrl ? `<tr><td style="padding:8px 0 0;">
+      <a href="${escapeHtml(applePassUrl)}" style="color:${BRAND};text-decoration:underline;font-weight:600;">Add to Apple Wallet</a>
+    </td></tr>` : ""}
+    ${googlePassUrl ? `<tr><td style="padding:8px 0 0;">
+      <a href="${escapeHtml(googlePassUrl)}" style="color:${BRAND};text-decoration:underline;font-weight:600;">Save to Google Wallet</a>
     </td></tr>` : ""}`;
 
   const { html, text } = renderEmail({

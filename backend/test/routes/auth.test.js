@@ -43,12 +43,14 @@ const emailMock = vi.hoisted(() => ({
   sendVerificationEmail: vi.fn().mockResolvedValue({ sent: true }),
   sendPasswordResetEmail: vi.fn().mockResolvedValue({ sent: true }),
   sendWelcomeEmail: vi.fn().mockResolvedValue({ sent: true }),
+  sendMagicLink: vi.fn().mockResolvedValue({ sent: true }),
 }));
 vi.mock("../../src/utils/email.js", () => ({
   isMailConfigured: () => emailMock.mailConfigured.value,
   sendVerificationEmail: emailMock.sendVerificationEmail,
   sendPasswordResetEmail: emailMock.sendPasswordResetEmail,
   sendWelcomeEmail: emailMock.sendWelcomeEmail,
+  sendMagicLink: emailMock.sendMagicLink,
 }));
 
 import router from "../../src/routes/auth.js";
@@ -1128,5 +1130,71 @@ describe("POST /api/auth/change-password", () => {
       data: expect.objectContaining({ password: "hashed-pw", tokenVersion: { increment: 1 } }),
     });
     expect(prismaMock.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { userId: 3 } });
+  });
+});
+
+// ==================== AUTH-06: magic-link ====================
+describe("POST /api/auth/magic-link", () => {
+  it("returns the generic response for a nonexistent email (no enumeration)", async () => {
+    prismaMock.user.findFirst.mockResolvedValue(null);
+    const res = await request(app).post("/api/auth/magic-link").send({ email: "nobody@x.com" });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/if this email exists/i);
+    expect(prismaMock.magicLinkToken.create).not.toHaveBeenCalled();
+  });
+
+  it("creates a hashed single-use token + sends for a real account (same generic body)", async () => {
+    emailMock.mailConfigured.value = true;
+    prismaMock.user.findFirst.mockResolvedValue({ id: 7, email: "u@x.com", name: "U" });
+    prismaMock.magicLinkToken.create.mockResolvedValue({ id: 1 });
+    const res = await request(app).post("/api/auth/magic-link").send({ email: "U@X.com" });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/if this email exists/i);
+    const arg = prismaMock.magicLinkToken.create.mock.calls[0][0];
+    expect(arg.data.userId).toBe(7);
+    expect(typeof arg.data.token).toBe("string"); // hashed, not the raw secret
+    expect(arg.data.expiresAt).toBeInstanceOf(Date);
+    expect(emailMock.sendMagicLink).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("POST /api/auth/magic-link/verify", () => {
+  it("rejects a non-string token (no Prisma filter-object bypass)", async () => {
+    const res = await request(app).post("/api/auth/magic-link/verify").send({ token: { not: null } });
+    expect(res.status).toBe(400);
+    expect(prismaMock.magicLinkToken.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("400 for an unknown/expired token", async () => {
+    prismaMock.magicLinkToken.findFirst.mockResolvedValue(null);
+    const res = await request(app).post("/api/auth/magic-link/verify").send({ token: "deadbeef" });
+    expect(res.status).toBe(400);
+  });
+
+  it("consumes a valid token and issues the normal session", async () => {
+    prismaMock.magicLinkToken.findFirst.mockResolvedValue({ id: 1, userId: 7, usedAt: null });
+    prismaMock.magicLinkToken.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.user.findFirst.mockResolvedValue({ id: 7, email: "u@x.com", name: "U", role: "VIEWER", tokenVersion: 0 });
+    prismaMock.refreshToken.create.mockResolvedValue({ id: 1 });
+    prismaMock.refreshToken.findMany.mockResolvedValue([]);
+
+    const res = await request(app).post("/api/auth/magic-link/verify").send({ token: "goodtoken" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.accessToken).toBeTruthy();
+    expect(res.body.data.refreshToken).toBeTruthy();
+    expect(res.body.data.user).toMatchObject({ id: 7, email: "u@x.com" });
+    // Single-use: consumed via a guarded updateMany before issuing the session.
+    expect(prismaMock.magicLinkToken.updateMany).toHaveBeenCalledWith({
+      where: { id: 1, usedAt: null },
+      data: { usedAt: expect.any(Date) },
+    });
+  });
+
+  it("400 when the token was already consumed (guarded update count 0)", async () => {
+    prismaMock.magicLinkToken.findFirst.mockResolvedValue({ id: 1, userId: 7, usedAt: null });
+    prismaMock.magicLinkToken.updateMany.mockResolvedValue({ count: 0 });
+    const res = await request(app).post("/api/auth/magic-link/verify").send({ token: "goodtoken" });
+    expect(res.status).toBe(400);
+    expect(prismaMock.refreshToken.create).not.toHaveBeenCalled();
   });
 });

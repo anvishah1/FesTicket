@@ -10,7 +10,7 @@ import { signupSchema, signinSchema } from "../validators/authValidator.js";
 import { validate } from "../middleware/validate.js";
 import { loginLimiter, signupLimiter, writeLimiter } from "../middleware/rateLimiter.js";
 import { verifyCaptcha } from "../utils/captcha.js";
-import { sendVerificationEmail, sendPasswordResetEmail, isMailConfigured } from "../utils/email.js";
+import { sendVerificationEmail, sendPasswordResetEmail, sendMagicLink, isMailConfigured } from "../utils/email.js";
 
 const router = express.Router();
 
@@ -61,6 +61,47 @@ async function cleanupRefreshTokens(userId) {
   } catch (err) {
     logger.error({ err }, "[auth] refresh token cleanup failed");
   }
+}
+
+/*
+ * Issue the standard access + refresh token pair for `user` and respond with the
+ * signin-shaped body. Shared by /signin, /magic-link/verify (AUTH-06), and
+ * /google (AUTH-05) so they all produce an identical session.
+ */
+async function issueSession(user, req, res, message = "Signin successful") {
+  const accessToken = jwt.sign(
+    { userId: user.id, role: user.role, tokenVersion: user.tokenVersion ?? 0 },
+    process.env.JWT_SECRET,
+    { expiresIn: "15m" }
+  );
+  const refreshToken = crypto.randomBytes(40).toString("hex");
+  await prisma.refreshToken.create({
+    data: {
+      token: hashToken(refreshToken),
+      userId: user.id,
+      familyId: crypto.randomUUID(),
+      userAgent: req.headers["user-agent"],
+      ipAddress: req.ip,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    },
+  });
+  await cleanupRefreshTokens(user.id);
+  return res.ok(
+    {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name ?? null,
+        role: user.role,
+        profileCompleted: user.profileCompleted,
+        editorFestId: user.editorFestId ?? null,
+        managedFestId: user.managedFestId ?? null,
+      },
+    },
+    { message }
+  );
 }
 
 /* ================= SIGNUP ================= */
@@ -697,6 +738,73 @@ router.post("/reset-password", async (req, res) => {
 
   }
 
+});
+
+/* ================= AUTH-06: MAGIC-LINK (PASSWORDLESS) ================= */
+
+// POST /api/auth/magic-link { email } — enumeration-safe: ALWAYS returns the
+// same generic 200. When the email maps to a live account, stores a hashed,
+// single-use, 15-min token and emails the link. With SMTP unset the link is
+// logged in dev (graceful), mirroring forgot-password.
+router.post("/magic-link", writeLimiter, async (req, res) => {
+  const GENERIC = { message: "If this email exists, a sign-in link was sent." };
+  try {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    if (!email) return res.ok(null, GENERIC);
+
+    const user = await prisma.user.findFirst({ where: { email, deletedAt: null } });
+    if (user) {
+      const raw = crypto.randomBytes(32).toString("hex");
+      await prisma.magicLinkToken.create({
+        data: { token: hashToken(raw), userId: user.id, expiresAt: new Date(Date.now() + 15 * 60 * 1000) },
+      });
+      const base = process.env.FRONTEND_URL || "http://localhost:3000";
+      const link = `${base}/auth/magic?token=${raw}`;
+      if (isMailConfigured()) {
+        sendMagicLink({ to: user.email, name: user.name, link }).catch((err) =>
+          req.log.error({ err }, "[auth] magic-link email failed")
+        );
+      } else {
+        req.log.info({ link }, "[auth] magic-link (dev, SMTP unset)");
+      }
+    }
+    return res.ok(null, GENERIC);
+  } catch (err) {
+    req.log.error({ err }, "magic-link request error");
+    // Still generic — never leak whether the email exists.
+    return res.ok(null, GENERIC);
+  }
+});
+
+// POST /api/auth/magic-link/verify { token } — consume a single-use token and
+// issue the normal session. Guards typeof token === "string" (like reset) so a
+// Prisma filter-object can't match an arbitrary row.
+router.post("/magic-link/verify", async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    if (typeof token !== "string" || token.length < 1) {
+      return res.fail(400, "INVALID_TOKEN", "Invalid or expired link");
+    }
+    const record = await prisma.magicLinkToken.findFirst({
+      where: { token: hashToken(token), usedAt: null, expiresAt: { gte: new Date() } },
+    });
+    if (!record) return res.fail(400, "INVALID_TOKEN", "Invalid or expired link");
+
+    // Consume it (single-use) BEFORE issuing the session.
+    const consumed = await prisma.magicLinkToken.updateMany({
+      where: { id: record.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    if (consumed.count !== 1) return res.fail(400, "INVALID_TOKEN", "Invalid or expired link");
+
+    const user = await prisma.user.findFirst({ where: { id: record.userId, deletedAt: null } });
+    if (!user) return res.fail(400, "INVALID_TOKEN", "Invalid or expired link");
+
+    return await issueSession(user, req, res, "Signed in");
+  } catch (err) {
+    req.log.error({ err }, "magic-link verify error");
+    return res.fail(500, "SERVER_ERROR", "Server error");
+  }
 });
 
 

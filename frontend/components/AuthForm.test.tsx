@@ -102,6 +102,26 @@ describe("AuthForm", () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
   });
 
+  it("requests a magic sign-in link and shows the generic confirmation (AUTH-06)", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
+    render(<AuthForm />);
+    // The button is enabled once an email is present (no password needed).
+    await userEvent.type(screen.getByLabelText("Email"), "u@x.com");
+    await userEvent.click(screen.getByTestId("magic-link-button"));
+
+    await waitFor(() =>
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "http://localhost:4000/api/auth/magic-link",
+        expect.objectContaining({ method: "POST" })
+      )
+    );
+    expect(await screen.findByTestId("magic-sent")).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it("shows the server error message on a non-ok response", async () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: false,

@@ -787,6 +787,21 @@ export async function sendWaitlistClaim(waiter, event, ticketType, claimUrl) {
   });
 }
 
+// AUTH-06: passwordless sign-in link (single-use, 15-min). Transactional.
+export async function sendMagicLink({ to, name, link }) {
+  const { html, text } = renderEmail({
+    preheader: "Your sign-in link",
+    heading: "Sign in to tiqr",
+    bodyHtml: `
+    <tr><td style="padding:0 0 16px;">Hi ${escapeHtml(name || "there")}, use the button below to sign in. This link works once and expires in 15 minutes.</td></tr>
+    <tr><td style="padding:0 0 8px;font-size:14px;color:#666666;">If the button doesn't work, paste this link into your browser:</td></tr>
+    <tr><td style="padding:0 0 8px;font-size:13px;color:${BRAND};word-break:break-all;">${escapeHtml(link)}</td></tr>`,
+    cta: { label: "Sign in", url: link },
+    footerNote: `If you didn't request this, you can safely ignore this email.`,
+  });
+  return sendMail({ to, subject: `Your ${APP_NAME} sign-in link`, html, text, template: "magic_link" });
+}
+
 // Welcome email (sent after a user verifies / for auto-verified signups).
 export async function sendWelcomeEmail({ to, name }) {
   const { html, text } = renderEmail({

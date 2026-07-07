@@ -60,6 +60,21 @@ model User {
   managedFest      Fest?      @relation("festAdmin", fields: [managedFestId], references: [id])
   editorFest       Fest?      @relation("festEditors", fields: [editorFestId], references: [id])
   notifications    Notification[] // NOTIF-08
+  magicLinks       MagicLinkToken[] // AUTH-06
+}
+
+// AUTH-06: single-use, short-TTL passwordless login tokens (hashed at rest). A
+// dedicated table is cleaner than overloading emailVerifyToken.
+model MagicLinkToken {
+  id        Int       @id @default(autoincrement())
+  token     String    @unique // hashToken() of the random secret emailed to the user
+  userId    Int
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // NOTIF-08: in-app notifications shown in the header bell. Written at booking

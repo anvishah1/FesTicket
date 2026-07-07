@@ -52,6 +52,7 @@ const MODEL_KEYS = [
   "reminderLog",
   "notification",
   "waitlist",
+  "magicLinkToken",
 ];
 
 function makeModel() {

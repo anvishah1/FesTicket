@@ -68,6 +68,27 @@ export default function AuthForm() {
 
   const canSubmit = email.trim().length > 0 && password.trim().length > 0;
 
+  // AUTH-06: passwordless "email me a sign-in link".
+  const [magicBusy, setMagicBusy] = React.useState(false);
+  const [magicSent, setMagicSent] = React.useState(false);
+  async function requestMagicLink() {
+    if (!email.trim() || magicBusy) return;
+    setMagicBusy(true);
+    setError(null);
+    try {
+      await fetch(`${getApiUrl()}/api/auth/magic-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      // Always generic (enumeration-safe), regardless of the response.
+      setMagicSent(true);
+    } catch {
+      setError("Could not reach server. Please try again.");
+    }
+    setMagicBusy(false);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -211,6 +232,25 @@ export default function AuthForm() {
         >
           {loading ? "Signing in…" : locked ? `Locked · ${mmss}` : "Sign In with Email"}
         </button>
+      </div>
+
+      {/* AUTH-06: passwordless sign-in link */}
+      <div className="text-center">
+        {magicSent ? (
+          <p className="text-sm text-green-700" data-testid="magic-sent">
+            If that email exists, a sign-in link is on its way. Check your inbox.
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={requestMagicLink}
+            disabled={!email.trim() || magicBusy}
+            className="text-sm text-[#29104A] hover:underline disabled:opacity-50"
+            data-testid="magic-link-button"
+          >
+            {magicBusy ? "Sending…" : "Email me a sign-in link instead"}
+          </button>
+        )}
       </div>
 
       {/* Divider */}

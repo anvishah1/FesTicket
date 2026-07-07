@@ -8,8 +8,9 @@ import { getApiUrl } from "@/lib/auth";
 
 interface TicketBooking {
   bookingCode: string;
+  status?: string;
   event?: { name?: string; venue?: string; startDate?: string };
-  attendees?: Array<{ name: string; email: string; ticketCode: string; ticketType?: string }>;
+  attendees?: Array<{ id?: number; name: string; email: string; ticketCode: string; ticketType?: string; checkedInAt?: string | null }>;
   items?: Array<{ quantity: number; ticketType: { name: string } }>;
 }
 
@@ -30,6 +31,21 @@ export default function TicketsPage() {
   const [booking, setBooking] = React.useState<TicketBooking | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [notFound, setNotFound] = React.useState(false);
+  // TIX-06: transfer modal state.
+  const [transfer, setTransfer] = React.useState<{ id: number; name: string; email: string } | null>(null);
+  const [transferBusy, setTransferBusy] = React.useState(false);
+
+  const load = React.useCallback(async () => {
+    try {
+      const res = await fetch(`${getApiUrl()}/api/bookings/code/${encodeURIComponent(bookingCode)}`);
+      const data = await res.json();
+      if (res.ok && data.success && data.data) setBooking(data.data);
+      else setNotFound(true);
+    } catch {
+      setNotFound(true);
+    }
+    setLoading(false);
+  }, [bookingCode]);
 
   React.useEffect(() => {
     if (!bookingCode) {
@@ -37,18 +53,28 @@ export default function TicketsPage() {
       setLoading(false);
       return;
     }
-    (async () => {
-      try {
-        const res = await fetch(`${getApiUrl()}/api/bookings/code/${encodeURIComponent(bookingCode)}`);
-        const data = await res.json();
-        if (res.ok && data.success && data.data) setBooking(data.data);
-        else setNotFound(true);
-      } catch {
-        setNotFound(true);
+    load();
+  }, [bookingCode, load]);
+
+  async function submitTransfer() {
+    if (!transfer || transferBusy) return;
+    if (!transfer.name.trim() || !transfer.email.trim()) return;
+    setTransferBusy(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/api/bookings/${encodeURIComponent(bookingCode)}/transfer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attendeeId: transfer.id, name: transfer.name.trim(), email: transfer.email.trim() }),
+      });
+      if (res.ok) {
+        setTransfer(null);
+        await load(); // refetch so the reissued QR shows
       }
-      setLoading(false);
-    })();
-  }, [bookingCode]);
+    } catch {
+      /* leave the modal open on failure */
+    }
+    setTransferBusy(false);
+  }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-500">Loading…</div>;
   if (notFound || !booking)
@@ -58,8 +84,14 @@ export default function TicketsPage() {
   // no attendees were captured.
   const tickets =
     booking.attendees && booking.attendees.length > 0
-      ? booking.attendees.map((a) => ({ code: a.ticketCode, name: a.name as string | undefined, ticketType: a.ticketType }))
-      : [{ code: booking.bookingCode, name: undefined as string | undefined, ticketType: booking.items?.[0]?.ticketType?.name }];
+      ? booking.attendees.map((a) => ({
+          id: a.id,
+          code: a.ticketCode,
+          name: a.name as string | undefined,
+          ticketType: a.ticketType,
+          checkedInAt: a.checkedInAt,
+        }))
+      : [{ id: undefined as number | undefined, code: booking.bookingCode, name: undefined as string | undefined, ticketType: booking.items?.[0]?.ticketType?.name, checkedInAt: null }];
 
   return (
     <div className="min-h-screen bg-slate-100 print:bg-white">
@@ -102,10 +134,61 @@ export default function TicketsPage() {
                   <QRCodeSVG value={t.code} size={132} />
                 </div>
               </div>
+              {/* TIX-06: reassign this ticket to a different person (not after check-in). */}
+              {t.id != null && !t.checkedInAt && booking.status === "COMPLETED" && (
+                <button
+                  type="button"
+                  onClick={() => setTransfer({ id: t.id as number, name: t.name || "", email: "" })}
+                  className="mt-3 text-sm text-primary-600 hover:underline print:hidden"
+                >
+                  Transfer / edit attendee
+                </button>
+              )}
             </div>
           ))}
         </div>
       </div>
+
+      {/* TIX-06 transfer modal */}
+      {transfer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 print:hidden">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-bold mb-1">Transfer ticket</h2>
+            <p className="text-sm text-slate-500 mb-4">
+              Reassign this ticket to someone else. The old QR stops working. Tickets can&apos;t be
+              transferred after check-in.
+            </p>
+            <label htmlFor="tf-name" className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+            <input
+              id="tf-name"
+              value={transfer.name}
+              onChange={(e) => setTransfer((t) => (t ? { ...t, name: e.target.value } : t))}
+              className="w-full px-3 py-2 border rounded-md mb-3"
+            />
+            <label htmlFor="tf-email" className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+            <input
+              id="tf-email"
+              type="email"
+              value={transfer.email}
+              onChange={(e) => setTransfer((t) => (t ? { ...t, email: e.target.value } : t))}
+              className="w-full px-3 py-2 border rounded-md mb-4"
+            />
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setTransfer(null)} className="px-4 py-2 rounded-md border">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitTransfer}
+                disabled={transferBusy || !transfer.name.trim() || !transfer.email.trim()}
+                className="px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold"
+              >
+                {transferBusy ? "Transferring…" : "Transfer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import TicketsPage from "./page";
 
 vi.mock("next/navigation", () => ({ useParams: () => ({ bookingCode: "BK1" }) }));
@@ -20,10 +21,11 @@ describe("TicketsPage (TIX-05)", () => {
         success: true,
         data: {
           bookingCode: "BK1",
+          status: "COMPLETED",
           event: { name: "Spring Fest", startDate: "2026-05-01", venue: "Hall" },
           attendees: [
-            { name: "Alice", email: "a@x", ticketCode: "tkt_a", ticketType: "GA" },
-            { name: "Bob", email: "b@x", ticketCode: "tkt_b", ticketType: "VIP" },
+            { id: 11, name: "Alice", email: "a@x", ticketCode: "tkt_a", ticketType: "GA", checkedInAt: null },
+            { id: 12, name: "Bob", email: "b@x", ticketCode: "tkt_b", ticketType: "VIP", checkedInAt: null },
           ],
         },
       }),
@@ -34,6 +36,40 @@ describe("TicketsPage (TIX-05)", () => {
     expect(cards[0].querySelector("svg")).toBeTruthy();
     expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("Bob")).toBeInTheDocument();
+  });
+
+  it("transfers a ticket to a new attendee and refetches (TIX-06)", async () => {
+    const completedBooking = () => ({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          bookingCode: "BK1",
+          status: "COMPLETED",
+          event: { name: "Spring Fest", startDate: "2026-05-01" },
+          attendees: [{ id: 11, name: "Alice", email: "a@x", ticketCode: "tkt_a", ticketType: "GA", checkedInAt: null }],
+        },
+      }),
+    });
+    (globalThis.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(completedBooking())
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { id: 11, ticketCode: "new" } }) })
+      .mockResolvedValueOnce(completedBooking());
+
+    render(<TicketsPage />);
+    await screen.findAllByTestId("printable-ticket");
+    await userEvent.click(screen.getByRole("button", { name: /transfer \/ edit attendee/i }));
+    await userEvent.type(screen.getByLabelText("Name"), "New Person");
+    await userEvent.type(screen.getByLabelText("Email"), "new@x.com");
+    await userEvent.click(screen.getByRole("button", { name: "Transfer" }));
+
+    await waitFor(() =>
+      expect(
+        (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+          (c) => String(c[0]).includes("/api/bookings/BK1/transfer")
+        )
+      ).toBe(true)
+    );
   });
 
   it("falls back to a single order-level ticket when there are no attendees", async () => {

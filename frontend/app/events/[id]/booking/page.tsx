@@ -565,7 +565,7 @@ export default function BookingPage() {
           <div className="rounded-lg p-6 bg-white border shadow-sm">
             <h3 className="font-semibold">Important</h3>
             <ul className="list-disc pl-5 mt-3 text-sm text-slate-600 space-y-2">
-              <li>Tickets are non-transferable after registration.</li>
+              <li>Tickets can be transferred to another attendee any time before check-in.</li>
               <li>Refund policy: {refundPolicyText(event?.refundPolicy, event?.refundCutoffHours)}</li>
               <li>Attendees must carry a valid ID for check-in.</li>
             </ul>

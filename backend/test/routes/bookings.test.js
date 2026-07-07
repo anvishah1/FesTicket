@@ -2631,6 +2631,64 @@ describe("POST /api/bookings/checkin/undo", () => {
   });
 });
 
+// ==================== TIX-06: ticket transfer ====================
+describe("POST /api/bookings/:bookingCode/transfer", () => {
+  const bk = (over = {}) => ({
+    id: 5, bookingCode: "BKX", status: "COMPLETED", userId: 20,
+    event: { hostId: 7, festId: 3 },
+    attendees: [{ id: 11, checkedInAt: null }, { id: 12, checkedInAt: "2026-01-01T10:00:00Z" }],
+    ...over,
+  });
+
+  it("400 when required fields are missing", async () => {
+    const res = await request(app).post("/api/bookings/BKX/transfer").send({ attendeeId: 11 });
+    expect(res.status).toBe(400);
+  });
+
+  it("404 when the booking does not exist", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(null);
+    const res = await request(app).post("/api/bookings/BKX/transfer").send({ attendeeId: 11, name: "New", email: "n@x.com" });
+    expect(res.status).toBe(404);
+  });
+
+  it("403 for a caller who is neither the owner nor presents the correct bookingCode", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(bk());
+    // Path code WRONG != booking.bookingCode BKX, and no token -> not authorized.
+    const res = await request(app).post("/api/bookings/WRONG/transfer").send({ attendeeId: 11, name: "New", email: "n@x.com" });
+    expect(res.status).toBe(403);
+    expect(prismaMock.attendee.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("409 when the attendee has already been checked in", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(bk());
+    const res = await request(app).post("/api/bookings/BKX/transfer").send({ attendeeId: 12, name: "New", email: "n@x.com" });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("ALREADY_CHECKED_IN");
+    expect(prismaMock.attendee.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("400 for a non-COMPLETED booking", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(bk({ status: "PENDING" }));
+    const res = await request(app).post("/api/bookings/BKX/transfer").send({ attendeeId: 11, name: "New", email: "n@x.com" });
+    expect(res.status).toBe(400);
+  });
+
+  it("transfers via the guest bookingCode path: reissues the ticketCode (guarded)", async () => {
+    prismaMock.booking.findUnique.mockResolvedValue(bk());
+    prismaMock.attendee.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.attendee.findUnique.mockResolvedValue({ id: 11, name: "New Name", email: "new@x.com", ticketCode: "fresh-code" });
+
+    const res = await request(app).post("/api/bookings/BKX/transfer").send({ attendeeId: 11, name: "New Name", email: "new@x.com" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.ticketCode).toBe("fresh-code");
+    const call = prismaMock.attendee.updateMany.mock.calls[0][0];
+    expect(call.where).toMatchObject({ id: 11, checkedInAt: null });
+    expect(call.data.name).toBe("New Name");
+    expect(typeof call.data.ticketCode).toBe("string");
+    expect(call.data.transferredAt).toBeInstanceOf(Date);
+  });
+});
+
 // ==================== PAY-04: promo codes ====================
 describe("promo codes at checkout", () => {
   const eventWithPromo = () => ({

@@ -251,6 +251,8 @@ model Attendee {
   // checkedInById is the admitting host/admin (bare Int?, no formal FK).
   checkedInAt   DateTime?
   checkedInById Int?
+  // TIX-06: audit trail for the last ticket transfer/reassignment.
+  transferredAt DateTime?
   createdAt    DateTime  @default(now())
 
   // Relations

@@ -36,7 +36,9 @@ const forbid = (res, message = "You do not have access to this booking") =>
 // created it). `booking` must include bookingCode + event { hostId, festId }.
 async function callerOwnsBooking(req, booking) {
   if (!booking) return false;
-  const providedCode = req.body?.bookingCode;
+  // TIX-06: the bookingCode may be proven via the request body OR a :bookingCode
+  // path param (guest-safe, e.g. the transfer endpoint).
+  const providedCode = req.body?.bookingCode || req.params?.bookingCode;
   if (providedCode && booking.bookingCode && providedCode === booking.bookingCode) return true;
   if (!req.user) return false;
   if (booking.userId != null && booking.userId === req.user.userId) return true;
@@ -1426,6 +1428,61 @@ router.post("/:id/request-refund", writeLimiter, optionalAuthenticate, async (re
     }
     req.log.error({ err: error, bookingId: bid }, "Request-refund error");
     return res.status(500).json({ success: false, error: { code: "REFUND_ERROR", message: "Failed to process refund request" } });
+  }
+});
+
+// TIX-06: POST /api/bookings/:bookingCode/transfer - reassign an attendee (name/
+// email) and reissue their ticketCode, invalidating the old QR. Auth: buyer/host/
+// admin OR the guest presenting the :bookingCode. Booking must be COMPLETED; a
+// checked-in attendee cannot be transferred.
+router.post("/:bookingCode/transfer", writeLimiter, optionalAuthenticate, async (req, res) => {
+  try {
+    const { attendeeId, name, email } = req.body || {};
+    const aid = parseInt(attendeeId);
+    if (!Number.isInteger(aid) || typeof name !== "string" || !name.trim() || typeof email !== "string" || !email.trim()) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "attendeeId, name and email are required" } });
+    }
+
+    const booking = await prisma.booking.findUnique({
+      where: { bookingCode: req.params.bookingCode },
+      include: {
+        event: { select: { hostId: true, festId: true } },
+        attendees: { select: { id: true, checkedInAt: true } },
+      },
+    });
+    if (!booking) {
+      return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Booking not found" } });
+    }
+    if (!(await callerOwnsBooking(req, booking))) return forbid(res);
+    if (booking.status !== "COMPLETED") {
+      return res.status(400).json({ success: false, error: { code: "INVALID_STATE", message: "Only a completed booking's tickets can be transferred" } });
+    }
+    const target = booking.attendees.find((a) => a.id === aid);
+    if (!target) {
+      return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Attendee not part of this booking" } });
+    }
+    if (target.checkedInAt) {
+      return res.status(409).json({ success: false, error: { code: "ALREADY_CHECKED_IN", message: "This ticket has already been used and cannot be transferred" } });
+    }
+
+    // Reissue the ticketCode (a fresh opaque code auto-invalidates the old QR). The
+    // checkedInAt:null guard means a door scan of the OLD code that lands first
+    // simply admits the current holder rather than racing the reissue.
+    const updated = await prisma.attendee.updateMany({
+      where: { id: aid, checkedInAt: null },
+      data: { name: name.trim(), email: email.trim(), ticketCode: crypto.randomUUID(), transferredAt: new Date() },
+    });
+    if (updated.count === 0) {
+      return res.status(409).json({ success: false, error: { code: "ALREADY_CHECKED_IN", message: "This ticket has already been used and cannot be transferred" } });
+    }
+    const fresh = await prisma.attendee.findUnique({
+      where: { id: aid },
+      select: { id: true, name: true, email: true, ticketCode: true },
+    });
+    return res.json({ success: true, data: fresh, message: "Attendee transferred" });
+  } catch (error) {
+    req.log.error({ err: error, bookingCode: req.params.bookingCode }, "Transfer error");
+    return res.status(500).json({ success: false, error: { code: "TRANSFER_ERROR", message: "Failed to transfer ticket" } });
   }
 });
 

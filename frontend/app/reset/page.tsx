@@ -4,6 +4,8 @@ import React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import PasswordFields from "@/components/PasswordFields";
+import { getPasswordChecks } from "@/lib/password";
 import { getApiUrl } from "@/lib/auth";
 
 export default function ResetPage() {
@@ -23,12 +25,10 @@ export default function ResetPage() {
       setError("Invalid or missing reset token. Use the link from your email.");
       return;
     }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
-    if (password !== confirm) {
-      setError("Passwords do not match.");
+    // AUTH-07: enforce the full policy up-front (byte-aligned with the backend),
+    // so a password the server would 400 can't even be submitted.
+    if (!getPasswordChecks(password, confirm).valid) {
+      setError("Please satisfy all the password rules below.");
       return;
     }
 
@@ -91,35 +91,23 @@ export default function ResetPage() {
           ) : (
             /* RESET FORM */
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700">New password</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters"
-                  className="mt-2 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-200"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700">Confirm password</label>
-                <input
-                  type="password"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  placeholder="Repeat new password"
-                  className="mt-2 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-200"
-                  required
-                />
-              </div>
+              <PasswordFields
+                password={password}
+                confirm={confirm}
+                onPasswordChange={setPassword}
+                onConfirmChange={setConfirm}
+                idPrefix="reset"
+              />
 
               <button
                 type="submit"
-                disabled={status === "submitting" || status === "done"}
+                disabled={
+                  status === "submitting" ||
+                  status === "done" ||
+                  !getPasswordChecks(password, confirm).valid
+                }
                 className={`w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium transition ${
-                  status !== "submitting"
+                  status !== "submitting" && getPasswordChecks(password, confirm).valid
                     ? "bg-primary-600 text-white hover:bg-primary-700"
                     : "bg-slate-300 text-slate-600 cursor-not-allowed"
                 }`}

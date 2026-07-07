@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ResetPage from "./page";
@@ -17,6 +17,16 @@ vi.mock("@/components/Footer", () => ({ default: () => <footer /> }));
 beforeEach(() => {
   push.mockReset();
   globalThis.fetch = vi.fn();
+  // The success path schedules a 900ms redirect (setTimeout -> router.push).
+  // Use fake timers (auto-advanced by real time so RTL waits still resolve) and
+  // flush any pending timer in afterEach, so that redirect can't leak into and
+  // fail a later "push not called" assertion.
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+});
+
+afterEach(() => {
+  vi.runOnlyPendingTimers();
+  vi.useRealTimers();
 });
 
 describe("ResetPage", () => {
@@ -28,8 +38,8 @@ describe("ResetPage", () => {
 
     render(<ResetPage />);
 
-    await userEvent.type(screen.getByPlaceholderText("At least 8 characters"), "NewPassword1!");
-    await userEvent.type(screen.getByPlaceholderText("Repeat new password"), "NewPassword1!");
+    await userEvent.type(screen.getByLabelText("New password"), "NewPassword1!");
+    await userEvent.type(screen.getByLabelText("Confirm password"), "NewPassword1!");
     await userEvent.click(screen.getByRole("button", { name: /set new password/i }));
 
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
@@ -52,22 +62,27 @@ describe("ResetPage", () => {
 
     render(<ResetPage />);
 
-    await userEvent.type(screen.getByPlaceholderText("At least 8 characters"), "NewPassword1!");
-    await userEvent.type(screen.getByPlaceholderText("Repeat new password"), "NewPassword1!");
+    await userEvent.type(screen.getByLabelText("New password"), "NewPassword1!");
+    await userEvent.type(screen.getByLabelText("Confirm password"), "NewPassword1!");
     await userEvent.click(screen.getByRole("button", { name: /set new password/i }));
 
     await screen.findByText(/invalid or expired token/i);
     expect(push).not.toHaveBeenCalled();
   });
 
-  it("blocks submit and never calls fetch when the password is too short", async () => {
+  it("keeps submit disabled and never calls fetch when the password is too weak (AUTH-07)", async () => {
     render(<ResetPage />);
 
-    await userEvent.type(screen.getByPlaceholderText("At least 8 characters"), "short");
-    await userEvent.type(screen.getByPlaceholderText("Repeat new password"), "short");
-    await userEvent.click(screen.getByRole("button", { name: /set new password/i }));
+    await userEvent.type(screen.getByLabelText("New password"), "short");
+    await userEvent.type(screen.getByLabelText("Confirm password"), "short");
 
-    await screen.findByText(/at least 8 characters/i);
+    // The submit button is gated on the full policy — it stays disabled.
+    const btn = screen.getByRole("button", { name: /set new password/i });
+    expect(btn).toBeDisabled();
+    await userEvent.click(btn);
     expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    // The live checklist reflects the failing rule.
+    expect(screen.getByText("8–30 characters")).toBeInTheDocument();
   });
 });

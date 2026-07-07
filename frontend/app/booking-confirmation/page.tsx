@@ -30,7 +30,7 @@ interface ConfirmationBooking {
     quantity: number;
     ticketType: { name: string; price: number };
   }>;
-  attendees?: Array<{ name: string; email: string }>;
+  attendees?: Array<{ name: string; email: string; ticketCode?: string }>;
 }
 
 function formatDate(dateStr?: string) {
@@ -228,11 +228,19 @@ export default function BookingConfirmationPage() {
             {booking.attendees && booking.attendees.length > 0 && (
               <div className="border-t pt-4">
                 <h3 className="text-sm font-medium text-slate-500 mb-2">Attendees</h3>
-                <ul className="space-y-1 text-sm">
+                <ul className="space-y-3 text-sm">
                   {booking.attendees.map((att, idx) => (
-                    <li key={idx} className="flex justify-between">
-                      <span>{att.name}</span>
-                      <span className="text-slate-500">{att.email}</span>
+                    <li key={idx} className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate">{att.name}</p>
+                        <p className="text-slate-500 truncate">{att.email}</p>
+                      </div>
+                      {/* TIX-02: each attendee gets their own scannable ticket QR. */}
+                      {att.ticketCode && (
+                        <div className="shrink-0 bg-white p-1.5 rounded border" data-testid="attendee-qr">
+                          <QRCodeSVG value={att.ticketCode} size={64} />
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

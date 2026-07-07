@@ -33,8 +33,8 @@ function bookingResponse() {
         event: { name: "Fest Night", venue: "Main Hall", startDate: "2026-08-01" },
         items: [{ quantity: 2, ticketType: { name: "General", price: 50000 } }],
         attendees: [
-          { name: "Alice", email: "alice@example.com" },
-          { name: "Bob", email: "bob@example.com" },
+          { name: "Alice", email: "alice@example.com", ticketCode: "tkt_alice" },
+          { name: "Bob", email: "bob@example.com", ticketCode: "tkt_bob" },
         ],
       },
     }),
@@ -61,6 +61,8 @@ describe("BookingConfirmationPage", () => {
     expect(screen.getByText("Alice")).toBeInTheDocument();
     // TIX-01: a scannable QR of the booking code is rendered.
     expect(screen.getByTestId("booking-qr").querySelector("svg")).toBeTruthy();
+    // TIX-02: one QR per attendee (from each attendee's ticketCode).
+    expect(screen.getAllByTestId("attendee-qr")).toHaveLength(2);
   });
 
   it("links to my bookings", async () => {

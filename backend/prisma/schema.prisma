@@ -245,6 +245,8 @@ model Attendee {
   ticketTypeId Int
   name         String
   email        String
+  // TIX-02: per-attendee scannable ticket code (cuid, unguessable + unique).
+  ticketCode   String    @unique @default(cuid())
   createdAt    DateTime  @default(now())
 
   // Relations

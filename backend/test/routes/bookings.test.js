@@ -26,6 +26,7 @@ import {
   sendNewSaleAlert,
   sendSalesDigest,
 } from "../../src/utils/email.js";
+import { sendSms } from "../../src/utils/sms.js";
 
 vi.mock("@prisma/client");
 
@@ -39,6 +40,12 @@ vi.mock("../../src/utils/email.js", () => ({
   sendEventReminder: vi.fn(async () => ({ sent: true })),
   sendNewSaleAlert: vi.fn(async () => [{ sent: true }]),
   sendSalesDigest: vi.fn(async () => [{ sent: true }]),
+}));
+
+// NOTIF-07: SMS is graceful/optional; keep it quiet in booking-flow tests.
+vi.mock("../../src/utils/sms.js", () => ({
+  sendSms: vi.fn(async () => ({ sent: false, reason: "not_configured" })),
+  sendWhatsApp: vi.fn(async () => ({ sent: false, reason: "not_configured" })),
 }));
 
 // supertest hammers the same IP, so neutralise the rate limiters (bookingLimiter
@@ -651,10 +658,14 @@ describe("POST /api/bookings", () => {
       id: 55,
       status: "COMPLETED",
       total: 0,
-      event: { id: 1, name: "Free Fest" },
+      guestPhone: "9876543210",
+      event: { id: 1, name: "Free Fest", hostId: 7, festId: 3 },
       items: [],
       attendees: [],
     });
+    // NOTIF-05 recipient resolution (host) + NOTIF-07 has a guestPhone.
+    prismaMock.user.findUnique.mockResolvedValue({ id: 7, email: "host@x.com", notifySalesAlerts: true });
+    prismaMock.user.findFirst.mockResolvedValue(null);
 
     const res = await request(app)
       .post("/api/bookings")
@@ -663,6 +674,10 @@ describe("POST /api/bookings", () => {
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe("COMPLETED");
+
+    // NOTIF-05 + NOTIF-07: the sale alert + ticket SMS fire on completion (async).
+    await vi.waitFor(() => expect(sendNewSaleAlert).toHaveBeenCalled());
+    await vi.waitFor(() => expect(sendSms).toHaveBeenCalled());
 
     // Booking is created already COMPLETED (no PENDING payment step).
     expect(prismaMock.booking.create).toHaveBeenCalledWith(

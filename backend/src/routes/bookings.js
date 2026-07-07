@@ -13,6 +13,7 @@ import {
   sendNewSaleAlert,
   sendSalesDigest,
 } from "../utils/email.js";
+import { sendSms } from "../utils/sms.js";
 import { authenticateUser, optionalAuthenticate, authorizeRoles } from "../middleware/authMiddleware.js";
 import { bookingLimiter, writeLimiter } from "../middleware/rateLimiter.js";
 import { validate } from "../middleware/validate.js";
@@ -235,6 +236,26 @@ async function notifyNewSale(booking, log) {
     await sendNewSaleAlert(booking, optedIn);
   } catch (e) {
     log?.error?.({ err: e, bookingId: booking?.id }, "[email] new-sale alert failed");
+  }
+}
+
+// NOTIF-07: text the buyer their booking code + a link to view/download tickets
+// on completion. Graceful — a no-op when SMS is unconfigured or no phone resolves.
+async function notifyTicketSms(booking, log) {
+  try {
+    let phone = booking?.guestPhone || booking?.user?.phone || null;
+    if (!phone && booking?.userId) {
+      const u = await prisma.user.findUnique({ where: { id: booking.userId }, select: { phone: true } });
+      phone = u?.phone || null;
+    }
+    if (!phone) return; // no number — skip cleanly
+    const base = process.env.FRONTEND_URL || "http://localhost:3000";
+    const link = `${base}/booking-confirmation?bookingCode=${encodeURIComponent(booking.bookingCode)}`;
+    const eventName = booking.event?.name || "your event";
+    const body = `Your ${eventName} booking is confirmed. Code: ${booking.bookingCode}. View tickets: ${link}`;
+    await sendSms({ to: phone, body });
+  } catch (e) {
+    log?.error?.({ err: e, bookingId: booking?.id }, "[sms] ticket text failed");
   }
 }
 
@@ -657,6 +678,7 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
         req.log.error({ err: e }, "[email] Booking confirmation failed")
       );
       notifyNewSale(booking.full, req.log); // NOTIF-05
+      notifyTicketSms(booking.full, req.log); // NOTIF-07
     }
 
     res.status(201).json({
@@ -915,6 +937,7 @@ router.post("/:id/verify-payment", writeLimiter, optionalAuthenticate, async (re
 
     sendBookingConfirmation(settled).catch((e) => req.log.error({ err: e }, "[email] Booking confirmation failed"));
     notifyNewSale(settled, req.log); // NOTIF-05
+    notifyTicketSms(settled, req.log); // NOTIF-07
 
     res.json({
       success: true,
@@ -1019,6 +1042,7 @@ router.put("/:id/complete", writeLimiter, optionalAuthenticate, async (req, res)
 
     sendBookingConfirmation(booking).catch((e) => req.log.error({ err: e }, "[email] Booking confirmation failed"));
     notifyNewSale(booking, req.log); // NOTIF-05
+    notifyTicketSms(booking, req.log); // NOTIF-07
 
     res.json({
       success: true,
@@ -2446,6 +2470,7 @@ export async function razorpayWebhookHandler(req, res) {
             req.log?.error({ err }, "[webhook] confirmation email failed")
           );
           notifyNewSale(updated, req.log); // NOTIF-05 (winner-only settle -> no dup)
+          notifyTicketSms(updated, req.log); // NOTIF-07
         }
       }
     } else if (event.event === "payment.failed" && entity?.order_id) {
@@ -2498,6 +2523,7 @@ export async function reconcileStalePaidOrders(olderThanMs = 30 * 60 * 1000, lim
           settled += 1;
           sendBookingConfirmation(updated).catch(() => {});
           notifyNewSale(updated, null); // NOTIF-05 (winner-only settle -> no dup)
+          notifyTicketSms(updated, null); // NOTIF-07
         }
       } else {
         // No captured payment after the window: the order was abandoned or every

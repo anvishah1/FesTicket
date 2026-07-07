@@ -114,6 +114,32 @@ describe("AuthForm", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
+  it("shows a lockout countdown + recovery link and disables submit on a locked 403 (AUTH-09)", async () => {
+    const lockUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({
+        success: false,
+        error: {
+          code: "ACCOUNT_LOCKED",
+          message: "Account locked. Try again later.",
+          details: { lockUntil, retryAfterSeconds: 300 },
+        },
+      }),
+    });
+    render(<AuthForm />);
+    await fillCredentials();
+    await userEvent.click(screen.getByRole("button", { name: /sign in with email/i }));
+
+    expect(await screen.findByText(/account locked/i)).toBeInTheDocument();
+    const countdown = await screen.findByTestId("lock-countdown");
+    expect(countdown.textContent).toMatch(/^0[45]:\d{2}$/); // ~05:00
+    expect(screen.getByRole("link", { name: /reset your password/i })).toHaveAttribute("href", "/forgot");
+    // While locked the submit button is disabled and labelled with the countdown.
+    expect(screen.getByRole("button", { name: /locked/i })).toBeDisabled();
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it("shows a connectivity error when the request rejects", async () => {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error("network down")

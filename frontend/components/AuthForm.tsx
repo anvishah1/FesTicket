@@ -30,6 +30,20 @@ export default function AuthForm() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = React.useState("");
+  // AUTH-09: when signin returns a lock, drive a live countdown from the server's
+  // lockUntil (trusting the server time, not a fixed client start).
+  const [lockUntil, setLockUntil] = React.useState<number | null>(null);
+  const [nowMs, setNowMs] = React.useState(() => Date.now());
+
+  React.useEffect(() => {
+    if (lockUntil == null) return;
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [lockUntil]);
+
+  const locked = lockUntil != null && lockUntil > nowMs;
+  const remainingSec = locked ? Math.ceil((lockUntil - nowMs) / 1000) : 0;
+  const mmss = `${String(Math.floor(remainingSec / 60)).padStart(2, "0")}:${String(remainingSec % 60).padStart(2, "0")}`;
 
   // CAPTCHA: graceful degradation. When NEXT_PUBLIC_CAPTCHA_SITE_KEY is unset
   // (dev / E2E / tests) we send a placeholder token — the backend accepts any
@@ -75,6 +89,15 @@ export default function AuthForm() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        // AUTH-09: a lock response carries lockUntil — start the countdown.
+        const lu = data.error?.details?.lockUntil;
+        if (lu) {
+          const t = new Date(lu).getTime();
+          if (Number.isFinite(t)) {
+            setLockUntil(t);
+            setNowMs(Date.now());
+          }
+        }
         setError(data.error?.message || "Invalid email or password.");
         setLoading(false);
         return;
@@ -120,6 +143,14 @@ export default function AuthForm() {
       {error && (
         <div id="auth-form-error" role="alert" className="text-sm text-red-600">
           {error}
+          {locked && (
+            <div className="mt-1 text-[#6B597F]">
+              Try again in{" "}
+              <span className="font-mono font-semibold" data-testid="lock-countdown">{mmss}</span>. Or{" "}
+              <Link href="/forgot" className="text-[#29104A] underline">reset your password</Link>{" "}
+              to regain access now.
+            </div>
+          )}
         </div>
       )}
 
@@ -170,15 +201,15 @@ export default function AuthForm() {
       <div>
         <button
           type="submit"
-          disabled={!canSubmit || loading}
+          disabled={!canSubmit || loading || locked}
           className={cx(
             "w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium transition",
-            canSubmit && !loading
+            canSubmit && !loading && !locked
               ? "bg-gradient-to-r from-[#29104A] to-[#522C5D] text-[#DEDCDC] hover:from-[#522C5D] hover:to-[#6B597F]"
               : "bg-[#6B597F]/50 text-[#DEDCDC]/70 cursor-not-allowed"
           )}
         >
-          {loading ? "Signing in…" : "Sign In with Email"}
+          {loading ? "Signing in…" : locked ? `Locked · ${mmss}` : "Sign In with Email"}
         </button>
       </div>
 

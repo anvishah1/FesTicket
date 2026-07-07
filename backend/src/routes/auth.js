@@ -220,7 +220,13 @@ router.post("/signin", loginLimiter, validate(signinSchema), async (req, res) =>
 
     /* ACCOUNT LOCK CHECK */
     if (user.lockUntil && user.lockUntil > new Date()) {
-      return res.fail(403, "ACCOUNT_LOCKED", "Account locked. Try again later.");
+      // AUTH-09: surface the lock expiry so the client can show a live countdown
+      // and a self-service recovery CTA.
+      const retryAfterSeconds = Math.max(0, Math.ceil((user.lockUntil.getTime() - Date.now()) / 1000));
+      return res.fail(403, "ACCOUNT_LOCKED", "Account locked. Try again later.", {
+        lockUntil: user.lockUntil.toISOString(),
+        retryAfterSeconds,
+      });
     }
 
     /* Email verification is not required for signin */
@@ -232,18 +238,23 @@ router.post("/signin", loginLimiter, validate(signinSchema), async (req, res) =>
 
       if (attempts >= 5) {
 
+        const lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+
         await prisma.user.update({
           where: { id: user.id },
           data: {
             failedLoginAttempts: 0,
-            lockUntil: new Date(Date.now() + 15 * 60 * 1000)
+            lockUntil
           }
         });
 
+        // AUTH-09: return lockUntil + retryAfterSeconds so the just-locked form can
+        // start its countdown immediately.
         return res.fail(
           403,
           "ACCOUNT_LOCKED",
-          "Too many failed attempts. Account locked for 15 minutes."
+          "Too many failed attempts. Account locked for 15 minutes.",
+          { lockUntil: lockUntil.toISOString(), retryAfterSeconds: 15 * 60 }
         );
 
       }
@@ -656,6 +667,10 @@ router.post("/reset-password", async (req, res) => {
         password: hashedPassword,
         resetPasswordToken: null,
         resetPasswordExpiry: null,
+        // AUTH-09: a completed reset clears an active lock so recovery actually
+        // unlocks the account (previously the lock outlived the reset).
+        failedLoginAttempts: 0,
+        lockUntil: null,
         // Bump tokenVersion so any live access token minted before the reset is
         // rejected (see authMiddleware / refresh re-sign).
         tokenVersion: { increment: 1 }

@@ -350,6 +350,9 @@ describe("POST /api/auth/signin", () => {
 
     expect(res.status).toBe(403);
     expect(res.body.error.message).toBe("Account locked. Try again later.");
+    // AUTH-09: the client needs lockUntil + retryAfterSeconds for the countdown.
+    expect(res.body.error.details.lockUntil).toEqual(expect.any(String));
+    expect(res.body.error.details.retryAfterSeconds).toBeGreaterThan(0);
   });
 
   it("increments failedLoginAttempts and returns 401 on a wrong password", async () => {
@@ -389,6 +392,9 @@ describe("POST /api/auth/signin", () => {
         lockUntil: expect.any(Date),
       }),
     });
+    // AUTH-09: the just-locked response carries the countdown fields too.
+    expect(res.body.error.details.lockUntil).toEqual(expect.any(String));
+    expect(res.body.error.details.retryAfterSeconds).toBe(15 * 60);
   });
 
   it("signs in successfully and returns tokens + user", async () => {
@@ -970,6 +976,9 @@ describe("POST /api/auth/reset-password", () => {
         password: "hashed-pw",
         resetPasswordToken: null,
         resetPasswordExpiry: null,
+        // AUTH-09: a completed reset also clears any active lockout.
+        failedLoginAttempts: 0,
+        lockUntil: null,
         // Password reset bumps tokenVersion to invalidate live access tokens.
         tokenVersion: { increment: 1 },
       },

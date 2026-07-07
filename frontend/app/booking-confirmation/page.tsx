@@ -8,6 +8,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { getApiUrl } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
+import { QRCodeSVG } from "qrcode.react";
 
 interface ConfirmationBooking {
   id: number;
@@ -191,6 +192,13 @@ export default function BookingConfirmationPage() {
             <p className="text-xs text-slate-500 mt-2">
               Keep this code — you can use it to look up your booking any time.
             </p>
+            {/* TIX-01: scannable QR of the booking code — your pass at entry. */}
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <div className="bg-white p-3 rounded-lg border" data-testid="booking-qr">
+                <QRCodeSVG value={booking.bookingCode} size={160} />
+              </div>
+              <p className="text-xs text-slate-500">Show this QR at the entrance.</p>
+            </div>
           </div>
 
           {/* Event + tickets */}

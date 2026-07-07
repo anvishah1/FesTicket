@@ -1,5 +1,6 @@
 // backend/src/utils/email.js
 import nodemailer from "nodemailer";
+import QRCode from "qrcode";
 import prisma from "../prisma.js";
 import logger from "./logger.js";
 
@@ -168,7 +169,7 @@ function getMailProvider() {
   if (!host || !user || !pass) return null;
   return {
     name: "smtp",
-    async send({ from, to, subject, html, text }) {
+    async send({ from, to, subject, html, text, attachments }) {
       const transport = nodemailer.createTransport({
         host,
         port,
@@ -176,7 +177,9 @@ function getMailProvider() {
         requireTLS: port !== 465,
         auth: { user, pass },
       });
-      const info = await transport.sendMail({ from, to, subject, html: html || text, text });
+      // TIX-01: forward inline attachments (e.g. the ticket QR with a cid) so the
+      // receipt email can render an <img src="cid:..."> pass.
+      const info = await transport.sendMail({ from, to, subject, html: html || text, text, attachments });
       return { providerMessageId: info?.messageId };
     },
   };
@@ -215,7 +218,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * on final failure.
  * @param {object} opts { to, subject, html, text?, bookingId?, template? }
  */
-export async function sendMail({ to, subject, html, text, bookingId, template }) {
+export async function sendMail({ to, subject, html, text, bookingId, template, attachments }) {
   const provider = getMailProvider();
   const textBody = text || (html ? htmlToText(html) : undefined);
 
@@ -241,6 +244,7 @@ export async function sendMail({ to, subject, html, text, bookingId, template })
         subject,
         html: html || textBody,
         text: textBody,
+        attachments,
       });
       logger.info({ to }, "[email] Sent successfully");
       await updateEmailLog(log, { status: "SENT", provider: provider.name, providerMessageId, attempts: attempt });
@@ -298,10 +302,24 @@ export async function sendBookingConfirmation(booking) {
   const apiBase = process.env.PUBLIC_API_URL || `http://localhost:${process.env.PORT || 4000}`;
   const invoiceUrl = `${apiBase}/api/bookings/${booking.id}/invoice?code=${encodeURIComponent(booking.bookingCode)}`;
 
+  // TIX-01: attach the booking QR as an inline cid image. Best-effort — the plain
+  // bookingCode above stays as the fallback if the client strips inline images or
+  // QR generation fails.
+  let attachments;
+  let qrHtml = "";
+  try {
+    const qrBuffer = await QRCode.toBuffer(booking.bookingCode, { width: 240, margin: 1 });
+    attachments = [{ filename: "ticket-qr.png", content: qrBuffer, cid: "ticket-qr" }];
+    qrHtml = `<tr><td style="padding:0 0 16px;text-align:center;"><img src="cid:ticket-qr" alt="Ticket QR for ${escapeHtml(booking.bookingCode)}" width="200" height="200" style="display:block;margin:0 auto;" /></td></tr>`;
+  } catch {
+    /* QR is best-effort; the text bookingCode remains the fallback */
+  }
+
   const bodyHtml = `
     <tr><td style="padding:0 0 16px;">Hi ${escapeHtml(buyerName)}, your booking is confirmed. Keep this email as your receipt.</td></tr>
     <tr><td style="padding:0 0 4px;font-weight:600;">Booking ID</td></tr>
     <tr><td style="padding:0 0 16px;font-family:monospace;font-size:18px;color:${BRAND};">${escapeHtml(booking.bookingCode)}</td></tr>
+    ${qrHtml}
     <tr><td style="padding:0 0 16px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #eeeeee;border-radius:8px;background:#fafafa;">
         <tr><td style="padding:14px 16px;">
@@ -354,6 +372,7 @@ export async function sendBookingConfirmation(booking) {
     text,
     bookingId: booking.id,
     template: "booking_confirmation",
+    attachments,
   });
 }
 

@@ -127,6 +127,12 @@ describe("sendBookingConfirmation", () => {
     expect(arg.html).toContain("Spring Fest Night");
     expect(arg.html).toContain("VIP");
     expect(arg.html).toContain("Guest User");
+    // TIX-01: the receipt embeds an inline QR (cid attachment) of the bookingCode.
+    expect(arg.html).toContain('src="cid:ticket-qr"');
+    expect(Array.isArray(arg.attachments)).toBe(true);
+    const qr = arg.attachments.find((a) => a.cid === "ticket-qr");
+    expect(qr).toBeTruthy();
+    expect(Buffer.isBuffer(qr.content)).toBe(true);
   });
 
   it("HTML-escapes user/organizer-controlled fields to prevent markup injection", async () => {

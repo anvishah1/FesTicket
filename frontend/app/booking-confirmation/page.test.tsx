@@ -59,6 +59,8 @@ describe("BookingConfirmationPage", () => {
     expect(screen.getByTestId("confirmation-total")).toHaveTextContent("1,083.24");
     // Attendees listed
     expect(screen.getByText("Alice")).toBeInTheDocument();
+    // TIX-01: a scannable QR of the booking code is rendered.
+    expect(screen.getByTestId("booking-qr").querySelector("svg")).toBeTruthy();
   });
 
   it("links to my bookings", async () => {

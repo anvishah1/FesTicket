@@ -38,6 +38,12 @@ model User {
   deletedAt         DateTime?
   managedFestId     Int?      @unique // for ADMIN: which fest they manage (key belongs to that fest)
   editorFestId      Int?      // for EDITOR: which fest they were approved for (from RoleRequest)
+  // NOTIF-09: per-category notification opt-outs. Transactional mail (receipts,
+  // cancellation, payment) IGNORES these — only non-transactional sends check them.
+  notifyReminders   Boolean   @default(true) // NOTIF-03 event reminders
+  notifySalesAlerts Boolean   @default(true) // NOTIF-05 per-sale alerts to organizers
+  notifySalesDigest Boolean   @default(true) // NOTIF-05 daily sales digest
+  notifyMarketing   Boolean   @default(true) // recovery / promotional
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

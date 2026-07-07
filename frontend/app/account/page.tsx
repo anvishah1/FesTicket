@@ -159,6 +159,10 @@ export default function AccountPage() {
             <Link href="/account/sessions" className="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">
               Active sessions
             </Link>
+            {/* NOTIF-09 */}
+            <Link href="/settings/notifications" className="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">
+              Notification preferences
+            </Link>
             {role === "VIEWER" && (
               <Link href="/account/organizer" className="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">
                 Become an organizer

@@ -4,6 +4,23 @@ import QRCode from "qrcode";
 import prisma from "../prisma.js";
 import logger from "./logger.js";
 import { walletAvailability } from "./wallet.js";
+import { signUnsubscribeToken } from "./notifications.js";
+
+// NOTIF-09: build the RFC-8058 List-Unsubscribe headers + a public unsubscribe
+// URL for a NON-transactional email to a registered user. Returns null for a
+// guest (no userId) — guests have no per-category prefs. The URL points at the
+// API so the one-click GET/POST can flip the flag without a login.
+export function unsubscribeFor(userId, category) {
+  if (!userId) return null;
+  const apiBase = process.env.PUBLIC_API_URL || `http://localhost:${process.env.PORT || 4000}`;
+  const token = signUnsubscribeToken(userId, category);
+  const url = `${apiBase}/api/unsubscribe?token=${encodeURIComponent(token)}`;
+  const headers = {
+    "List-Unsubscribe": `<${url}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+  };
+  return { url, headers };
+}
 
 const MAIL_FROM = process.env.MAIL_FROM || process.env.SMTP_USER || "noreply@tiqr.events";
 const APP_NAME = process.env.APP_NAME || "tiqr";
@@ -170,7 +187,7 @@ function getMailProvider() {
   if (!host || !user || !pass) return null;
   return {
     name: "smtp",
-    async send({ from, to, subject, html, text, attachments }) {
+    async send({ from, to, subject, html, text, attachments, headers }) {
       const transport = nodemailer.createTransport({
         host,
         port,
@@ -180,7 +197,8 @@ function getMailProvider() {
       });
       // TIX-01: forward inline attachments (e.g. the ticket QR with a cid) so the
       // receipt email can render an <img src="cid:..."> pass.
-      const info = await transport.sendMail({ from, to, subject, html: html || text, text, attachments });
+      // NOTIF-09: forward custom headers (e.g. List-Unsubscribe) for deliverability.
+      const info = await transport.sendMail({ from, to, subject, html: html || text, text, attachments, headers });
       return { providerMessageId: info?.messageId };
     },
   };
@@ -219,7 +237,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * on final failure.
  * @param {object} opts { to, subject, html, text?, bookingId?, template? }
  */
-export async function sendMail({ to, subject, html, text, bookingId, template, attachments }) {
+export async function sendMail({ to, subject, html, text, bookingId, template, attachments, headers }) {
   const provider = getMailProvider();
   const textBody = text || (html ? htmlToText(html) : undefined);
 
@@ -246,6 +264,7 @@ export async function sendMail({ to, subject, html, text, bookingId, template, a
         html: html || textBody,
         text: textBody,
         attachments,
+        headers,
       });
       logger.info({ to }, "[email] Sent successfully");
       await updateEmailLog(log, { status: "SENT", provider: provider.name, providerMessageId, attempts: attempt });

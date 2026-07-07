@@ -25,6 +25,7 @@ import bookingsRouter, {
 import authRoutes from "./src/routes/auth.js";
 import userRoutes from "./src/routes/user.js";
 import roleRequestsRouter from "./src/routes/roleRequests.js";
+import notificationsRouter, { unsubscribeRouter } from "./src/routes/notifications.js";
 import adminRequestsRouter from "./src/routes/adminRequests.js";
 import sponsorLeadsRouter from "./src/routes/sponsorLeads.js";
 import swaggerUi from "swagger-ui-express";
@@ -136,6 +137,8 @@ const ROUTERS = [
   ["/auth", authRoutes],
   ["/user", userRoutes],
   ["/role-requests", roleRequestsRouter],
+  ["/notifications", notificationsRouter],
+  ["/unsubscribe", unsubscribeRouter],
   ["/admin-requests", adminRequestsRouter],
   ["/sponsor-leads", sponsorLeadsRouter],
   ["/fests", festsRouter],

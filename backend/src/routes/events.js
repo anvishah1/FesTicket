@@ -1253,6 +1253,59 @@ router.get("/host/:hostId", optionalAuthenticate, async (req, res) => {
   }
 });
 
+// ==================== PAY-08: WAITLIST ====================
+
+// POST /api/events/:eventId/waitlist — join the waitlist for a SOLD-OUT ticket
+// type (guest or logged-in). Rejected when seats are actually available; dedupes
+// an existing WAITING row per email + ticket type.
+router.post("/:eventId/waitlist", optionalAuthenticate, async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.eventId);
+    const { ticketTypeId, email, name } = req.body || {};
+    if (!Number.isInteger(eventId) || !ticketTypeId || !email) {
+      return res.fail(400, "VALIDATION_ERROR", "ticketTypeId and email are required");
+    }
+    const tid = parseInt(ticketTypeId);
+    const ticketType = await prisma.ticketType.findUnique({ where: { id: tid } });
+    if (!ticketType || ticketType.eventId !== eventId) {
+      return res.fail(404, "NOT_FOUND", "Ticket type not found for this event");
+    }
+    // Only a genuinely sold-out type can be waitlisted.
+    if (ticketType.quantity - ticketType.sold > 0) {
+      return res.fail(400, "TICKETS_AVAILABLE", "Tickets are available — you can book directly");
+    }
+    const normEmail = String(email).trim().toLowerCase();
+    const existing = await prisma.waitlist.findFirst({
+      where: { ticketTypeId: tid, email: normEmail, status: "WAITING" },
+    });
+    if (existing) return res.ok(existing, { message: "You're already on the waitlist" });
+
+    const entry = await prisma.waitlist.create({
+      data: { eventId, ticketTypeId: tid, email: normEmail, name: name || null, userId: req.user?.userId ?? null },
+    });
+    return res.ok(entry, { status: 201, message: "Added to the waitlist" });
+  } catch (err) {
+    req.log.error({ err }, "waitlist join error");
+    return res.fail(500, "WAITLIST_ERROR", "Could not join the waitlist");
+  }
+});
+
+// GET /api/events/:eventId/waitlist — host/admin view of the queue (fest-scoped).
+router.get("/:eventId/waitlist", authenticateUser, async (req, res) => {
+  const eventId = parseInt(req.params.eventId);
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { hostId: true, festId: true } });
+  if (!event) return res.fail(404, "NOT_FOUND", "Event not found");
+  if (!(await callerCanManageEvent(event, req))) {
+    return res.fail(403, "FORBIDDEN", "You cannot view this event's waitlist");
+  }
+  const entries = await prisma.waitlist.findMany({
+    where: { eventId },
+    orderBy: [{ ticketTypeId: "asc" }, { createdAt: "asc" }],
+    include: { ticketType: { select: { name: true } } },
+  });
+  return res.ok(entries);
+});
+
 // TIX-09: GET /api/events/:id/calendar.ics - a downloadable .ics for the event
 // (public; served for any non-DRAFT event). Add-to-calendar for confirmation /
 // event pages / receipt email.

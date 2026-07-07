@@ -756,6 +756,37 @@ export async function sendSalesDigest(fest, recipients, stats) {
   return results;
 }
 
+// ==================== PAY-08: waitlist claim ====================
+
+// Notify the oldest waiter that a seat opened up, with a time-boxed claim link.
+// Transactional (the buyer explicitly asked to be waitlisted), so no opt-out.
+export async function sendWaitlistClaim(waiter, event, ticketType, claimUrl) {
+  const to = waiter?.email;
+  if (!to) return { sent: false, reason: "no_email" };
+  const eventName = event?.name || "an event";
+  const typeName = ticketType?.name || "your ticket";
+  const expires = waiter?.claimExpiresAt
+    ? new Date(waiter.claimExpiresAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+    : "a short while";
+  const bodyHtml = `
+    <tr><td style="padding:0 0 16px;">Good news — a <strong>${escapeHtml(typeName)}</strong> ticket for <strong>${escapeHtml(eventName)}</strong> just opened up, and you're next on the waitlist.</td></tr>
+    <tr><td style="padding:0 0 16px;">Claim it before <strong>${escapeHtml(expires)}</strong> — after that it's offered to the next person in line.</td></tr>`;
+  const { html, text } = renderEmail({
+    preheader: `A ${typeName} for ${eventName} is available`,
+    heading: "Your waitlist spot is ready 🎟️",
+    bodyHtml,
+    cta: { label: "Claim your ticket", url: claimUrl },
+    footerNote: `This link expires soon and can only be used once.`,
+  });
+  return sendMail({
+    to,
+    subject: `A ticket opened up – ${eventName}`,
+    html,
+    text,
+    template: "waitlist_claim",
+  });
+}
+
 // Welcome email (sent after a user verifies / for auto-verified signups).
 export async function sendWelcomeEmail({ to, name }) {
   const { html, text } = renderEmail({

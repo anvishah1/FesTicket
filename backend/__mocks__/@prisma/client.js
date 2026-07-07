@@ -51,6 +51,7 @@ const MODEL_KEYS = [
   "attendeeAnswer",
   "reminderLog",
   "notification",
+  "waitlist",
 ];
 
 function makeModel() {

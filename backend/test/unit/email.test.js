@@ -27,6 +27,7 @@ import {
   sendEventReminder,
   sendNewSaleAlert,
   sendSalesDigest,
+  sendWaitlistClaim,
   htmlToText,
   renderEmail,
 } from "../../src/utils/email.js";
@@ -359,6 +360,26 @@ describe("organizer sales emails (NOTIF-05)", () => {
     expect(arg.html).toContain("42");
     expect(arg.html).toContain("₹5,000.00"); // 500000 paise
     expect(arg.html).toContain("8");
+  });
+});
+
+describe("sendWaitlistClaim (PAY-08)", () => {
+  it("emails the claim link with the event + ticket-type and skips with no email", async () => {
+    setSmtpConfigured();
+    const noEmail = await sendWaitlistClaim({}, { name: "Fest" }, { name: "GA" }, "http://x/claim/tok");
+    expect(noEmail).toEqual({ sent: false, reason: "no_email" });
+
+    const res = await sendWaitlistClaim(
+      { email: "w@x.com", claimExpiresAt: "2026-09-01T12:00:00Z" },
+      { name: "Autumn Fest" },
+      { name: "VIP" },
+      "http://x/waitlist/claim/tok123"
+    );
+    expect(res).toEqual({ sent: true });
+    const arg = sendMailMock.mock.calls[0][0];
+    expect(arg.subject).toContain("Autumn Fest");
+    expect(arg.html).toContain("VIP");
+    expect(arg.html).toContain("http://x/waitlist/claim/tok123");
   });
 });
 

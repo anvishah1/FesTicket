@@ -2187,3 +2187,62 @@ describe("GET /api/events/:id/calendar.ics", () => {
     expect(res.body.error.code).toBe("NO_DATE");
   });
 });
+
+// ==================== PAY-08: waitlist join + queue ====================
+describe("POST /api/events/:eventId/waitlist", () => {
+  it("adds a WAITING row for a sold-out ticket type", async () => {
+    prismaMock.ticketType.findUnique.mockResolvedValue({ id: 10, eventId: 5, quantity: 100, sold: 100 });
+    prismaMock.waitlist.findFirst.mockResolvedValue(null);
+    prismaMock.waitlist.create.mockResolvedValue({ id: 1, status: "WAITING" });
+    const res = await request(app)
+      .post("/api/events/5/waitlist")
+      .send({ ticketTypeId: 10, email: "W@X.com", name: "Wanda" });
+    expect(res.status).toBe(201);
+    expect(prismaMock.waitlist.create).toHaveBeenCalledWith({
+      data: { eventId: 5, ticketTypeId: 10, email: "w@x.com", name: "Wanda", userId: null },
+    });
+  });
+
+  it("rejects joining when tickets are actually available", async () => {
+    prismaMock.ticketType.findUnique.mockResolvedValue({ id: 10, eventId: 5, quantity: 100, sold: 40 });
+    const res = await request(app).post("/api/events/5/waitlist").send({ ticketTypeId: 10, email: "w@x.com" });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("TICKETS_AVAILABLE");
+    expect(prismaMock.waitlist.create).not.toHaveBeenCalled();
+  });
+
+  it("dedupes an existing WAITING row for the same email + ticket type", async () => {
+    prismaMock.ticketType.findUnique.mockResolvedValue({ id: 10, eventId: 5, quantity: 10, sold: 10 });
+    prismaMock.waitlist.findFirst.mockResolvedValue({ id: 9, status: "WAITING" });
+    const res = await request(app).post("/api/events/5/waitlist").send({ ticketTypeId: 10, email: "w@x.com" });
+    expect(res.status).toBe(200);
+    expect(prismaMock.waitlist.create).not.toHaveBeenCalled();
+  });
+
+  it("404 when the ticket type is not part of the event", async () => {
+    prismaMock.ticketType.findUnique.mockResolvedValue({ id: 10, eventId: 999, quantity: 1, sold: 1 });
+    const res = await request(app).post("/api/events/5/waitlist").send({ ticketTypeId: 10, email: "w@x.com" });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("GET /api/events/:eventId/waitlist", () => {
+  it("lets the event host view the queue", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 10, festId: 3 });
+    prismaMock.waitlist.findMany.mockResolvedValue([{ id: 1, email: "a@x.com", ticketType: { name: "GA" } }]);
+    const res = await request(app)
+      .get("/api/events/5/waitlist")
+      .set("Authorization", `Bearer ${signToken({ userId: 10, role: "HOST" })}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+  });
+
+  it("403 for a non-owner", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 999, festId: 3 });
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 111, editorFestId: null });
+    const res = await request(app)
+      .get("/api/events/5/waitlist")
+      .set("Authorization", `Bearer ${signToken({ userId: 10, role: "ADMIN" })}`);
+    expect(res.status).toBe(403);
+  });
+});

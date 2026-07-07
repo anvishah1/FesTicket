@@ -49,4 +49,31 @@ describe("TicketSelector", () => {
     await userEvent.type(input, "3");
     expect(onChange).toHaveBeenCalledWith(3);
   });
+
+  describe("sold-out waitlist (PAY-08)", () => {
+    const soldOut = { ...ticket, available: 0 };
+
+    it("shows 'Sold out' and hides the stepper when available is 0", () => {
+      render(<TicketSelector ticket={soldOut} value={0} onChange={() => {}} onJoinWaitlist={vi.fn()} />);
+      expect(screen.getByText("Sold out")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Increase General")).not.toBeInTheDocument();
+      expect(screen.getByTestId("join-waitlist")).toBeInTheDocument();
+    });
+
+    it("captures email and calls onJoinWaitlist, then shows a confirmation", async () => {
+      const onJoinWaitlist = vi.fn(async () => ({ ok: true, message: "You're on the waitlist" }));
+      render(<TicketSelector ticket={soldOut} value={0} onChange={() => {}} onJoinWaitlist={onJoinWaitlist} />);
+      await userEvent.click(screen.getByTestId("join-waitlist"));
+      await userEvent.type(screen.getByLabelText("Waitlist email"), "w@x.com");
+      await userEvent.click(screen.getByRole("button", { name: /join waitlist/i }));
+      expect(onJoinWaitlist).toHaveBeenCalledWith({ ticketTypeId: "1", email: "w@x.com", name: "" });
+      expect(await screen.findByTestId("waitlist-joined")).toHaveTextContent(/waitlist/i);
+    });
+
+    it("does not offer a waitlist when onJoinWaitlist is not provided", () => {
+      render(<TicketSelector ticket={soldOut} value={0} onChange={() => {}} />);
+      expect(screen.getByText("Sold out")).toBeInTheDocument();
+      expect(screen.queryByTestId("join-waitlist")).not.toBeInTheDocument();
+    });
+  });
 });

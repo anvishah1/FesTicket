@@ -15,6 +15,7 @@ import {
 } from "../utils/email.js";
 import { sendSms } from "../utils/sms.js";
 import { createNotification } from "../utils/notify.js";
+import { releaseToWaitlist } from "../utils/waitlist.js";
 import { authenticateUser, optionalAuthenticate, authorizeRoles } from "../middleware/authMiddleware.js";
 import { bookingLimiter, writeLimiter } from "../middleware/rateLimiter.js";
 import { validate } from "../middleware/validate.js";
@@ -1467,6 +1468,10 @@ router.put("/:id/cancel", authenticateUser, async (req, res) => {
         linkUrl: "/bookings",
       }).catch(() => {});
     }
+    // PAY-08: seats just freed — offer them to the oldest waiter per ticket type.
+    for (const item of existingBooking.items) {
+      releaseToWaitlist(item.ticketTypeId, req.log).catch(() => {});
+    }
   } catch (error) {
     req.log.error({ err: error }, "Error cancelling booking");
     // Map tagged business errors (e.g. the lost-race 409) to their status/code;
@@ -1581,6 +1586,14 @@ async function runRefund(booking, amountBody, reason, log) {
       include: { items: { include: { ticketType: true } }, payment: true, event: { select: { name: true } } },
     });
   });
+
+  // PAY-08: a FULL refund restored inventory — offer the freed seats to the
+  // oldest waiter per ticket type (after commit, non-blocking).
+  if (nowFull) {
+    for (const item of booking.items || []) {
+      releaseToWaitlist(item.ticketTypeId, log).catch(() => {});
+    }
+  }
 
   return { status: 200, body: { success: true, data: updated, message: nowFull ? "Booking fully refunded" : "Partial refund issued" } };
 }
@@ -2452,6 +2465,10 @@ export async function expireStalePendingBookings(olderThanMs = BOOKING_HOLD_MS) 
         body: `Your held tickets for ${b.event?.name || "an event"} were released.`,
         linkUrl: "/bookings",
       }).catch(() => {});
+    }
+    // PAY-08: released inventory -> notify the oldest waiter per ticket type.
+    for (const item of b.items) {
+      releaseToWaitlist(item.ticketTypeId, null).catch(() => {});
     }
   }
 

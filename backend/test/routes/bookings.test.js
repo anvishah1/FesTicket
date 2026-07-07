@@ -40,6 +40,7 @@ vi.mock("../../src/utils/email.js", () => ({
   sendEventReminder: vi.fn(async () => ({ sent: true })),
   sendNewSaleAlert: vi.fn(async () => [{ sent: true }]),
   sendSalesDigest: vi.fn(async () => [{ sent: true }]),
+  sendWaitlistClaim: vi.fn(async () => ({ sent: true })),
 }));
 
 // NOTIF-07: SMS is graceful/optional; keep it quiet in booking-flow tests.

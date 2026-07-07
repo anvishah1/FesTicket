@@ -168,6 +168,26 @@ export default function BookingPage() {
     });
   }
 
+  // PAY-08: join the waitlist for a sold-out ticket type (guest or logged-in).
+  async function joinWaitlist({ ticketTypeId, email, name }: { ticketTypeId: string; email: string; name: string }) {
+    try {
+      const res = await apiFetch(
+        `/api/events/${eventId}/waitlist`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticketTypeId: parseInt(ticketTypeId), email, name: name || undefined }),
+        },
+        { redirectOnAuthFailure: false }
+      );
+      const body = await res.json();
+      if (res.ok && body.success) return { ok: true, message: body.message };
+      return { ok: false, message: body.error?.message || "Could not join the waitlist" };
+    } catch {
+      return { ok: false, message: "Could not join the waitlist" };
+    }
+  }
+
   const subtotal = tickets.reduce(
     (sum, t) => sum + (quantities[t.id] ?? 0) * t.price,
     0
@@ -462,6 +482,7 @@ export default function BookingPage() {
                     ticket={t}
                     value={quantities[t.id] ?? 0}
                     onChange={(v) => setQuantity(t.id, v)}
+                    onJoinWaitlist={joinWaitlist}
                   />
                 ))}
               </div>

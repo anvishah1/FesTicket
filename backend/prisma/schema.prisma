@@ -203,8 +203,38 @@ model TicketType {
   event        Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
   bookingItems BookingItem[]
   attendees    Attendee[]
+  waitlist     Waitlist[]    // PAY-08
 
   @@index([eventId])
+}
+
+// PAY-08: per-ticket-type waitlist for sold-out types. On any inventory release
+// (cancel / sweep-expire / refund) the OLDEST WAITING waiter is NOTIFIED with a
+// time-boxed claim link (soft hold — they book normally within the window).
+enum WaitlistStatus {
+  WAITING
+  NOTIFIED
+  CLAIMED
+  EXPIRED
+  CANCELLED
+}
+
+model Waitlist {
+  id             Int            @id @default(autoincrement())
+  eventId        Int
+  ticketTypeId   Int
+  userId         Int?
+  email          String
+  name           String?
+  status         WaitlistStatus @default(WAITING)
+  claimToken     String?        @unique
+  claimExpiresAt DateTime?
+  notifiedAt     DateTime?
+  createdAt      DateTime       @default(now())
+
+  ticketType     TicketType     @relation(fields: [ticketTypeId], references: [id], onDelete: Cascade)
+
+  @@index([ticketTypeId, status, createdAt]) // oldest-WAITING-first selection
 }
 
 // ==================== BOOKINGS ====================

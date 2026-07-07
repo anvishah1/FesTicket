@@ -266,6 +266,26 @@ describe("AUTH-01 email verification", () => {
     expect(res.body.error.code).toBe("EMAIL_NOT_VERIFIED");
   });
 
+  it("a completed password reset verifies the email so signin is no longer gated (P2 fix)", async () => {
+    emailMock.mailConfigured.value = true;
+    prismaMock.user.findFirst.mockResolvedValue({ id: 9 }); // valid reset token
+    prismaMock.user.update.mockResolvedValue({});
+    prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
+
+    const res = await request(app)
+      .post("/api/auth/reset-password")
+      .send({ token: "good", newPassword: "NewPassword1!" });
+
+    expect(res.status).toBe(200);
+    // The reset marks the email verified so the AUTH-01 signin gate won't block it.
+    expect(prismaMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 9 },
+        data: expect.objectContaining({ emailVerified: true, emailVerifyToken: null }),
+      })
+    );
+  });
+
   it("resend-verification is enumeration-safe: same 200 for unknown, verified, and unverified", async () => {
     emailMock.mailConfigured.value = true;
     // Unknown email.
@@ -976,6 +996,10 @@ describe("POST /api/auth/reset-password", () => {
         password: "hashed-pw",
         resetPasswordToken: null,
         resetPasswordExpiry: null,
+        // A completed reset proves email control, so it verifies the email too
+        // (adversarial-review P2) — else the AUTH-01 signin gate would block it.
+        emailVerified: true,
+        emailVerifyToken: null,
         // AUTH-09: a completed reset also clears any active lockout.
         failedLoginAttempts: 0,
         lockUntil: null,

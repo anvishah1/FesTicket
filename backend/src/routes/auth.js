@@ -667,6 +667,12 @@ router.post("/reset-password", async (req, res) => {
         password: hashedPassword,
         resetPasswordToken: null,
         resetPasswordExpiry: null,
+        // A completed reset proves control of the mailbox (the link could only
+        // arrive there), exactly like clicking the verify link — so mark the email
+        // verified. Without this, the AUTH-01 signin gate would block an unverified
+        // user who successfully reset their password (adversarial-review P2).
+        emailVerified: true,
+        emailVerifyToken: null,
         // AUTH-09: a completed reset clears an active lock so recovery actually
         // unlocks the account (previously the lock outlived the reset).
         failedLoginAttempts: 0,

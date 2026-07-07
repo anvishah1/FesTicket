@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatCurrency, formatPaise, formatNumber } from "@/lib/format";
+import { formatCurrency, formatPaise, formatNumber, paiseToRupeeString } from "@/lib/format";
 
 describe("lib/format formatCurrency", () => {
   it("renders whole rupees with two decimals", () => {
@@ -51,6 +51,25 @@ describe("lib/format formatPaise", () => {
   it("uses Indian lakh grouping", () => {
     // 12,345,600 paise = ₹1,23,456.00
     expect(formatPaise(12345600)).toBe("₹1,23,456.00");
+  });
+});
+
+describe("lib/format paiseToRupeeString (CSV/export)", () => {
+  it("renders integer paise as a plain rupee decimal — no symbol, no grouping", () => {
+    expect(paiseToRupeeString(12036)).toBe("120.36");
+    // No thousands separators that would break a CSV column.
+    expect(paiseToRupeeString(12345600)).toBe("123456.00");
+  });
+
+  it("always keeps two decimals", () => {
+    expect(paiseToRupeeString(50000)).toBe("500.00");
+    expect(paiseToRupeeString(0)).toBe("0.00");
+  });
+
+  it("treats NaN / null / undefined as 0", () => {
+    expect(paiseToRupeeString(NaN)).toBe("0.00");
+    expect(paiseToRupeeString(undefined as unknown as number)).toBe("0.00");
+    expect(paiseToRupeeString(null as unknown as number)).toBe("0.00");
   });
 });
 

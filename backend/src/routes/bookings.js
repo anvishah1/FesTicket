@@ -158,6 +158,19 @@ async function releasePromoRedemption(tx, promoCodeId) {
   });
 }
 
+// PAY-02: restore held inventory + release the promo for a fully-refunded booking.
+// Called inside a $transaction ONLY by the caller that won the COMPLETED->REFUNDED
+// flip, so it runs exactly once even under concurrent refunds.
+async function restoreInventoryAndPromo(tx, booking) {
+  for (const item of booking.items) {
+    await tx.ticketType.updateMany({
+      where: { id: item.ticketTypeId, sold: { gte: item.quantity } },
+      data: { sold: { decrement: item.quantity } },
+    });
+  }
+  await releasePromoRedemption(tx, booking.promoCodeId);
+}
+
 // ==================== CREATE BOOKING ====================
 
 // POST /api/bookings - Create a new booking (buy tickets)
@@ -762,37 +775,38 @@ router.post("/:id/verify-payment", writeLimiter, optionalAuthenticate, async (re
       });
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.booking.update({
+    // Settle via the shared PENDING-guarded path so the browser verify-payment,
+    // the Razorpay webhook, and the reconciler are mutually idempotent: whoever
+    // flips PENDING->COMPLETED first wins and returns the booking; the losers get
+    // null and must NOT re-send the confirmation email (avoids double emails and
+    // re-flipping a concurrently cancelled/refunded booking).
+    const settled = await settleBookingAsPaid(bookingId, {
+      transactionId: razorpay_payment_id,
+      method: mapRazorpayMethod(paymentEntity.method),
+    });
+
+    if (!settled) {
+      const already = await prisma.booking.findUnique({
         where: { id: bookingId },
-        data: { status: "COMPLETED", purchaseDate: new Date() },
-      });
-      await tx.payment.updateMany({
-        where: { bookingId },
-        data: {
-          status: "SUCCESS",
-          transactionId: razorpay_payment_id,
-          paymentDate: new Date(),
-          method: mapRazorpayMethod(paymentEntity.method),
+        include: {
+          event: true,
+          items: { include: { ticketType: true } },
+          attendees: true,
+          user: { select: { email: true, name: true } },
         },
       });
-    });
+      return res.json({
+        success: true,
+        data: already,
+        message: "Payment already verified",
+      });
+    }
 
-    const updated = await prisma.booking.findUnique({
-      where: { id: bookingId },
-      include: {
-        event: true,
-        items: { include: { ticketType: true } },
-        attendees: true,
-        user: { select: { email: true, name: true } },
-      },
-    });
-
-    sendBookingConfirmation(updated).catch((e) => req.log.error({ err: e }, "[email] Booking confirmation failed"));
+    sendBookingConfirmation(settled).catch((e) => req.log.error({ err: e }, "[email] Booking confirmation failed"));
 
     res.json({
       success: true,
-      data: updated,
+      data: settled,
       message: "Payment verified and booking completed",
     });
   } catch (err) {
@@ -1228,6 +1242,24 @@ router.post("/:id/refund", writeLimiter, authenticateUser, async (req, res) => {
       });
     }
 
+    // Self-heal a booking whose refund ledger already reached the total but which
+    // was left COMPLETED — e.g. a finalize that threw AFTER the gateway refund
+    // succeeded. Finish the transition with NO new gateway call, restoring
+    // inventory + promo exactly once (guarded flip). This makes such a stuck
+    // booking recoverable by simply retrying the refund.
+    if ((booking.refundedAmount || 0) >= booking.total) {
+      const healed = await prisma.$transaction(async (tx) => {
+        const flip = await tx.booking.updateMany({ where: { id: bid, status: "COMPLETED" }, data: { status: "REFUNDED" } });
+        await tx.payment.updateMany({ where: { bookingId: bid }, data: { refundedAmount: booking.total, status: "REFUNDED" } });
+        if (flip.count === 1) await restoreInventoryAndPromo(tx, booking);
+        return tx.booking.findUnique({
+          where: { id: bid },
+          include: { items: { include: { ticketType: true } }, payment: true, event: { select: { name: true } } },
+        });
+      });
+      return res.json({ success: true, data: healed, message: "Booking fully refunded" });
+    }
+
     const alreadyRefunded = booking.refundedAmount || 0;
     const remaining = booking.total - alreadyRefunded; // paise
     const amount = amountBody == null ? remaining : Math.round(Number(amountBody)); // paise
@@ -1237,15 +1269,25 @@ router.post("/:id/refund", writeLimiter, authenticateUser, async (req, res) => {
     if (amount > remaining) {
       return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Refund amount exceeds the refundable balance" } });
     }
-    const isFull = amount === remaining;
 
-    // Atomically RESERVE the refund before calling the gateway: the guard means a
-    // concurrent refund cannot push cumulative refundedAmount over the total (and
-    // the booking must still be COMPLETED). If it fails, someone else got there.
-    const claim = await prisma.booking.updateMany({
-      where: { id: bid, status: "COMPLETED", refundedAmount: { lte: booking.total - amount } },
+    // Atomically RESERVE the refund before calling the gateway, and determine
+    // fullness FROM THE GUARD rather than the stale pre-read (so two concurrent
+    // partials that together reach the total can't both think they're partial and
+    // leave the booking stuck COMPLETED). First try to claim the FULL transition —
+    // this amount brings the ledger exactly to total — then fall back to a strictly
+    // partial claim. Whoever wins the full claim is the unique finalizer.
+    let nowFull = true;
+    let claim = await prisma.booking.updateMany({
+      where: { id: bid, status: "COMPLETED", refundedAmount: booking.total - amount },
       data: { refundedAmount: { increment: amount }, refundReason: reason || undefined },
     });
+    if (claim.count === 0) {
+      nowFull = false;
+      claim = await prisma.booking.updateMany({
+        where: { id: bid, status: "COMPLETED", refundedAmount: { lt: booking.total - amount } },
+        data: { refundedAmount: { increment: amount }, refundReason: reason || undefined },
+      });
+    }
     if (claim.count === 0) {
       return res.status(409).json({
         success: false,
@@ -1270,25 +1312,21 @@ router.post("/:id/refund", writeLimiter, authenticateUser, async (req, res) => {
 
     // Finalize: payment accounting + statuses; a FULL refund flips the booking to
     // REFUNDED and restores inventory (floored). A partial refund keeps it
-    // COMPLETED and does NOT restore inventory.
+    // COMPLETED and does NOT restore inventory. The two-attempt reservation above
+    // guarantees exactly one caller reaches nowFull, so the flip/restore is
+    // performed once.
     const updated = await prisma.$transaction(async (tx) => {
       await tx.payment.updateMany({
         where: { bookingId: bid },
         data: {
           refundedAmount: { increment: amount },
           refundId,
-          ...(isFull ? { status: "REFUNDED" } : {}),
+          ...(nowFull ? { status: "REFUNDED" } : {}),
         },
       });
-      if (isFull) {
+      if (nowFull) {
         await tx.booking.update({ where: { id: bid }, data: { status: "REFUNDED" } });
-        for (const item of booking.items) {
-          await tx.ticketType.updateMany({
-            where: { id: item.ticketTypeId, sold: { gte: item.quantity } },
-            data: { sold: { decrement: item.quantity } },
-          });
-        }
-        await releasePromoRedemption(tx, booking.promoCodeId); // PAY-04
+        await restoreInventoryAndPromo(tx, booking); // PAY-04 + inventory
       }
       return tx.booking.findUnique({
         where: { id: bid },
@@ -1299,10 +1337,10 @@ router.post("/:id/refund", writeLimiter, authenticateUser, async (req, res) => {
     return res.json({
       success: true,
       data: updated,
-      message: isFull ? "Booking fully refunded" : "Partial refund issued",
+      message: nowFull ? "Booking fully refunded" : "Partial refund issued",
     });
   } catch (error) {
-    req.log.error({ err: error }, "Refund error");
+    req.log.error({ err: error, bookingId: bid }, "Refund error");
     return res.status(500).json({ success: false, error: { code: "REFUND_ERROR", message: "Failed to process refund" } });
   }
 });
@@ -1507,8 +1545,14 @@ router.get("/fest/:festId", authenticateUser, async (req, res) => {
       totalBookings += count;
       totalRevenue += revenue;
       totalTickets += tickets;
+      // Accumulate into the name bucket rather than overwriting — two distinct
+      // events in the same fest may share a name, and the per-event summary must
+      // sum them (matching the pre-ARCH-07 behaviour) instead of dropping one.
       const name = nameById[g.eventId] ?? `Event ${g.eventId}`;
-      eventSummary[name] = { tickets, revenue };
+      const bucket = eventSummary[name] || { tickets: 0, revenue: 0 };
+      bucket.tickets += tickets;
+      bucket.revenue += revenue;
+      eventSummary[name] = bucket;
     }
 
     // Recent-bookings preview: the N most-recent completed, no full-graph load.
@@ -1690,7 +1734,13 @@ export async function razorpayWebhookHandler(req, res) {
         }
       }
     } else if (event.event === "payment.failed" && entity?.order_id) {
-      await prisma.payment.updateMany({ where: { orderId: entity.order_id }, data: { status: "FAILED" } });
+      // Guard on status PENDING so an out-of-order failed webhook (a declined
+      // attempt whose retry already succeeded) can't clobber a SUCCESS payment on
+      // an already-COMPLETED booking. Only a still-pending payment is marked FAILED.
+      await prisma.payment.updateMany({
+        where: { orderId: entity.order_id, status: "PENDING" },
+        data: { status: "FAILED" },
+      });
     }
     // Unknown event types are accepted (200) so Razorpay stops retrying them.
 
@@ -1713,10 +1763,11 @@ export async function reconcileStalePaidOrders(olderThanMs = 30 * 60 * 1000, lim
   const cutoff = new Date(Date.now() - olderThanMs);
   const stale = await prisma.booking.findMany({
     where: { status: "PENDING", createdAt: { lt: cutoff }, payment: { orderId: { not: null } } },
-    include: { payment: true },
+    include: { payment: true, items: true },
     take: limit,
   });
   let settled = 0;
+  let released = 0;
   for (const b of stale) {
     try {
       const orderId = b.payment?.orderId;
@@ -1732,12 +1783,35 @@ export async function reconcileStalePaidOrders(olderThanMs = 30 * 60 * 1000, lim
           settled += 1;
           sendBookingConfirmation(updated).catch(() => {});
         }
+      } else {
+        // No captured payment after the window: the order was abandoned or every
+        // attempt failed. The normal sweep deliberately skips orderId-set bookings,
+        // so RELEASE the hold here (Razorpay is authoritative that nothing was
+        // captured) — cancel the booking and restore inventory + promo, else its
+        // seats and a capped promo code leak forever. The guarded flip means a
+        // late capture that settled it concurrently (count 0) is left untouched.
+        const didRelease = await prisma.$transaction(async (tx) => {
+          const flip = await tx.booking.updateMany({
+            where: { id: b.id, status: "PENDING" },
+            data: { status: "CANCELLED" },
+          });
+          if (flip.count === 0) return false;
+          for (const item of b.items) {
+            await tx.ticketType.updateMany({
+              where: { id: item.ticketTypeId, sold: { gte: item.quantity } },
+              data: { sold: { decrement: item.quantity } },
+            });
+          }
+          await releasePromoRedemption(tx, b.promoCodeId);
+          return true;
+        });
+        if (didRelease) released += 1;
       }
     } catch {
       /* skip this one; retried next pass */
     }
   }
-  return { settled, checked: stale.length };
+  return { settled, released, checked: stale.length };
 }
 
 export default router;

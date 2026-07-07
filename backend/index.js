@@ -271,8 +271,8 @@ async function runStaleSweepTick() {
     logger.info({ job: "stale-sweep", expired, durationMs, skipped: false }, "stale-sweep");
     // PAY-01: recover any stuck orderId-set bookings whose capture the webhook
     // missed (best-effort; no-op when Razorpay is unconfigured).
-    const { settled, checked } = await reconcileStalePaidOrders();
-    if (checked) logger.info({ job: "reconcile-orders", settled, checked }, "reconcile-orders");
+    const { settled, released, checked } = await reconcileStalePaidOrders();
+    if (checked) logger.info({ job: "reconcile-orders", settled, released, checked }, "reconcile-orders");
   });
 }
 

@@ -394,7 +394,13 @@ const promoNum = (v) => (v == null || v === "" ? null : Math.round(Number(v)));
 async function callerCanManagePromo(req, { eventId, festId }) {
   if (eventId != null) {
     const ev = await prisma.event.findUnique({ where: { id: parseInt(eventId) }, select: { hostId: true, festId: true } });
-    return ev ? callerCanManageEvent(ev, req) : false;
+    if (!ev) return false;
+    // A supplied festId MUST match the event's own fest. Otherwise an event's host
+    // could authorize a code carrying a foreign festId (which the booking-time
+    // lookup treats as fest-wide) and inject discounts across a fest they do not
+    // manage — a cross-tenant leak. The scope is the event's fest, never a sibling.
+    if (festId != null && parseInt(festId) !== ev.festId) return false;
+    return callerCanManageEvent(ev, req);
   }
   if (festId != null) return canAccessFest(parseInt(festId), await callerFests(req));
   return false;
@@ -422,7 +428,15 @@ router.post("/promo-codes", authenticateUser, authorizeRoles("EDITOR", "HOST", "
   try {
     const b = req.body || {};
     const eventId = b.eventId != null ? parseInt(b.eventId) : null;
-    const festId = b.festId != null ? parseInt(b.festId) : null;
+    // A promo is scoped to a single event OR a whole fest, never both. When an
+    // event is given it wins and we NEVER persist a caller-supplied festId — an
+    // event-scoped row with a foreign festId would match every booking in that
+    // fest (bookings.js OR:[{eventId},{festId}]), letting a host discount a fest
+    // they don't manage. A fest-scoped code is created by omitting eventId.
+    const festId = eventId != null ? null : b.festId != null ? parseInt(b.festId) : null;
+    if (eventId == null && festId == null) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Provide an eventId or a festId to scope the code" } });
+    }
     if (!(await callerCanManagePromo(req, { eventId, festId }))) return forbid(res);
     const code = String(b.code || "").trim();
     if (!code) return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Code is required" } });

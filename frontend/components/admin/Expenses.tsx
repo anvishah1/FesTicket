@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getApiUrl, apiFetch } from "@/lib/auth";
 import { downloadMarketingFile } from "@/lib/files";
-import { formatPaise } from "@/lib/format";
+import { formatPaise, paiseToRupeeString } from "@/lib/format";
 
 interface UploadedFile {
   name: string;
@@ -173,7 +173,7 @@ export default function Expenses({ festId }: ExpensesProps) {
       "Description",
       "Category",
       "Vendor",
-      "Amount",
+      "Amount (₹)",
       "Payment Date",
       "Payment Method",
       "Notes",
@@ -184,7 +184,8 @@ export default function Expenses({ festId }: ExpensesProps) {
       e.description,
       e.category,
       e.vendor,
-      e.amount,
+      // amount is integer paise (PAY-03) — export rupees, else the CSV is 100× too big.
+      paiseToRupeeString(e.amount),
       e.paymentDate,
       e.paymentMethod,
       e.notes,

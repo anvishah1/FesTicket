@@ -8,7 +8,7 @@ import { useParams, useRouter } from "next/navigation";
 import Footer from "@/components/Footer";
 import { getApiUrl, getStoredUser, apiFetch } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
-import { formatPaise } from "@/lib/format";
+import { formatPaise, paiseToRupeeString } from "@/lib/format";
 
 interface TicketType {
   id: number;
@@ -619,7 +619,9 @@ export default function ManageEventPage() {
       b.phone || "",
       b.ticketType,
       String(b.quantity),
-      String(b.amountPaid),
+      // amountPaid is integer paise (PAY-03) — export rupees to match the (₹)
+      // header, else the CSV overstates every amount 100×.
+      paiseToRupeeString(b.amountPaid),
       b.purchaseDate,
     ]);
     // Build a CSV (Excel opens it natively) via a Blob download — no heavy xlsx

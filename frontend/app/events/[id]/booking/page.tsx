@@ -169,7 +169,12 @@ export default function BookingPage() {
   // discount. The backend applies the same order, so the total stays byte-for-byte
   // identical to what it stores and charges.
   const promoDiscount = appliedPromo?.promoDiscount ?? 0; // paise
-  const discountedBase = subtotal - discountAmount - promoDiscount; // paise (integers)
+  // Mirror the backend clamp (bookings.js: promoDiscount = max(0, min(raw,
+  // subtotal - eventDiscount))): a promo can never reduce the base below 0. Without
+  // this, a stacked event discount + a large promo would preview a NEGATIVE total
+  // that disagrees with what the server actually stores/charges.
+  const effectivePromoDiscount = Math.max(0, Math.min(promoDiscount, subtotal - discountAmount)); // paise
+  const discountedBase = subtotal - discountAmount - effectivePromoDiscount; // paise (integers)
   const platformFee = Math.round(discountedBase * 0.02); // paise
   const tax = Math.round((discountedBase + platformFee) * 0.18); // paise
   const total = discountedBase + platformFee + tax; // paise (exact)
@@ -599,7 +604,7 @@ export default function BookingPage() {
                 {appliedPromo && (
                   <div className="flex justify-between text-sm text-green-700">
                     <div>Promo ({appliedPromo.code})</div>
-                    <div>-{formatPaise(promoDiscount)}</div>
+                    <div>-{formatPaise(effectivePromoDiscount)}</div>
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
@@ -638,7 +643,7 @@ export default function BookingPage() {
               >
                 <div>
                   Promo ({appliedPromo.code}){" "}
-                  <span className="font-medium">−{formatPaise(appliedPromo.promoDiscount)}</span>
+                  <span className="font-medium">−{formatPaise(effectivePromoDiscount)}</span>
                 </div>
                 <button
                   type="button"

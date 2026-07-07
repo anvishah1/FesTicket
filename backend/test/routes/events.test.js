@@ -2006,6 +2006,42 @@ describe("promo codes CRUD", () => {
     expect(prismaMock.promoCode.create).not.toHaveBeenCalled();
   });
 
+  // Cross-tenant promo injection (adversarial-review P1): an event host must not
+  // be able to plant a fest-wide code scoped to a fest they do not manage by
+  // passing a foreign festId alongside their own eventId.
+  it("never persists a foreign festId on an event-scoped code", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 10, festId: 3 });
+    prismaMock.promoCode.create.mockResolvedValue({ id: 2 });
+    const res = await request(app)
+      .post("/api/events/promo-codes")
+      .set(...hostAuth)
+      .send({ eventId: 5, festId: 999, code: "HACK", kind: "PERCENT", percentOff: 100 });
+    expect(res.status).toBe(201);
+    // festId is forced null (event scope) — the foreign fest is NOT stored.
+    expect(prismaMock.promoCode.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ eventId: 5, festId: null }) })
+    );
+  });
+
+  it("403 when creating a fest-scoped code for a fest the caller does not manage", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 3, editorFestId: null });
+    const res = await request(app)
+      .post("/api/events/promo-codes")
+      .set(...hostAuth)
+      .send({ festId: 999, code: "X", kind: "FLAT", flatOffPaise: 5000 });
+    expect(res.status).toBe(403);
+    expect(prismaMock.promoCode.create).not.toHaveBeenCalled();
+  });
+
+  it("400 when neither eventId nor festId is provided", async () => {
+    const res = await request(app)
+      .post("/api/events/promo-codes")
+      .set(...hostAuth)
+      .send({ code: "X", kind: "FLAT", flatOffPaise: 5000 });
+    expect(res.status).toBe(400);
+    expect(prismaMock.promoCode.create).not.toHaveBeenCalled();
+  });
+
   it("lists codes for a managed event", async () => {
     prismaMock.event.findUnique.mockResolvedValue({ hostId: 10, festId: 3 });
     prismaMock.promoCode.findMany.mockResolvedValue([{ id: 1, code: "SAVE10" }]);

@@ -2,10 +2,10 @@
 //
 // FE-13: central currency & locale number formatting.
 //
-// Money is stored as a Float server-side, so a raw amount can carry float
-// artifacts (e.g. 118.00000001). Round to 2 decimals (paise) BEFORE formatting
-// so those artifacts never reach the UI. All amounts render with Indian digit
-// grouping via Intl (e.g. ₹1,23,456.00).
+// Money is stored as INTEGER PAISE server-side (PAY-03) and the API returns paise
+// everywhere. formatPaise() is the canonical renderer (divides by 100). All
+// amounts render with Indian digit grouping via Intl (e.g. ₹1,23,456.00).
+// formatCurrency() remains for the few places that already hold a rupee value.
 
 /**
  * Format a money amount as a localized currency string (default INR, en-IN).
@@ -35,6 +35,17 @@ export function formatPaise(paise: number, currency: string = "INR"): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(safe / 100);
+}
+
+/**
+ * Format INTEGER PAISE as a plain rupee decimal string — NO currency symbol and
+ * NO digit grouping (e.g. 12036 -> "120.36"). For CSV / spreadsheet export cells,
+ * where the ₹ symbol and thousands separators would corrupt the numeric column.
+ * NaN / null / undefined are treated as 0.
+ */
+export function paiseToRupeeString(paise: number): string {
+  const safe = Number.isFinite(paise) ? paise : 0;
+  return (safe / 100).toFixed(2);
 }
 
 /**

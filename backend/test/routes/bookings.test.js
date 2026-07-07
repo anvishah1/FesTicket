@@ -8,6 +8,7 @@ import { signToken } from "../helpers/auth.js";
 import requestLogger from "../../src/middleware/requestLogger.js";
 import router, {
   expireStalePendingBookings,
+  reconcileStalePaidOrders,
   BOOKING_HOLD_MS,
   razorpayWebhookHandler,
 } from "../../src/routes/bookings.js";
@@ -958,7 +959,8 @@ describe("POST /api/bookings/:id/verify-payment", () => {
     prismaMock.booking.findUnique
       .mockResolvedValueOnce({ id: 5, status: "PENDING", total: 10000, bookingCode: "BK5", payment: { orderId: "order_1" }, items: [], attendees: [], event: {} })
       .mockResolvedValueOnce(updated);
-    prismaMock.booking.update.mockResolvedValue({});
+    // settleBookingAsPaid: PENDING-guarded flip wins.
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 });
     prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
 
     const res = await request(app)
@@ -970,9 +972,11 @@ describe("POST /api/bookings/:id/verify-payment", () => {
     expect(res.body.message).toBe("Payment verified and booking completed");
     expect(res.body.data.status).toBe("COMPLETED");
 
-    expect(prismaMock.booking.update).toHaveBeenCalledWith(
+    // Settlement goes through the PENDING-guarded updateMany (idempotent), not a
+    // bare update, so a racing webhook/reconcile cannot double-settle.
+    expect(prismaMock.booking.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 5 },
+        where: { id: 5, status: "PENDING" },
         data: expect.objectContaining({ status: "COMPLETED" }),
       })
     );
@@ -987,6 +991,27 @@ describe("POST /api/bookings/:id/verify-payment", () => {
       })
     );
     expect(sendBookingConfirmation).toHaveBeenCalledWith(updated);
+  });
+
+  // Adversarial-review P2: if a concurrent settler (webhook/reconcile) already
+  // completed the booking, the PENDING-guarded flip returns null and we must NOT
+  // re-send the confirmation email.
+  it("is idempotent when the booking was already settled concurrently (no double email)", async () => {
+    enableRazorpay();
+    rzp.payments.fetch.mockResolvedValue({ order_id: "order_1", status: "captured", method: "upi", amount: 10000 });
+    prismaMock.booking.findUnique
+      .mockResolvedValueOnce({ id: 5, status: "PENDING", total: 10000, bookingCode: "BK5", payment: { orderId: "order_1" }, items: [], attendees: [], event: {} })
+      .mockResolvedValueOnce({ id: 5, status: "COMPLETED", items: [], attendees: [], event: {}, user: {} });
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 0 }); // nothing left to flip
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(app)
+      .post("/api/bookings/5/verify-payment")
+      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1", bookingCode: "BK5" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/already verified/i);
+    expect(sendBookingConfirmation).not.toHaveBeenCalled();
   });
 
   it("rejects a captured payment whose order is not the one created for this booking (replay)", async () => {
@@ -1809,6 +1834,38 @@ describe("GET /api/bookings/fest/:festId", () => {
     expect(d.recentBookings[1]).toMatchObject({ buyerName: "Bob", buyerEmail: "bob@x.com" });
   });
 
+  // Adversarial-review P3: two distinct events sharing a name must be SUMMED in the
+  // per-event breakdown, not overwritten (which would drop one and disagree with
+  // the fest totals).
+  it("accumulates per-event summary rows that share an event name", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 9, editorFestId: null });
+    prismaMock.event.findMany.mockResolvedValue([
+      { id: 1, name: "Concert" },
+      { id: 2, name: "Concert" },
+    ]);
+    prismaMock.booking.groupBy.mockResolvedValue([
+      { eventId: 1, _count: { _all: 1 }, _sum: { total: 1000 } },
+      { eventId: 2, _count: { _all: 2 }, _sum: { total: 2000 } },
+    ]);
+    prismaMock.$queryRawUnsafe.mockResolvedValue([
+      { eventId: 1, tickets: 3 },
+      { eventId: 2, tickets: 2 },
+    ]);
+    prismaMock.booking.findMany.mockResolvedValue([]);
+
+    const res = await request(app)
+      .get("/api/bookings/fest/9")
+      .set("Authorization", auth({ userId: 1, role: "ADMIN" }));
+
+    expect(res.status).toBe(200);
+    const d = res.body.data;
+    expect(d.totalBookings).toBe(3);
+    expect(d.totalRevenue).toBe(3000);
+    expect(d.totalTickets).toBe(5);
+    // Both "Concert" events merged, not overwritten.
+    expect(d.eventSummary).toEqual({ Concert: { tickets: 5, revenue: 3000 } });
+  });
+
   it("returns zeroed aggregates when the fest has no completed bookings", async () => {
     prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 9, editorFestId: null });
     prismaMock.event.findMany.mockResolvedValue([]);
@@ -1931,6 +1988,72 @@ describe("expireStalePendingBookings", () => {
   });
 });
 
+// ==================== reconcileStalePaidOrders (PAY-01) ====================
+
+describe("reconcileStalePaidOrders", () => {
+  it("no-ops when Razorpay is not configured", async () => {
+    const result = await reconcileStalePaidOrders();
+    expect(result).toEqual({ settled: 0, checked: 0 });
+    expect(prismaMock.booking.findMany).not.toHaveBeenCalled();
+  });
+
+  it("settles a stale order Razorpay reports as captured", async () => {
+    enableRazorpay();
+    prismaMock.booking.findMany.mockResolvedValue([
+      { id: 7, total: 12036, promoCodeId: null, payment: { orderId: "order_7" }, items: [{ ticketTypeId: 10, quantity: 1 }] },
+    ]);
+    rzp.orders.fetchPayments.mockResolvedValue({ items: [{ id: "pay_c", status: "captured", amount: 12036, method: "upi" }] });
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.booking.findUnique.mockResolvedValue({ id: 7, items: [], event: {}, attendees: [], user: {} });
+
+    const result = await reconcileStalePaidOrders();
+    expect(result.settled).toBe(1);
+    expect(result.released).toBe(0);
+  });
+
+  // Adversarial-review P2: an abandoned/failed orderId booking (which the normal
+  // sweep skips) must be released here, or its inventory + capped promo leak.
+  it("releases inventory + promo for a stale order with NO capture", async () => {
+    enableRazorpay();
+    prismaMock.booking.findMany.mockResolvedValue([
+      { id: 8, total: 12036, promoCodeId: 99, payment: { orderId: "order_8" }, items: [{ ticketTypeId: 10, quantity: 2 }] },
+    ]);
+    rzp.orders.fetchPayments.mockResolvedValue({ items: [{ id: "pay_f", status: "failed", amount: 12036 }] });
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 }); // cancel flip wins
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.promoCode.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await reconcileStalePaidOrders();
+    expect(result.settled).toBe(0);
+    expect(result.released).toBe(1);
+    expect(prismaMock.booking.updateMany).toHaveBeenCalledWith({
+      where: { id: 8, status: "PENDING" },
+      data: { status: "CANCELLED" },
+    });
+    expect(prismaMock.ticketType.updateMany).toHaveBeenCalledWith({
+      where: { id: 10, sold: { gte: 2 } },
+      data: { sold: { decrement: 2 } },
+    });
+    expect(prismaMock.promoCode.updateMany).toHaveBeenCalledWith({
+      where: { id: 99, redeemedCount: { gt: 0 } },
+      data: { redeemedCount: { decrement: 1 } },
+    });
+  });
+
+  it("does not restore inventory when the cancel flip loses the race", async () => {
+    enableRazorpay();
+    prismaMock.booking.findMany.mockResolvedValue([
+      { id: 9, total: 100, promoCodeId: null, payment: { orderId: "order_9" }, items: [{ ticketTypeId: 1, quantity: 1 }] },
+    ]);
+    rzp.orders.fetchPayments.mockResolvedValue({ items: [] });
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 0 }); // concurrently settled
+    const result = await reconcileStalePaidOrders();
+    expect(result.released).toBe(0);
+    expect(prismaMock.ticketType.updateMany).not.toHaveBeenCalled();
+  });
+});
+
 // ==================== POST /admin/sweep-stale (ARCH-05) ====================
 describe("POST /api/bookings/admin/sweep-stale", () => {
   it("returns 401 without a token", async () => {
@@ -2040,7 +2163,7 @@ describe("POST /api/bookings/webhook/razorpay", () => {
     expect(prismaMock.booking.updateMany).not.toHaveBeenCalled();
   });
 
-  it("marks the payment FAILED on payment.failed", async () => {
+  it("marks the payment FAILED on payment.failed, but only while still PENDING", async () => {
     enableWebhook();
     prismaMock.webhookEvent.create.mockResolvedValue({ id: 2 });
     prismaMock.webhookEvent.updateMany.mockResolvedValue({ count: 1 });
@@ -2048,7 +2171,12 @@ describe("POST /api/bookings/webhook/razorpay", () => {
     const body = { event: "payment.failed", payload: { payment: { entity: { id: "pay_x", order_id: "order_9" } } } };
     const res = await post(body, { eventId: "evt_failed" });
     expect(res.status).toBe(200);
-    expect(prismaMock.payment.updateMany).toHaveBeenCalledWith({ where: { orderId: "order_9" }, data: { status: "FAILED" } });
+    // Status-guarded so an out-of-order failed webhook can't clobber a SUCCESS
+    // payment on an already-completed booking.
+    expect(prismaMock.payment.updateMany).toHaveBeenCalledWith({
+      where: { orderId: "order_9", status: "PENDING" },
+      data: { status: "FAILED" },
+    });
   });
 });
 
@@ -2128,7 +2256,11 @@ describe("POST /api/bookings/:id/refund", () => {
     prismaMock.booking.findUnique
       .mockResolvedValueOnce(completed())
       .mockResolvedValueOnce({ id: 5, status: "COMPLETED", refundedAmount: 5000 });
-    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 });
+    // Two-attempt reservation: the full claim misses (does not reach total), the
+    // strictly-partial claim wins.
+    prismaMock.booking.updateMany
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 1 });
     prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
 
     const res = await request(app)
@@ -2140,6 +2272,53 @@ describe("POST /api/bookings/:id/refund", () => {
     expect(res.body.message).toMatch(/partial/i);
     expect(prismaMock.booking.update).not.toHaveBeenCalled();
     expect(prismaMock.ticketType.updateMany).not.toHaveBeenCalled();
+  });
+
+  // Adversarial-review P2: a partial refund that brings the ledger exactly to the
+  // total wins the FULL claim and finalizes (REFUNDED + inventory restored),
+  // instead of leaving the booking stuck COMPLETED.
+  it("a partial that reaches the total finalizes as a full refund", async () => {
+    prismaMock.booking.findUnique
+      .mockResolvedValueOnce(completed({ refundedAmount: 7036 })) // remaining 5000
+      .mockResolvedValueOnce({ id: 5, status: "REFUNDED", refundedAmount: 12036 });
+    // The FIRST (full) claim wins because 7036 + 5000 === total.
+    prismaMock.booking.updateMany.mockResolvedValueOnce({ count: 1 });
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.booking.update.mockResolvedValue({});
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(app)
+      .post("/api/bookings/5/refund")
+      .set("Authorization", auth({ userId: 7, role: "HOST" }))
+      .send({ amount: 5000 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/fully refunded/i);
+    expect(prismaMock.booking.update).toHaveBeenCalledWith({ where: { id: 5 }, data: { status: "REFUNDED" } });
+    expect(prismaMock.ticketType.updateMany).toHaveBeenCalled();
+  });
+
+  // Adversarial-review P3: a booking whose ledger already equals the total but was
+  // left COMPLETED (finalize threw after the gateway refund) self-heals on retry —
+  // no new gateway call, inventory + promo restored via the guarded flip.
+  it("self-heals a stuck fully-refunded booking on retry (no gateway call)", async () => {
+    enableRazorpay();
+    prismaMock.booking.findUnique
+      .mockResolvedValueOnce(completed({ refundedAmount: 12036 }))
+      .mockResolvedValueOnce({ id: 5, status: "REFUNDED", refundedAmount: 12036 });
+    prismaMock.booking.updateMany.mockResolvedValue({ count: 1 }); // wins the flip
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(app)
+      .post("/api/bookings/5/refund")
+      .set("Authorization", auth({ userId: 7, role: "HOST" }))
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/fully refunded/i);
+    expect(rzp.payments.refund).not.toHaveBeenCalled();
+    expect(prismaMock.ticketType.updateMany).toHaveBeenCalled();
   });
 
   it("issues a real Razorpay refund (amount in paise) when configured", async () => {

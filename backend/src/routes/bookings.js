@@ -1467,6 +1467,76 @@ router.get("/:id/invoice", optionalAuthenticate, async (req, res) => {
   }
 });
 
+// ==================== TIX-03: DOOR CHECK-IN ====================
+
+// POST /api/bookings/checkin - admit an attendee by their ticketCode. Auth: the
+// event's host, or an ADMIN/EDITOR/HOST scoped to the event's fest. First scan
+// admits atomically (checkedInAt:null guard); re-scans return ALREADY; unknown or
+// non-COMPLETED tickets return INVALID.
+router.post("/checkin", writeLimiter, authenticateUser, async (req, res) => {
+  try {
+    const code = String(req.body?.code || "").trim();
+    if (!code) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "A ticket code is required" } });
+    }
+
+    const attendee = await prisma.attendee.findUnique({
+      where: { ticketCode: code },
+      include: {
+        ticketType: { select: { name: true } },
+        booking: { select: { status: true, bookingCode: true, event: { select: { id: true, name: true, hostId: true, festId: true } } } },
+      },
+    });
+    if (!attendee) {
+      return res.status(404).json({ success: false, data: { status: "INVALID" }, error: { code: "NOT_FOUND", message: "Ticket not found" } });
+    }
+
+    const event = attendee.booking?.event;
+    // Fest-scoped authorization: the event's host, or an ADMIN/EDITOR/HOST of its fest.
+    let allowed = event?.hostId != null && event.hostId === req.user.userId;
+    if (!allowed) {
+      const { managedFestId, editorFestId } = await callerFests(req);
+      allowed = event?.festId != null && (event.festId === managedFestId || event.festId === editorFestId);
+    }
+    if (!allowed) return forbid(res, "You cannot check in tickets for this event");
+
+    // Only a paid (COMPLETED) ticket is valid at the door — a PENDING/CANCELLED/
+    // REFUNDED booking's attendee must not be admitted.
+    if (attendee.booking?.status !== "COMPLETED") {
+      return res.json({
+        success: true,
+        data: { status: "INVALID", reason: "Ticket is not valid (booking not completed)", attendee: { id: attendee.id, name: attendee.name } },
+      });
+    }
+
+    // Atomic first-scan-admits. The checkedInAt:null guard means a concurrent
+    // double-scan can only have ONE updateMany win (count === 1).
+    const claim = await prisma.attendee.updateMany({
+      where: { id: attendee.id, checkedInAt: null },
+      data: { checkedInAt: new Date(), checkedInById: req.user.userId },
+    });
+
+    const publicAttendee = { id: attendee.id, name: attendee.name, email: attendee.email, ticketType: attendee.ticketType?.name };
+
+    if (claim.count === 1) {
+      return res.json({
+        success: true,
+        data: { status: "ADMITTED", attendee: publicAttendee, event: { id: event.id, name: event.name } },
+      });
+    }
+
+    // Already admitted — surface the original time (never overwritten).
+    const prior = await prisma.attendee.findUnique({ where: { id: attendee.id }, select: { checkedInAt: true } });
+    return res.json({
+      success: true,
+      data: { status: "ALREADY", checkedInAt: prior?.checkedInAt, attendee: publicAttendee, event: { id: event.id, name: event.name } },
+    });
+  } catch (error) {
+    req.log.error({ err: error }, "Check-in error");
+    return res.status(500).json({ success: false, error: { code: "CHECKIN_ERROR", message: "Failed to check in" } });
+  }
+});
+
 // ==================== HOST DASHBOARD - EVENT BOOKINGS ====================
 
 // GET /api/bookings/event/:eventId - Get all bookings for an event (for host dashboard).

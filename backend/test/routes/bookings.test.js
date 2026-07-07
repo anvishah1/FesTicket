@@ -2521,6 +2521,74 @@ describe("GET /api/bookings/:id/invoice", () => {
   });
 });
 
+// ==================== TIX-03: door check-in ====================
+describe("POST /api/bookings/checkin", () => {
+  const att = (over = {}) => ({
+    id: 1, name: "Alice", email: "a@x.com", ticketType: { name: "GA" },
+    booking: { status: "COMPLETED", bookingCode: "BK1", event: { id: 5, name: "E", hostId: 7, festId: 3 } },
+    ...over,
+  });
+  const asHost = auth({ userId: 7, role: "HOST" });
+
+  it("401 without a token", async () => {
+    const res = await request(app).post("/api/bookings/checkin").send({ code: "x" });
+    expect(res.status).toBe(401);
+  });
+
+  it("400 when no code is provided", async () => {
+    const res = await request(app).post("/api/bookings/checkin").set("Authorization", asHost).send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("404 INVALID for an unknown ticket code", async () => {
+    prismaMock.attendee.findUnique.mockResolvedValue(null);
+    const res = await request(app).post("/api/bookings/checkin").set("Authorization", asHost).send({ code: "nope" });
+    expect(res.status).toBe(404);
+    expect(res.body.data.status).toBe("INVALID");
+  });
+
+  it("403 for a caller who is neither the host nor scoped to the event's fest", async () => {
+    prismaMock.attendee.findUnique.mockResolvedValue(att({ booking: { status: "COMPLETED", event: { id: 5, name: "E", hostId: 999, festId: 3 } } }));
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 111, editorFestId: null });
+    const res = await request(app).post("/api/bookings/checkin").set("Authorization", auth({ userId: 7, role: "ADMIN" })).send({ code: "c" });
+    expect(res.status).toBe(403);
+    expect(prismaMock.attendee.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("admits on the first scan (ADMITTED) via the checkedInAt:null guard", async () => {
+    prismaMock.attendee.findUnique.mockResolvedValue(att());
+    prismaMock.attendee.updateMany.mockResolvedValue({ count: 1 });
+    const res = await request(app).post("/api/bookings/checkin").set("Authorization", asHost).send({ code: "c" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("ADMITTED");
+    expect(res.body.data.attendee).toMatchObject({ id: 1, name: "Alice", ticketType: "GA" });
+    expect(prismaMock.attendee.updateMany).toHaveBeenCalledWith({
+      where: { id: 1, checkedInAt: null },
+      data: expect.objectContaining({ checkedInById: 7, checkedInAt: expect.any(Date) }),
+    });
+  });
+
+  it("returns ALREADY on a re-scan without overwriting the original time", async () => {
+    const when = new Date("2026-01-01T10:00:00.000Z");
+    prismaMock.attendee.findUnique
+      .mockResolvedValueOnce(att())
+      .mockResolvedValueOnce({ checkedInAt: when });
+    prismaMock.attendee.updateMany.mockResolvedValue({ count: 0 }); // lost the race / already in
+    const res = await request(app).post("/api/bookings/checkin").set("Authorization", asHost).send({ code: "c" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("ALREADY");
+    expect(res.body.data.checkedInAt).toBe(when.toISOString());
+  });
+
+  it("rejects a ticket whose booking is not COMPLETED (INVALID)", async () => {
+    prismaMock.attendee.findUnique.mockResolvedValue(att({ booking: { status: "PENDING", event: { id: 5, name: "E", hostId: 7, festId: 3 } } }));
+    const res = await request(app).post("/api/bookings/checkin").set("Authorization", asHost).send({ code: "c" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe("INVALID");
+    expect(prismaMock.attendee.updateMany).not.toHaveBeenCalled();
+  });
+});
+
 // ==================== PAY-04: promo codes ====================
 describe("promo codes at checkout", () => {
   const eventWithPromo = () => ({

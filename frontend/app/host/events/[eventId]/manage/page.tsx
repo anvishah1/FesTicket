@@ -741,6 +741,14 @@ export default function ManageEventPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* TIX-03: door scanner for this event. */}
+            <button
+              type="button"
+              onClick={() => router.push(`/host/events/${eventId}/checkin`)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/15 text-white hover:bg-white/25 transition-colors"
+            >
+              Scan tickets
+            </button>
             <span
               className={`px-3 py-1 rounded-full text-xs font-medium ${
                 STATUS_BADGE[event.effectiveStatus] ?? "bg-white/20 text-white"

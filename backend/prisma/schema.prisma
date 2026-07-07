@@ -247,6 +247,10 @@ model Attendee {
   email        String
   // TIX-02: per-attendee scannable ticket code (cuid, unguessable + unique).
   ticketCode   String    @unique @default(cuid())
+  // TIX-03: door check-in. checkedInAt set on first scan (atomic, first-wins);
+  // checkedInById is the admitting host/admin (bare Int?, no formal FK).
+  checkedInAt   DateTime?
+  checkedInById Int?
   createdAt    DateTime  @default(now())
 
   // Relations

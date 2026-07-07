@@ -49,6 +49,15 @@ The database is **PostgreSQL** (Neon in production), configured via `DATABASE_UR
 
 See `backend/SETUP-CHECKLIST.md` for admin/editor setup (fest keys, approval script).
 
+## API
+
+Every endpoint is served under both `/api/v1/*` (preferred) and `/api/*` (a deprecation alias with identical behaviour). Auth is a bearer JWT (15-min access token from `POST /api/v1/auth/signin`).
+
+The contract is documented with OpenAPI 3.0 — request bodies are generated from the same zod validators the routes enforce, so the docs never drift:
+
+- **`GET /api/docs`** — interactive Swagger UI (no auth).
+- **`GET /api/openapi.json`** — the raw OpenAPI 3.0 document.
+
 ## Testing & CI
 
 Automated on every push and pull request via GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)).

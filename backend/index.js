@@ -27,6 +27,8 @@ import userRoutes from "./src/routes/user.js";
 import roleRequestsRouter from "./src/routes/roleRequests.js";
 import adminRequestsRouter from "./src/routes/adminRequests.js";
 import sponsorLeadsRouter from "./src/routes/sponsorLeads.js";
+import swaggerUi from "swagger-ui-express";
+import { buildOpenApiDocument } from "./src/openapi.js";
 
 // Fail fast: validate required environment before doing anything else.
 (function validateEnv() {
@@ -94,11 +96,18 @@ app.use(cors({
 // routes so every handler and the error handler can read `req.id`.
 app.use(requestLogger);
 
+// ARCH-04: every API path is served under BOTH /api/v1 (preferred) and /api
+// (the unversioned deprecation alias), so define the prefixes once and reuse
+// them for the webhook, routers, docs and health routes below.
+const API_PREFIXES = ["/api/v1", "/api"];
+
 // PAY-01: the Razorpay webhook must verify an HMAC over the EXACT bytes it was
 // sent, so it needs the raw body. Mount it with express.raw for THIS path only,
 // BEFORE the global express.json below (which would otherwise consume the body
 // and break the signature). req.log is already set (requestLogger, above).
-app.post("/api/bookings/webhook/razorpay", express.raw({ type: "application/json" }), razorpayWebhookHandler);
+for (const prefix of API_PREFIXES) {
+  app.post(`${prefix}/bookings/webhook/razorpay`, express.raw({ type: "application/json" }), razorpayWebhookHandler);
+}
 
 // Body size limit. Event creation accepts base64 image data URLs, so allow up to
 // 1mb; anything larger is rejected with 413 before hitting route handlers.
@@ -120,33 +129,27 @@ fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 // enveloped body with a requestId. Needs req.id (requestLogger, above).
 app.use(respond);
 
-// Auth API (login, signup, refresh, sessions, forgot/reset password, verify email)
-app.use("/api/auth", authRoutes);
-app.use("/api/user", userRoutes);
-app.use("/api/role-requests", roleRequestsRouter);
-app.use("/api/admin-requests", adminRequestsRouter);
-app.use("/api/sponsor-leads", sponsorLeadsRouter);
+// Every router is mounted under both prefixes (ARCH-04). The SAME router
+// instance is reused, so all middleware (auth, rate limiters, zod validation)
+// applies identically to /api/* and /api/v1/*.
+const ROUTERS = [
+  ["/auth", authRoutes],
+  ["/user", userRoutes],
+  ["/role-requests", roleRequestsRouter],
+  ["/admin-requests", adminRequestsRouter],
+  ["/sponsor-leads", sponsorLeadsRouter],
+  ["/fests", festsRouter],
+  ["/events", eventsRouter],
+  ["/bookings", bookingsRouter],
+];
 
-// App API Routes
-app.use("/api/fests", festsRouter);
-app.use("/api/events", eventsRouter);
-app.use("/api/bookings", bookingsRouter);
+// OpenAPI document built once from the live zod validators (ARCH-04). Served as
+// raw JSON and behind Swagger UI. Both are public and un-rate-limited.
+const openApiDoc = buildOpenApiDocument();
 
-// simple health route
-app.get("/api/hello", (req, res) => {
-  res.json({ message: "full stack dev" });
-});
-
-// Liveness: is the process up and serving? Always 200; never touches the DB, so
-// an orchestrator won't restart the app just because the database is briefly
-// unreachable.
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", uptime: process.uptime(), requestId: req.id });
-});
-
-// Readiness: can the app actually serve traffic (DB reachable)? Runs a cheap
-// `SELECT 1`; 503 when the DB is down so load balancers stop routing to it.
-app.get("/api/ready", async (req, res) => {
+// Readiness handler shared by both prefixes: cheap `SELECT 1`; 503 when the DB
+// is down so load balancers stop routing to this instance.
+const readyHandler = async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: "ready", requestId: req.id });
@@ -154,7 +157,24 @@ app.get("/api/ready", async (req, res) => {
     req.log.error({ err }, "readiness check failed");
     res.status(503).json({ status: "not-ready", requestId: req.id });
   }
-});
+};
+
+for (const prefix of API_PREFIXES) {
+  for (const [path, router] of ROUTERS) {
+    app.use(`${prefix}${path}`, router);
+  }
+
+  // API contract: machine-readable spec + interactive docs (no auth).
+  app.get(`${prefix}/openapi.json`, (req, res) => res.json(openApiDoc));
+  app.use(`${prefix}/docs`, swaggerUi.serveFiles(openApiDoc), swaggerUi.setup(openApiDoc));
+
+  // Health/liveness/readiness.
+  app.get(`${prefix}/hello`, (req, res) => res.json({ message: "full stack dev" }));
+  app.get(`${prefix}/health`, (req, res) =>
+    res.json({ status: "ok", uptime: process.uptime(), requestId: req.id })
+  );
+  app.get(`${prefix}/ready`, readyHandler);
+}
 
 // Try connecting at startup (non-blocking)
 (async () => {

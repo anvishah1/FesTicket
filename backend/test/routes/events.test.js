@@ -2086,3 +2086,38 @@ describe("promo codes CRUD", () => {
     expect(prismaMock.promoCode.delete).toHaveBeenCalledWith({ where: { id: 1 } });
   });
 });
+
+// ==================== TIX-09: calendar .ics ====================
+describe("GET /api/events/:id/calendar.ics", () => {
+  it("404 when the event does not exist", async () => {
+    prismaMock.event.findUnique.mockResolvedValue(null);
+    const res = await request(app).get("/api/events/5/calendar.ics");
+    expect(res.status).toBe(404);
+  });
+
+  it("404 for a DRAFT event", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ id: 5, name: "E", startDate: "2026-05-01T10:00:00Z", status: "DRAFT" });
+    const res = await request(app).get("/api/events/5/calendar.ics");
+    expect(res.status).toBe(404);
+  });
+
+  it("streams a text/calendar file for a published event", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({
+      id: 5, name: "Spring Fest", startDate: "2026-05-01T00:00:00Z", startTime: "18:00", venue: "Hall", status: "PUBLISHED",
+    });
+    const res = await request(app).get("/api/events/5/calendar.ics");
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/text\/calendar/);
+    expect(res.headers["content-disposition"]).toMatch(/event-5\.ics/);
+    expect(res.text).toContain("BEGIN:VCALENDAR");
+    expect(res.text).toContain("SUMMARY:Spring Fest");
+    expect(res.text).toContain("DTSTART:20260501T180000Z");
+  });
+
+  it("400 when a published event has no date", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ id: 5, name: "E", startDate: null, status: "PUBLISHED" });
+    const res = await request(app).get("/api/events/5/calendar.ics");
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("NO_DATE");
+  });
+});

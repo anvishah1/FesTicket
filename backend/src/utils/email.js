@@ -301,6 +301,8 @@ export async function sendBookingConfirmation(booking) {
   // the API; PUBLIC_API_URL overrides the localhost default for real deployments.
   const apiBase = process.env.PUBLIC_API_URL || `http://localhost:${process.env.PORT || 4000}`;
   const invoiceUrl = `${apiBase}/api/bookings/${booking.id}/invoice?code=${encodeURIComponent(booking.bookingCode)}`;
+  // TIX-09: add-to-calendar link (only when we know the event id).
+  const calendarUrl = booking.event?.id ? `${apiBase}/api/events/${booking.event.id}/calendar.ics` : null;
 
   // TIX-01: attach the booking QR as an inline cid image. Best-effort — the plain
   // bookingCode above stays as the fallback if the client strips inline images or
@@ -356,7 +358,10 @@ export async function sendBookingConfirmation(booking) {
     </td></tr>
     <tr><td style="padding:18px 0 0;">
       <a href="${escapeHtml(invoiceUrl)}" style="color:${BRAND};text-decoration:underline;font-weight:600;">Download your GST invoice (PDF)</a>
-    </td></tr>`;
+    </td></tr>
+    ${calendarUrl ? `<tr><td style="padding:8px 0 0;">
+      <a href="${escapeHtml(calendarUrl)}" style="color:${BRAND};text-decoration:underline;font-weight:600;">Add to calendar</a>
+    </td></tr>` : ""}`;
 
   const { html, text } = renderEmail({
     preheader: `Your ${eventName} booking ${booking.bookingCode} is confirmed`,

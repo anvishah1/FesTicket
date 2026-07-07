@@ -16,6 +16,7 @@ import {
   updateExpenseSchema,
 } from "../validators/marketingValidator.js";
 import { parsePagination, buildPagination } from "../utils/pagination.js";
+import { buildEventIcs } from "../utils/ics.js";
 
 const router = Router();
 
@@ -1226,6 +1227,34 @@ router.get("/host/:hostId", optionalAuthenticate, async (req, res) => {
       success: false,
       error: { code: "FETCH_ERROR", message: "Failed to fetch events" },
     });
+  }
+});
+
+// TIX-09: GET /api/events/:id/calendar.ics - a downloadable .ics for the event
+// (public; served for any non-DRAFT event). Add-to-calendar for confirmation /
+// event pages / receipt email.
+router.get("/:id/calendar.ics", async (req, res) => {
+  try {
+    const event = await prisma.event.findUnique({
+      where: { id: parseInt(req.params.id) },
+      select: {
+        id: true, name: true, startDate: true, endDate: true, startTime: true, endTime: true,
+        venue: true, venueAddress: true, onlineLink: true, isOnline: true, description: true, status: true,
+      },
+    });
+    if (!event || event.status === "DRAFT") {
+      return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Event not found" } });
+    }
+    const ics = buildEventIcs(event);
+    if (!ics) {
+      return res.status(400).json({ success: false, error: { code: "NO_DATE", message: "This event has no scheduled date yet" } });
+    }
+    res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="event-${event.id}.ics"`);
+    return res.send(ics);
+  } catch (error) {
+    req.log.error({ err: error }, "ICS generation failed");
+    return res.status(500).json({ success: false, error: { code: "ICS_ERROR", message: "Failed to build calendar file" } });
   }
 });
 

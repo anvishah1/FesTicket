@@ -9,6 +9,7 @@ import Footer from "@/components/Footer";
 import { getApiUrl } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
 import { QRCodeSVG } from "qrcode.react";
+import AddToCalendar from "@/components/AddToCalendar";
 
 interface ConfirmationBooking {
   id: number;
@@ -22,9 +23,12 @@ interface ConfirmationBooking {
   guestName?: string | null;
   guestEmail?: string | null;
   event?: {
+    id?: number;
     name?: string;
     venue?: string;
     startDate?: string;
+    startTime?: string;
+    endDate?: string;
   };
   items?: Array<{
     quantity: number;
@@ -203,12 +207,25 @@ export default function BookingConfirmationPage() {
 
           {/* Event + tickets */}
           <div className="rounded-lg bg-white border p-6 shadow-sm space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold">{booking.event?.name || "Event"}</h2>
-              <p className="text-sm text-slate-500 mt-1">
-                {formatDate(booking.event?.startDate)}
-                {booking.event?.venue ? ` · ${booking.event.venue}` : ""}
-              </p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">{booking.event?.name || "Event"}</h2>
+                <p className="text-sm text-slate-500 mt-1">
+                  {formatDate(booking.event?.startDate)}
+                  {booking.event?.venue ? ` · ${booking.event.venue}` : ""}
+                </p>
+              </div>
+              {/* TIX-09 */}
+              {booking.event?.id != null && booking.event?.startDate && (
+                <AddToCalendar
+                  eventId={booking.event.id}
+                  name={booking.event.name}
+                  startDate={booking.event.startDate}
+                  startTime={booking.event.startTime}
+                  endDate={booking.event.endDate}
+                  venue={booking.event.venue}
+                />
+              )}
             </div>
 
             <div className="border-t pt-4">

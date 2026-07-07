@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { formatPaise } from "@/lib/format";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import AddToCalendar from "@/components/AddToCalendar";
 import Footer from "@/components/Footer";
 import { getApiUrl } from "@/lib/auth";
 import dynamic from "next/dynamic";
@@ -28,6 +29,7 @@ interface EventData {
   category?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  startTime?: string | null;
   venue?: string | null;
   venueAddress?: string | null;
   discount?: number;
@@ -299,7 +301,7 @@ export default function EventDetailsPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-3 text-sm text-[#6B597F]">
+              <div className="flex flex-wrap items-center gap-3 text-sm text-[#6B597F]">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-[#29104A]">When:</span>
                   <span>{formatDateRange(event.startDate, event.endDate)}</span>
@@ -308,6 +310,18 @@ export default function EventDetailsPage() {
                   <span className="font-medium text-[#29104A]">Where:</span>
                   <span>{event.venue || "Venue TBA"}</span>
                 </div>
+                {/* TIX-09 */}
+                {event.startDate && (
+                  <AddToCalendar
+                    eventId={Number(eventId)}
+                    name={event.name}
+                    startDate={event.startDate}
+                    startTime={event.startTime}
+                    endDate={event.endDate}
+                    venue={event.venue}
+                    description={event.description}
+                  />
+                )}
               </div>
             </div>
           </div>

@@ -3,8 +3,30 @@ import Header from "@/components/Header";
 import HeroIllustration from "@/components/HeroIllustration";
 import Link from "next/link";
 import Footer from "@/components/Footer";
+import HomeEventRails from "@/components/HomeEventRails";
+import { serverFetch } from "@/lib/serverApi";
 
-export default function Home() {
+// SEO-06: server-render real Trending + Upcoming rails from live data so the
+// homepage has crawlable event links (instead of the old fabricated badge).
+export const revalidate = 120;
+
+export default async function Home() {
+  const nowIso = new Date().toISOString();
+  const [trendingRes, upcomingRes] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    serverFetch<any[]>("/api/events?sort=trending&limit=8", { revalidate }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    serverFetch<any[]>(`/api/events?sort=date&dateFrom=${encodeURIComponent(nowIso)}&limit=8`, { revalidate }),
+  ]);
+  let trending = Array.isArray(trendingRes.data) ? trendingRes.data : [];
+  // Fall back to newest if trending isn't available (e.g. no data yet).
+  if (!trending.length) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fb = await serverFetch<any[]>("/api/events?sort=newest&limit=8", { revalidate });
+    trending = Array.isArray(fb.data) ? fb.data : [];
+  }
+  const upcoming = Array.isArray(upcomingRes.data) ? upcomingRes.data : [];
+
   return (
     <div className="min-h-screen bg-[#fdfdff]">
       <Header />
@@ -12,12 +34,12 @@ export default function Home() {
       <main className="container py-12">
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
           <div>
-            {/* Badge */}
+            {/* Badge — a neutral, non-fabricated tagline (no invented user counts) */}
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#522C5D]/10 border border-[#522C5D]/30 text-[#522C5D] text-sm font-medium mb-6">
               <span className="w-2 h-2 rounded-full bg-[#522C5D] animate-pulse"></span>
-              Trusted by 3000+ event organizers
+              Events & ticketing for college fests
             </div>
-            
+
             <h1 className="text-4xl sm:text-5xl font-extrabold text-[#29104A] leading-tight">
               Events and ticketing — 
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#29104A] to-[#522C5D]"> simplified</span> for campuses and clubs.
@@ -63,6 +85,9 @@ export default function Home() {
             <HeroIllustration />
           </aside>
         </section>
+
+        {/* SEO-06: live Trending + Upcoming event rails */}
+        <HomeEventRails trending={trending} upcoming={upcoming} />
 
         <section className="mt-20">
           <div className="text-center mb-10">

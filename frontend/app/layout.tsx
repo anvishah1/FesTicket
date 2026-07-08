@@ -1,5 +1,6 @@
 import "../globals.css";
-import "leaflet/dist/leaflet.css";
+// FE-04: Leaflet CSS is imported inside components/EventMap.tsx (the dynamically
+// imported map island) so it is code-split out of the global bundle.
 import type { Metadata, Viewport } from "next";
 import ClientRoot from "./_ClientRoot";
 

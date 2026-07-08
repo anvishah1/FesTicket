@@ -82,19 +82,9 @@ function writeGeocodeCache(addr: string, coords: GeoCoords) {
   }
 }
 
-// Dynamically import React Leaflet components on client only
-const MapContainer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.MapContainer),
-  { ssr: false }
-);
-const TileLayer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.TileLayer),
-  { ssr: false }
-);
-const Marker = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Marker),
-  { ssr: false }
-);
+// FE-04: the whole Leaflet map (+ its CSS) is one client-only chunk, loaded only
+// when this detail page renders a map — not shipped to every route.
+const EventMap = dynamic(() => import("@/components/EventMap"), { ssr: false });
 
 export default function EventDetailClient({
   eventId,
@@ -394,18 +384,7 @@ export default function EventDetailClient({
                 <p className="text-xs text-[#6B597F]">Location on map</p>
                 <div className="h-64 w-full overflow-hidden rounded-xl border border-[#C5BAC4]/80 bg-[#f3eef7]">
                   {coords ? (
-                    <MapContainer
-                      center={[coords.lat, coords.lng]}
-                      zoom={16}
-                      scrollWheelZoom={false}
-                      style={{ height: "100%", width: "100%" }}
-                    >
-                      <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      />
-                      <Marker position={[coords.lat, coords.lng]} />
-                    </MapContainer>
+                    <EventMap lat={coords.lat} lng={coords.lng} />
                   ) : (
                     <div className="flex h-full items-center justify-center text-xs text-[#6B597F] px-4 text-center">
                       {geocoding

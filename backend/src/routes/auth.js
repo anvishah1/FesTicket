@@ -120,6 +120,20 @@ async function issueSession(user, req, res, message = "Signin successful") {
   );
 }
 
+/*
+ * AUTH-08: enforce 2FA on EVERY interactive login surface. When the account has
+ * 2FA enabled, do NOT issue a session — return a short-lived challenge (verified
+ * at /2fa/verify). Otherwise issue the normal session. Used by magic-link and
+ * Google sign-in so they can't bypass the second factor (Phase-5 review P2).
+ */
+async function issueSessionOr2FAChallenge(user, req, res, message) {
+  if (user.twoFactorEnabled) {
+    const challengeToken = jwt.sign({ userId: user.id, purpose: "2fa" }, process.env.JWT_SECRET, { expiresIn: "5m" });
+    return res.ok({ twoFactorRequired: true, challengeToken }, { message: "Two-factor authentication required" });
+  }
+  return issueSession(user, req, res, message);
+}
+
 /* ================= SIGNUP ================= */
 router.post("/signup", signupLimiter, validate(signupSchema), async (req, res) => {
 
@@ -959,7 +973,7 @@ router.post("/google", loginLimiter, async (req, res) => {
       });
     }
 
-    return await issueSession(user, req, res, "Signed in with Google");
+    return await issueSessionOr2FAChallenge(user, req, res, "Signed in with Google");
   } catch (err) {
     req.log.error({ err }, "Google sign-in error");
     return res.fail(500, "SERVER_ERROR", "Server error");
@@ -1026,7 +1040,7 @@ router.post("/magic-link/verify", async (req, res) => {
     const user = await prisma.user.findFirst({ where: { id: record.userId, deletedAt: null } });
     if (!user) return res.fail(400, "INVALID_TOKEN", "Invalid or expired link");
 
-    return await issueSession(user, req, res, "Signed in");
+    return await issueSessionOr2FAChallenge(user, req, res, "Signed in");
   } catch (err) {
     req.log.error({ err }, "magic-link verify error");
     return res.fail(500, "SERVER_ERROR", "Server error");

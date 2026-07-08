@@ -1009,29 +1009,55 @@ describe("POST /api/bookings/:id/verify-payment", () => {
     expect(res.body.error.message).toMatch(/Invalid or mismatched payment/);
   });
 
-  it("returns 400 when the payment is not captured", async () => {
+  it("returns 400 when the payment is not captured (owned + order-bound booking)", async () => {
     enableRazorpay();
     rzp.payments.fetch.mockResolvedValue({ order_id: "order_1", status: "authorized" });
+    prismaMock.booking.findUnique.mockResolvedValue({
+      id: 5, status: "PENDING", bookingCode: "BK5", guestEmail: "g@x.com",
+      event: { id: 1, name: "Fest" }, items: [], attendees: [], user: null,
+      payment: { orderId: "order_1", status: "PENDING" },
+    });
+    prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
     const res = await request(app)
       .post("/api/bookings/5/verify-payment")
-      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1" });
+      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1", bookingCode: "BK5" });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("VERIFY_FAILED");
     expect(res.body.error.message).toMatch(/Payment not captured/);
+  });
+
+  it("Phase-5 review P2: does NOT mark-failed/email when the caller doesn't own the booking", async () => {
+    enableRazorpay();
+    rzp.payments.fetch.mockResolvedValue({ order_id: "order_1", status: "failed" });
+    // Victim's booking — no bookingCode presented, no auth -> not owned.
+    prismaMock.booking.findUnique.mockResolvedValue({
+      id: 5, status: "PENDING", bookingCode: "SECRET-CODE", guestEmail: "victim@x.com",
+      event: { id: 1, name: "Fest" }, items: [], attendees: [], user: null,
+      payment: { orderId: "order_1", status: "PENDING" },
+    });
+    const res = await request(app)
+      .post("/api/bookings/5/verify-payment")
+      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1" }); // no bookingCode
+    expect(res.status).toBe(403);
+    // The payment-failed side effects must NOT have fired for a non-owner.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(sendPaymentFailed).not.toHaveBeenCalled();
+    expect(prismaMock.payment.updateMany).not.toHaveBeenCalled();
   });
 
   it("NOTIF-06: an uncaptured payment marks the Payment FAILED once and emails the buyer", async () => {
     enableRazorpay();
     rzp.payments.fetch.mockResolvedValue({ order_id: "order_1", status: "failed" });
     prismaMock.booking.findUnique.mockResolvedValue({
-      id: 5, status: "PENDING", guestEmail: "g@x.com",
-      event: { id: 1, name: "Fest" }, user: null, payment: { status: "PENDING" },
+      id: 5, status: "PENDING", bookingCode: "BK5", guestEmail: "g@x.com",
+      event: { id: 1, name: "Fest" }, items: [], attendees: [], user: null,
+      payment: { orderId: "order_1", status: "PENDING" },
     });
     prismaMock.payment.updateMany.mockResolvedValue({ count: 1 });
 
     const res = await request(app)
       .post("/api/bookings/5/verify-payment")
-      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1" });
+      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1", bookingCode: "BK5" });
     expect(res.status).toBe(400);
 
     // Fire-and-forget: wait for the background transition + email.
@@ -1046,14 +1072,15 @@ describe("POST /api/bookings/:id/verify-payment", () => {
     enableRazorpay();
     rzp.payments.fetch.mockResolvedValue({ order_id: "order_1", status: "failed" });
     prismaMock.booking.findUnique.mockResolvedValue({
-      id: 5, status: "PENDING", guestEmail: "g@x.com",
-      event: { id: 1, name: "Fest" }, user: null, payment: { status: "FAILED" },
+      id: 5, status: "PENDING", bookingCode: "BK5", guestEmail: "g@x.com",
+      event: { id: 1, name: "Fest" }, items: [], attendees: [], user: null,
+      payment: { orderId: "order_1", status: "FAILED" },
     });
     prismaMock.payment.updateMany.mockResolvedValue({ count: 0 }); // already FAILED
 
     const res = await request(app)
       .post("/api/bookings/5/verify-payment")
-      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1" });
+      .send({ razorpay_order_id: "order_1", razorpay_payment_id: "pay_1", bookingCode: "BK5" });
     expect(res.status).toBe(400);
     // Give the background task a tick, then assert no email.
     await new Promise((r) => setTimeout(r, 20));
@@ -2121,24 +2148,20 @@ describe("GET /api/bookings/fest/:festId", () => {
 // ==================== sendDailySalesDigests (NOTIF-05) ====================
 
 describe("sendDailySalesDigests", () => {
-  it("early-exits without touching fests when no organizer is due today", async () => {
-    prismaMock.user.count.mockResolvedValue(0);
+  it("early-exits when no organizer is due today", async () => {
+    prismaMock.user.findMany.mockResolvedValue([]); // no due organizers
     const result = await sendDailySalesDigests();
     expect(result.sent).toBe(0);
-    expect(prismaMock.fest.findMany).not.toHaveBeenCalled();
+    expect(sendSalesDigest).not.toHaveBeenCalled();
   });
 
-  it("claims each due recipient once and sends a per-fest digest with real stats", async () => {
-    prismaMock.user.count.mockResolvedValue(1);
-    prismaMock.fest.findMany.mockResolvedValue([{ id: 3, name: "Spring" }]);
-    // Admin + host resolution.
-    prismaMock.user.findMany
-      .mockResolvedValueOnce([{ id: 10, email: "admin@x.com", notifySalesDigest: true, lastSalesDigestAt: null }]) // admins
-      .mockResolvedValueOnce([]); // hosts
-    // Stats: ticket types (remaining) + completed bookings (sold + revenue).
+  it("claims each due organizer once and sends a digest with real stats", async () => {
+    prismaMock.user.findMany.mockResolvedValue([{ id: 10, email: "admin@x.com", name: "A", managedFestId: 3 }]);
+    prismaMock.user.updateMany.mockResolvedValue({ count: 1 }); // claim wins
+    prismaMock.event.findMany.mockResolvedValue([]); // no hosted events beyond the managed fest
+    prismaMock.fest.findUnique.mockResolvedValue({ id: 3, name: "Spring" });
     prismaMock.ticketType.findMany.mockResolvedValue([{ quantity: 100, sold: 30 }]);
     prismaMock.booking.findMany.mockResolvedValue([{ total: 12000, items: [{ quantity: 2 }] }]);
-    prismaMock.user.updateMany.mockResolvedValue({ count: 1 }); // claim wins
 
     const result = await sendDailySalesDigests();
     expect(result.sent).toBe(1);
@@ -2149,12 +2172,26 @@ describe("sendDailySalesDigests", () => {
     );
   });
 
+  it("Phase-5 review P3: a host organizing two fests gets a digest for BOTH", async () => {
+    prismaMock.user.findMany.mockResolvedValue([{ id: 10, email: "h@x.com", name: "H", managedFestId: null }]);
+    prismaMock.user.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.event.findMany.mockResolvedValue([{ festId: 3 }, { festId: 4 }]); // hosts events in fest 3 + 4
+    prismaMock.fest.findUnique
+      .mockResolvedValueOnce({ id: 3, name: "Fest A" })
+      .mockResolvedValueOnce({ id: 4, name: "Fest B" });
+    prismaMock.ticketType.findMany.mockResolvedValue([{ quantity: 10, sold: 5 }]);
+    prismaMock.booking.findMany.mockResolvedValue([{ total: 5000, items: [{ quantity: 1 }] }]);
+
+    const result = await sendDailySalesDigests();
+    expect(result.sent).toBe(2);
+    expect(sendSalesDigest).toHaveBeenCalledTimes(2);
+  });
+
   it("skips a fest with zero completed sales (no empty digest)", async () => {
-    prismaMock.user.count.mockResolvedValue(1);
-    prismaMock.fest.findMany.mockResolvedValue([{ id: 3, name: "Spring" }]);
-    prismaMock.user.findMany
-      .mockResolvedValueOnce([{ id: 10, email: "admin@x.com", notifySalesDigest: true, lastSalesDigestAt: null }])
-      .mockResolvedValueOnce([]);
+    prismaMock.user.findMany.mockResolvedValue([{ id: 10, email: "admin@x.com", name: "A", managedFestId: 3 }]);
+    prismaMock.user.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.event.findMany.mockResolvedValue([]);
+    prismaMock.fest.findUnique.mockResolvedValue({ id: 3, name: "Spring" });
     prismaMock.ticketType.findMany.mockResolvedValue([{ quantity: 100, sold: 0 }]);
     prismaMock.booking.findMany.mockResolvedValue([]); // no completed sales
     const result = await sendDailySalesDigests();
@@ -2163,13 +2200,7 @@ describe("sendDailySalesDigests", () => {
   });
 
   it("does not double-send when the once-a-day claim is lost (count 0)", async () => {
-    prismaMock.user.count.mockResolvedValue(1);
-    prismaMock.fest.findMany.mockResolvedValue([{ id: 3, name: "Spring" }]);
-    prismaMock.user.findMany
-      .mockResolvedValueOnce([{ id: 10, email: "admin@x.com", notifySalesDigest: true, lastSalesDigestAt: null }])
-      .mockResolvedValueOnce([]);
-    prismaMock.ticketType.findMany.mockResolvedValue([{ quantity: 10, sold: 5 }]);
-    prismaMock.booking.findMany.mockResolvedValue([{ total: 5000, items: [{ quantity: 1 }] }]);
+    prismaMock.user.findMany.mockResolvedValue([{ id: 10, email: "admin@x.com", name: "A", managedFestId: 3 }]);
     prismaMock.user.updateMany.mockResolvedValue({ count: 0 }); // already digested today
     const result = await sendDailySalesDigests();
     expect(result.sent).toBe(0);

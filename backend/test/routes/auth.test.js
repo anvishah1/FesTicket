@@ -1380,3 +1380,31 @@ describe("AUTH-08 signin challenge + verify", () => {
     expect(res.status).toBe(400);
   });
 });
+
+// ==================== Phase-5 review fix: 2FA enforced on all login surfaces ====================
+describe("2FA is enforced on magic-link + Google (not just password signin)", () => {
+  it("magic-link/verify returns a 2FA challenge (no session) for a 2FA account", async () => {
+    prismaMock.magicLinkToken.findFirst.mockResolvedValue({ id: 1, userId: 7, usedAt: null });
+    prismaMock.magicLinkToken.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.user.findFirst.mockResolvedValue({ id: 7, email: "u@x.com", role: "VIEWER", tokenVersion: 0, twoFactorEnabled: true });
+    const res = await request(app).post("/api/auth/magic-link/verify").send({ token: "good" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.twoFactorRequired).toBe(true);
+    expect(res.body.data.challengeToken).toBeTruthy();
+    expect(res.body.data.accessToken).toBeUndefined();
+    expect(prismaMock.refreshToken.create).not.toHaveBeenCalled();
+  });
+
+  it("google returns a 2FA challenge (no session) for a 2FA account", async () => {
+    process.env.GOOGLE_CLIENT_ID = "cid";
+    googleMock.shouldThrow = false;
+    googleMock.payload = { sub: "g-1", email: "g@x.com", email_verified: true };
+    prismaMock.user.findFirst
+      .mockResolvedValueOnce({ id: 7, email: "g@x.com", role: "VIEWER", tokenVersion: 0, googleId: "g-1", twoFactorEnabled: true });
+    const res = await request(app).post("/api/auth/google").send({ idToken: "valid" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.twoFactorRequired).toBe(true);
+    expect(res.body.data.accessToken).toBeUndefined();
+    delete process.env.GOOGLE_CLIENT_ID;
+  });
+});

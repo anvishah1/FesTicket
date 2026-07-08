@@ -46,7 +46,8 @@ describe("backup codes (AUTH-08)", () => {
     const { plain, hashed } = generateBackupCodes();
     expect(plain).toHaveLength(10);
     expect(hashed).toHaveLength(10);
-    expect(plain[0]).toMatch(/^[0-9A-F]{4}-[0-9A-F]{4}$/);
+    // 64-bit codes (Phase-5 review P3): XXXX-XXXX-XXXX-XXXX.
+    expect(plain[0]).toMatch(/^[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}$/);
     // The hash matches the same code, case-insensitively.
     expect(hashBackupCode(plain[0].toLowerCase())).toBe(hashed[0]);
     expect(hashBackupCode("WRONG-CODE")).not.toBe(hashed[0]);

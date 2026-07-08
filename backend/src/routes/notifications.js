@@ -85,9 +85,11 @@ router.patch("/read-all", authenticateUser, async (req, res) => {
 router.patch("/:id", authenticateUser, async (req, res) => {
   const id = parseInt(req.params.id);
   if (!Number.isInteger(id)) return res.fail(400, "VALIDATION_ERROR", "Invalid notification id");
-  const notif = await prisma.notification.findUnique({ where: { id } });
+  // Scope the lookup to the caller so a MISSING id and ANOTHER USER's id are
+  // indistinguishable (both 404) — no existence/enumeration oracle across the
+  // sequential ids (Phase-5 review P3). Ownership is still enforced.
+  const notif = await prisma.notification.findFirst({ where: { id, userId: req.user.userId } });
   if (!notif) return res.fail(404, "NOT_FOUND", "Notification not found");
-  if (notif.userId !== req.user.userId) return res.fail(403, "FORBIDDEN", "You cannot modify this notification");
   const updated = await prisma.notification.update({
     where: { id },
     data: { read: true, readAt: notif.readAt ?? new Date() },

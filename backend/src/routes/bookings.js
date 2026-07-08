@@ -892,16 +892,11 @@ router.post("/:id/verify-payment", writeLimiter, optionalAuthenticate, async (re
         error: { code: "VERIFY_FAILED", message: "Invalid or mismatched payment" },
       });
     }
-    if (paymentEntity.status !== "captured") {
-      // NOTIF-06: a genuinely uncaptured/failed payment — mark it FAILED once and
-      // email the buyer a retry link (non-blocking; guarded against repeat spam).
-      markPaymentFailedAndNotify(bookingId, req.log);
-      return res.status(400).json({
-        success: false,
-        error: { code: "VERIFY_FAILED", message: "Payment not captured" },
-      });
-    }
 
+    // Load the booking and verify OWNERSHIP + order-binding BEFORE acting on the
+    // capture status. Doing the payment-failed notify (below) before these checks
+    // let an unauthenticated caller flip an arbitrary booking's payment to FAILED
+    // and spam its buyer with wrongful "payment failed" emails (Phase-5 review P2).
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
       include: { event: true, items: { include: { ticketType: true } }, attendees: true, payment: true },
@@ -927,6 +922,17 @@ router.post("/:id/verify-payment", writeLimiter, optionalAuthenticate, async (re
       return res.status(400).json({
         success: false,
         error: { code: "VERIFY_FAILED", message: "Order does not belong to this booking" },
+      });
+    }
+
+    if (paymentEntity.status !== "captured") {
+      // NOTIF-06: a genuinely uncaptured/failed payment on THIS caller's own,
+      // order-bound booking — mark it FAILED once and email the buyer a retry
+      // link (non-blocking; guarded against repeat spam).
+      markPaymentFailedAndNotify(bookingId, req.log);
+      return res.status(400).json({
+        success: false,
+        error: { code: "VERIFY_FAILED", message: "Payment not captured" },
       });
     }
     if (paymentEntity.amount !== booking.total) { // both integer paise (PAY-03)
@@ -1470,7 +1476,7 @@ router.put("/:id/cancel", authenticateUser, async (req, res) => {
     }
     // PAY-08: seats just freed — offer them to the oldest waiter per ticket type.
     for (const item of existingBooking.items) {
-      releaseToWaitlist(item.ticketTypeId, req.log).catch(() => {});
+      releaseToWaitlist(item.ticketTypeId, item.quantity, req.log).catch(() => {});
     }
   } catch (error) {
     req.log.error({ err: error }, "Error cancelling booking");
@@ -1591,7 +1597,7 @@ async function runRefund(booking, amountBody, reason, log) {
   // oldest waiter per ticket type (after commit, non-blocking).
   if (nowFull) {
     for (const item of booking.items || []) {
-      releaseToWaitlist(item.ticketTypeId, log).catch(() => {});
+      releaseToWaitlist(item.ticketTypeId, item.quantity, log).catch(() => {});
     }
   }
 
@@ -2357,45 +2363,46 @@ export async function sendDailySalesDigests(now = new Date()) {
   const todayStart = new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()) - IST_OFFSET_MS);
   const dueFilter = { OR: [{ lastSalesDigestAt: null }, { lastSalesDigestAt: { lt: todayStart } }] };
 
-  // Cheap early-out: is any ORGANIZER (fest admin or event host) due today? Most
-  // ticks after the daily run find none and skip the per-fest work entirely.
-  const dueCount = await prisma.user.count({
+  // USER-centric (Phase-5 review P3 fix): iterate due organizers, not fests, so a
+  // host organizing events in multiple fests receives EVERY fest's digest — the
+  // old per-fest loop claimed the user on the first fest and skipped the rest.
+  // The once-a-day claim stays per-user; each claimed user then gets a digest for
+  // each of their fests that has sales.
+  const dueUsers = await prisma.user.findMany({
     where: {
       notifySalesDigest: true,
       AND: [dueFilter, { OR: [{ managedFestId: { not: null } }, { hostedEvents: { some: {} } }] }],
     },
+    select: { id: true, email: true, name: true, managedFestId: true },
   });
-  if (dueCount === 0) return { sent: 0, durationMs: Date.now() - started };
+  if (dueUsers.length === 0) return { sent: 0, durationMs: Date.now() - started };
 
   let sent = 0;
-  const fests = await prisma.fest.findMany({ select: { id: true, name: true } });
-  for (const fest of fests) {
-    const admins = await prisma.user.findMany({
-      where: { managedFestId: fest.id },
-      select: { id: true, email: true, name: true, notifySalesDigest: true, lastSalesDigestAt: true },
+  for (const user of dueUsers) {
+    if (!user.email) continue;
+    // Claim once-per-day atomically so a re-run / second replica can't double-send.
+    const claim = await prisma.user.updateMany({
+      where: { id: user.id, ...dueFilter },
+      data: { lastSalesDigestAt: now },
     });
-    const hosts = await prisma.user.findMany({
-      where: { hostedEvents: { some: { festId: fest.id } } },
-      select: { id: true, email: true, name: true, notifySalesDigest: true, lastSalesDigestAt: true },
+    if (claim.count !== 1) continue;
+
+    // Every fest this user organizes: the one they ADMIN + the fests of their events.
+    const festIds = new Set();
+    if (user.managedFestId != null) festIds.add(user.managedFestId);
+    const hosted = await prisma.event.findMany({
+      where: { hostId: user.id },
+      select: { festId: true },
+      distinct: ["festId"],
     });
-    const byId = new Map();
-    for (const u of [...admins, ...hosts]) {
-      if (u.email && u.notifySalesDigest !== false) byId.set(u.id, u);
-    }
-    const due = [...byId.values()].filter((u) => !u.lastSalesDigestAt || u.lastSalesDigestAt < todayStart);
-    if (due.length === 0) continue;
+    for (const e of hosted) if (e.festId != null) festIds.add(e.festId);
 
-    const stats = await computeFestSalesStats(fest.id);
-    if (stats.ticketsSold === 0) continue; // no empty digests
-
-    for (const r of due) {
-      // Claim once-per-day atomically so a re-run/second replica can't double-send.
-      const claim = await prisma.user.updateMany({
-        where: { id: r.id, ...dueFilter },
-        data: { lastSalesDigestAt: now },
-      });
-      if (claim.count !== 1) continue;
-      const res = await sendSalesDigest(fest, [r], stats).catch(() => null);
+    for (const festId of festIds) {
+      const fest = await prisma.fest.findUnique({ where: { id: festId }, select: { id: true, name: true } });
+      if (!fest) continue;
+      const stats = await computeFestSalesStats(festId);
+      if (stats.ticketsSold === 0) continue; // no empty digests
+      const res = await sendSalesDigest(fest, [user], stats).catch(() => null);
       if (Array.isArray(res) && res.some((x) => x?.sent)) sent += 1;
     }
   }
@@ -2468,7 +2475,7 @@ export async function expireStalePendingBookings(olderThanMs = BOOKING_HOLD_MS) 
     }
     // PAY-08: released inventory -> notify the oldest waiter per ticket type.
     for (const item of b.items) {
-      releaseToWaitlist(item.ticketTypeId, null).catch(() => {});
+      releaseToWaitlist(item.ticketTypeId, item.quantity, null).catch(() => {});
     }
   }
 

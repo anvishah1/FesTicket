@@ -3,7 +3,7 @@ import request from "supertest";
 import { prismaMock, resetPrismaMock } from "@prisma/client";
 import { makeApp } from "../helpers/makeApp.js";
 import waitlistRouter from "../../src/routes/waitlist.js";
-import { releaseToWaitlist } from "../../src/utils/waitlist.js";
+import { releaseToWaitlist, expireStaleWaitlistClaims } from "../../src/utils/waitlist.js";
 
 vi.mock("@prisma/client");
 vi.mock("../../src/utils/email.js", () => ({
@@ -71,8 +71,8 @@ describe("releaseToWaitlist (PAY-08)", () => {
       ticketType: { id: 10, name: "GA", event: { id: 5, name: "Fest" } },
     });
 
-    const result = await releaseToWaitlist(10);
-    expect(result).toMatchObject({ id: 7 });
+    const notified = await releaseToWaitlist(10, 1);
+    expect(notified).toBe(1);
     // Oldest-first selection.
     expect(prismaMock.waitlist.findFirst).toHaveBeenCalledWith({
       where: { ticketTypeId: 10, status: "WAITING" },
@@ -86,10 +86,38 @@ describe("releaseToWaitlist (PAY-08)", () => {
     expect(sendWaitlistClaim).toHaveBeenCalledTimes(1);
   });
 
+  it("Phase-5 review P2: N freed seats notify up to N distinct waiters", async () => {
+    // Three waiters, three freed seats -> three notifications (one per seat).
+    prismaMock.waitlist.findFirst
+      .mockResolvedValueOnce({ id: 1, ticketTypeId: 10, status: "WAITING" })
+      .mockResolvedValueOnce({ id: 2, ticketTypeId: 10, status: "WAITING" })
+      .mockResolvedValueOnce({ id: 3, ticketTypeId: 10, status: "WAITING" });
+    prismaMock.waitlist.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.waitlist.findUnique.mockResolvedValue({
+      id: 1, email: "w@x.com", claimExpiresAt: new Date(), ticketType: { id: 10, name: "GA", event: { id: 5 } },
+    });
+    const notified = await releaseToWaitlist(10, 3);
+    expect(notified).toBe(3);
+    expect(sendWaitlistClaim).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops early when the waiters run out before the seats", async () => {
+    prismaMock.waitlist.findFirst
+      .mockResolvedValueOnce({ id: 1, ticketTypeId: 10, status: "WAITING" })
+      .mockResolvedValueOnce(null); // only one waiter for 3 seats
+    prismaMock.waitlist.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.waitlist.findUnique.mockResolvedValue({
+      id: 1, email: "w@x.com", claimExpiresAt: new Date(), ticketType: { id: 10, event: { id: 5 } },
+    });
+    const notified = await releaseToWaitlist(10, 3);
+    expect(notified).toBe(1);
+    expect(sendWaitlistClaim).toHaveBeenCalledTimes(1);
+  });
+
   it("does nothing when there is no waiter", async () => {
     prismaMock.waitlist.findFirst.mockResolvedValue(null);
-    const result = await releaseToWaitlist(10);
-    expect(result).toBeNull();
+    const notified = await releaseToWaitlist(10, 1);
+    expect(notified).toBe(0);
     expect(prismaMock.waitlist.updateMany).not.toHaveBeenCalled();
     expect(sendWaitlistClaim).not.toHaveBeenCalled();
   });
@@ -97,8 +125,36 @@ describe("releaseToWaitlist (PAY-08)", () => {
   it("does not notify twice when the WAITING->NOTIFIED claim is lost (count 0)", async () => {
     prismaMock.waitlist.findFirst.mockResolvedValue({ id: 7, ticketTypeId: 10, status: "WAITING" });
     prismaMock.waitlist.updateMany.mockResolvedValue({ count: 0 }); // another release won
-    const result = await releaseToWaitlist(10);
-    expect(result).toBeNull();
+    const notified = await releaseToWaitlist(10, 2);
+    expect(notified).toBe(0);
+    expect(sendWaitlistClaim).not.toHaveBeenCalled();
+  });
+});
+
+describe("expireStaleWaitlistClaims (Phase-5 review P3)", () => {
+  it("expires each stale NOTIFIED entry and re-offers the seat to the next waiter", async () => {
+    // One NOTIFIED entry past its window; a WAITING waiter still queued.
+    prismaMock.waitlist.findMany.mockResolvedValue([{ id: 1, ticketTypeId: 10 }]);
+    prismaMock.waitlist.updateMany.mockResolvedValue({ count: 1 }); // NOTIFIED->EXPIRED flip + the re-release flip
+    prismaMock.waitlist.findFirst.mockResolvedValue({ id: 2, ticketTypeId: 10, status: "WAITING" });
+    prismaMock.waitlist.findUnique.mockResolvedValue({
+      id: 2, email: "next@x.com", claimExpiresAt: new Date(), ticketType: { id: 10, event: { id: 5 } },
+    });
+
+    const result = await expireStaleWaitlistClaims();
+    expect(result.expired).toBe(1);
+    // Query targets only past-window NOTIFIED entries.
+    const where = prismaMock.waitlist.findMany.mock.calls[0][0].where;
+    expect(where.status).toBe("NOTIFIED");
+    expect(where.claimExpiresAt.lt).toBeInstanceOf(Date);
+    // The freed seat was re-offered.
+    expect(sendWaitlistClaim).toHaveBeenCalledTimes(1);
+  });
+
+  it("no-op when nothing is stale", async () => {
+    prismaMock.waitlist.findMany.mockResolvedValue([]);
+    const result = await expireStaleWaitlistClaims();
+    expect(result.expired).toBe(0);
     expect(sendWaitlistClaim).not.toHaveBeenCalled();
   });
 });

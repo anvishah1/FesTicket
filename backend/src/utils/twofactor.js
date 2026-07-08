@@ -64,13 +64,15 @@ export function hashBackupCode(code) {
 }
 
 // 10 human-friendly one-time codes; returns the plaintext (shown once) + hashes.
+// 64 bits of entropy each (Phase-5 review P3: 32-bit codes are brute-forceable
+// offline if the hash set leaks — 64-bit makes precomputation infeasible).
 export function generateBackupCodes(count = 10) {
   const plain = [];
   const hashed = [];
   for (let i = 0; i < count; i++) {
-    // 8 hex chars, grouped as XXXX-XXXX.
-    const raw = crypto.randomBytes(4).toString("hex").toUpperCase();
-    const code = `${raw.slice(0, 4)}-${raw.slice(4)}`;
+    // 16 hex chars (8 random bytes), grouped XXXX-XXXX-XXXX-XXXX.
+    const raw = crypto.randomBytes(8).toString("hex").toUpperCase();
+    const code = raw.match(/.{4}/g).join("-");
     plain.push(code);
     hashed.push(hashBackupCode(code));
   }

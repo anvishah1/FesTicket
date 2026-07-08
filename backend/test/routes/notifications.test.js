@@ -92,7 +92,7 @@ describe("GET /api/notifications (NOTIF-08)", () => {
 
 describe("PATCH /api/notifications (NOTIF-08)", () => {
   it("marks one notification read (owner)", async () => {
-    prismaMock.notification.findUnique.mockResolvedValue({ id: 5, userId: 42, read: false });
+    prismaMock.notification.findFirst.mockResolvedValue({ id: 5, userId: 42, read: false });
     prismaMock.notification.update.mockResolvedValue({ id: 5, read: true });
     const res = await request(appNotif).patch("/api/notifications/5").set(...authHeader);
     expect(res.status).toBe(200);
@@ -101,15 +101,19 @@ describe("PATCH /api/notifications (NOTIF-08)", () => {
     );
   });
 
-  it("403 when the notification belongs to another user", async () => {
-    prismaMock.notification.findUnique.mockResolvedValue({ id: 5, userId: 999, read: false });
+  it("404 (not 403) for another user's notification — no existence oracle (P3 fix)", async () => {
+    // The owner-scoped findFirst returns nothing for a not-owned id, same as a
+    // missing id, so both are indistinguishable 404s.
+    prismaMock.notification.findFirst.mockResolvedValue(null);
     const res = await request(appNotif).patch("/api/notifications/5").set(...authHeader);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
     expect(prismaMock.notification.update).not.toHaveBeenCalled();
+    // The lookup is scoped to the caller.
+    expect(prismaMock.notification.findFirst).toHaveBeenCalledWith({ where: { id: 5, userId: 42 } });
   });
 
   it("404 when the notification does not exist", async () => {
-    prismaMock.notification.findUnique.mockResolvedValue(null);
+    prismaMock.notification.findFirst.mockResolvedValue(null);
     const res = await request(appNotif).patch("/api/notifications/5").set(...authHeader);
     expect(res.status).toBe(404);
   });
@@ -123,7 +127,7 @@ describe("PATCH /api/notifications (NOTIF-08)", () => {
       data: expect.objectContaining({ read: true }),
     });
     // The /read-all route must NOT have hit the single-id handler.
-    expect(prismaMock.notification.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.notification.findFirst).not.toHaveBeenCalled();
   });
 });
 

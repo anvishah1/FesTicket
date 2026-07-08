@@ -36,6 +36,12 @@ export default function SignUpPage() {
         setError(data.error?.message || "Google sign-in failed.");
         return;
       }
+      // AUTH-08: a 2FA-enabled account can't complete the second factor here
+      // (this is the sign-UP page) — send them to sign-in to finish.
+      if (data.data?.twoFactorRequired) {
+        router.push("/signin");
+        return;
+      }
       const { accessToken, refreshToken, user } = data.data;
       setAuth(accessToken, refreshToken, user);
       if (user.role === "ADMIN") router.push("/admin/dashboard");

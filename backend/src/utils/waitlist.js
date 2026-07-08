@@ -16,7 +16,9 @@ import { sendWaitlistClaim } from "./email.js";
 
 const CLAIM_WINDOW_MS = 30 * 60 * 1000;
 
-export async function releaseToWaitlist(ticketTypeId, log) {
+// Notify ONE waiter (the oldest WAITING). Returns the notified row or null when
+// there is no waiter / the atomic claim was lost to a concurrent release.
+async function notifyOneWaiter(ticketTypeId, log) {
   try {
     const next = await prisma.waitlist.findFirst({
       where: { ticketTypeId, status: "WAITING" },
@@ -44,4 +46,45 @@ export async function releaseToWaitlist(ticketTypeId, log) {
     log?.error?.({ err: e, ticketTypeId }, "[waitlist] release failed");
     return null;
   }
+}
+
+// Offer `seats` freed seats of a ticket type to the oldest WAITING waiters — ONE
+// per seat (Phase-5 review P2: a released BookingItem can free N seats, so we
+// must notify up to N distinct waiters, not just the first). Each notified waiter
+// is flipped WAITING->NOTIFIED atomically, so the next iteration picks a different
+// waiter and concurrent releases never double-notify. Returns the count notified.
+export async function releaseToWaitlist(ticketTypeId, seats = 1, log) {
+  const n = Number.isInteger(seats) && seats > 0 ? seats : 1;
+  let notified = 0;
+  for (let i = 0; i < n; i++) {
+    const row = await notifyOneWaiter(ticketTypeId, log);
+    if (!row) break; // no more waiters (or lost the race — stop)
+    notified += 1;
+  }
+  return notified;
+}
+
+// Background sweep: flip NOTIFIED entries whose 30-min claim window has passed to
+// EXPIRED and re-offer each freed seat to the next WAITING waiter. Without this,
+// a notified waiter who ignores the email keeps the entry NOTIFIED forever and
+// the next waiter is never offered the seat (Phase-5 review P3). Called from the
+// scheduled sweep; best-effort.
+export async function expireStaleWaitlistClaims(log) {
+  const stale = await prisma.waitlist.findMany({
+    where: { status: "NOTIFIED", claimExpiresAt: { lt: new Date() } },
+    select: { id: true, ticketTypeId: true },
+  });
+  let expired = 0;
+  for (const w of stale) {
+    // Atomically claim the NOTIFIED->EXPIRED transition so a just-in-time claim
+    // isn't clobbered.
+    const flip = await prisma.waitlist.updateMany({
+      where: { id: w.id, status: "NOTIFIED" },
+      data: { status: "EXPIRED" },
+    });
+    if (flip.count !== 1) continue; // claimed / expired concurrently
+    expired += 1;
+    await releaseToWaitlist(w.ticketTypeId, 1, log); // offer to the next waiter
+  }
+  return { expired };
 }

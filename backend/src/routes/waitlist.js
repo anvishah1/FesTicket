@@ -40,7 +40,7 @@ router.get("/claim/:claimToken", async (req, res) => {
       where: { id: entry.id, status: "NOTIFIED" },
       data: { status: "EXPIRED" },
     });
-    if (flip.count === 1) releaseToWaitlist(entry.ticketTypeId, req.log).catch(() => {});
+    if (flip.count === 1) releaseToWaitlist(entry.ticketTypeId, 1, req.log).catch(() => {});
     return res.fail(410, "CLAIM_EXPIRED", "This claim link has expired");
   }
 

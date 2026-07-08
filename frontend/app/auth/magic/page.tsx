@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getApiUrl, setAuth } from "@/lib/auth";
@@ -10,8 +10,26 @@ function MagicInner() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get("token");
-  const [state, setState] = useState<"verifying" | "error">("verifying");
+  const [state, setState] = useState<"verifying" | "error" | "twofactor">("verifying");
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [useBackup, setUseBackup] = useState(false);
+  const [busy, setBusy] = useState(false);
   const ran = useRef(false);
+
+  const finishSession = (data: {
+    data: {
+      accessToken: string;
+      refreshToken: string;
+      user: { id: number; email: string; name?: string | null; role: string; profileCompleted: boolean };
+    };
+  }) => {
+    const { accessToken, refreshToken, user } = data.data;
+    setAuth(accessToken, refreshToken, user);
+    if (user.role === "ADMIN") router.push("/admin/dashboard");
+    else if (user.role === "EDITOR" || user.role === "HOST") router.push("/host/dashboard");
+    else router.push("/");
+  };
 
   useEffect(() => {
     if (ran.current) return; // single-use token — never POST twice
@@ -29,11 +47,13 @@ function MagicInner() {
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          const { accessToken, refreshToken, user } = data.data;
-          setAuth(accessToken, refreshToken, user);
-          if (user.role === "ADMIN") router.push("/admin/dashboard");
-          else if (user.role === "EDITOR" || user.role === "HOST") router.push("/host/dashboard");
-          else router.push("/");
+          // AUTH-08: 2FA-enabled accounts must complete the second factor.
+          if (data.data?.twoFactorRequired) {
+            setChallengeToken(data.data.challengeToken);
+            setState("twofactor");
+          } else {
+            finishSession(data);
+          }
         } else {
           setState("error");
         }
@@ -43,11 +63,65 @@ function MagicInner() {
     })();
   }, [token, router]);
 
+  const verify2FA = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!challengeToken || busy) return;
+    setBusy(true);
+    try {
+      const body = useBackup ? { challengeToken, backupCode: code.trim() } : { challengeToken, code: code.trim() };
+      const res = await fetch(`${getApiUrl()}/api/auth/2fa/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) finishSession(data);
+      else {
+        setBusy(false);
+      }
+    } catch {
+      setBusy(false);
+    }
+  };
+
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-[var(--bg)]">
       <div className="max-w-md w-full rounded-xl bg-white border shadow-sm p-8 text-center">
         {state === "verifying" ? (
           <p className="text-slate-500">Signing you in…</p>
+        ) : state === "twofactor" ? (
+          <form onSubmit={verify2FA} className="space-y-3 text-left" data-testid="magic-2fa">
+            <h1 className="text-xl font-bold text-center">Two-factor authentication</h1>
+            <p className="text-sm text-slate-500 text-center">
+              {useBackup ? "Enter one of your backup codes." : "Enter the 6-digit code from your authenticator app."}
+            </p>
+            <input
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              inputMode={useBackup ? "text" : "numeric"}
+              placeholder={useBackup ? "XXXX-XXXX-XXXX-XXXX" : "123456"}
+              aria-label="Authentication code"
+              className="w-full border rounded-md px-3 py-2 tracking-widest text-center"
+            />
+            <button
+              type="submit"
+              disabled={!code.trim() || busy}
+              className="w-full px-4 py-2.5 rounded-md bg-primary-600 hover:bg-primary-700 text-white font-semibold disabled:opacity-50"
+            >
+              {busy ? "Verifying…" : "Verify"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setUseBackup((b) => !b);
+                setCode("");
+              }}
+              className="w-full text-sm text-primary-700 hover:underline"
+            >
+              {useBackup ? "Use your authenticator app instead" : "Use a backup code instead"}
+            </button>
+          </form>
         ) : (
           <>
             <h1 className="text-xl font-bold">This link didn&apos;t work</h1>

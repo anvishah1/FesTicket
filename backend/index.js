@@ -30,6 +30,7 @@ import userRoutes from "./src/routes/user.js";
 import roleRequestsRouter from "./src/routes/roleRequests.js";
 import notificationsRouter, { unsubscribeRouter } from "./src/routes/notifications.js";
 import waitlistRouter from "./src/routes/waitlist.js";
+import { expireStaleWaitlistClaims } from "./src/utils/waitlist.js";
 import adminRequestsRouter from "./src/routes/adminRequests.js";
 import sponsorLeadsRouter from "./src/routes/sponsorLeads.js";
 import swaggerUi from "swagger-ui-express";
@@ -294,6 +295,11 @@ async function runStaleSweepTick() {
     // one send per calendar day even across restarts.
     const { sent: digested } = await sendDailySalesDigests();
     if (digested) logger.info({ job: "sales-digest", sent: digested }, "sales-digest");
+
+    // PAY-08 (Phase-5 review P3): expire stale waitlist claims + re-offer the seat
+    // to the next waiter, so an abandoned claim doesn't strand the queue.
+    const { expired: wlExpired } = await expireStaleWaitlistClaims();
+    if (wlExpired) logger.info({ job: "waitlist-expiry", expired: wlExpired }, "waitlist-expiry");
     // PAY-01: recover any stuck orderId-set bookings whose capture the webhook
     // missed (best-effort; no-op when Razorpay is unconfigured).
     const { settled, released, checked } = await reconcileStalePaidOrders();

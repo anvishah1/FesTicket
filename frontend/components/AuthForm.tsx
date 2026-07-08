@@ -108,11 +108,14 @@ export default function AuthForm() {
         setError(data.error?.message || "Google sign-in failed.");
         return;
       }
+      // AUTH-08: a 2FA-enabled account gets a challenge instead of a session.
+      if (data.data?.twoFactorRequired) {
+        setChallengeToken(data.data.challengeToken);
+        return;
+      }
       const { accessToken, refreshToken, user } = data.data;
       setAuth(accessToken, refreshToken, user);
-      if (user.role === "ADMIN") router.push("/admin/dashboard");
-      else if (user.role === "EDITOR" || user.role === "HOST") router.push("/host/dashboard");
-      else router.push("/");
+      redirectByRole(user);
     } catch {
       setError("Could not reach server. Please try again.");
     }

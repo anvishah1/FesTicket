@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { serverFetch, siteUrl } from "@/lib/serverApi";
+import { buildEventJsonLd } from "@/lib/eventJsonLd";
 import EventDetailClient, { type EventData } from "./EventDetailClient";
 
 // SEO-01: server-render the event detail page. Fetches on the server, exports
@@ -52,5 +53,16 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
   if (status === 404) notFound();
   // A transient failure (5xx / unreachable) renders the island with no server
   // data; it falls back to a client fetch rather than a wrong 404.
-  return <EventDetailClient eventId={id} initialEvent={event} />;
+  return (
+    <>
+      {/* SEO-02: schema.org/Event JSON-LD for Google rich results. */}
+      {event && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(buildEventJsonLd(event, siteUrl(`/events/${event.id}`))) }}
+        />
+      )}
+      <EventDetailClient eventId={id} initialEvent={event} />
+    </>
+  );
 }

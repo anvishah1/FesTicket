@@ -9,10 +9,18 @@ import FestEventsClient, { type FestInfo } from "./FestEventsClient";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type FestWithEvents = FestInfo & { description?: string | null; events?: any[] };
 
-// Dynamic (no-store) so notFound() returns a real 404 for a missing/soft-deleted
-// fest (an ISR-cached notFound is served as 200).
+// FE-03: serve via ISR (list content is not time-sensitive like inventory).
+// generateStaticParams prebuilds fests that have public events; others render
+// on-demand.
+export const revalidate = 120;
+
 async function getFest(festId: string) {
-  return serverFetch<FestWithEvents>(`/api/fests/${encodeURIComponent(festId)}`);
+  return serverFetch<FestWithEvents>(`/api/fests/${encodeURIComponent(festId)}`, { revalidate });
+}
+
+export async function generateStaticParams() {
+  const { data } = await serverFetch<{ id: number }[]>("/api/fests/sitemap", { revalidate: 3600 });
+  return (Array.isArray(data) ? data : []).slice(0, 100).map((f) => ({ festId: String(f.id) }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ festId: string }> }): Promise<Metadata> {

@@ -8,11 +8,24 @@ import EventDetailClient, { type EventData } from "./EventDetailClient";
 // per-page metadata (title/description/canonical/OG/Twitter), 404s for missing/
 // DRAFT/PRIVATE/soft-deleted events, and hands server data to the client island.
 
-// Dynamic (no-store) so notFound() returns a real HTTP 404 for a DRAFT/PRIVATE/
-// missing event — an ISR-cached notFound is served as 200. (Route caching is
-// revisited in Phase 7 / FE-03.)
+// FE-03: serve via ISR. A short revalidate keeps ticket sold/availability close
+// to real time; the booking POST also re-validates inventory atomically, so a
+// briefly-stale count can never oversell. generateStaticParams prebuilds the
+// hottest public events at build; other ids render on-demand (dynamicParams).
+export const revalidate = 60;
+
 async function getEvent(id: string) {
-  return serverFetch<EventData>(`/api/events/${encodeURIComponent(id)}`);
+  return serverFetch<EventData>(`/api/events/${encodeURIComponent(id)}`, { revalidate });
+}
+
+export async function generateStaticParams() {
+  const { data } = await serverFetch<{ id: number; updatedAt?: string }[]>("/api/events/sitemap", {
+    revalidate: 3600,
+  });
+  return (Array.isArray(data) ? data : [])
+    .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())
+    .slice(0, 100)
+    .map((e) => ({ id: String(e.id) }));
 }
 
 function metaDescription(e: EventData): string {

@@ -41,6 +41,8 @@ export interface EventData {
   status?: string;
   effectiveStatus?: string;
   festId?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
   fest?: {
     name: string;
     college: string;
@@ -134,6 +136,16 @@ export default function EventDetailClient({
       .finally(() => setGeocoding(false));
   };
 
+  // FE-06: prefer server-stored coordinates (geocoded once at save time); fall back
+  // to the client geocode only when they are absent.
+  const applyEventCoords = (e: EventData) => {
+    if (typeof e.latitude === "number" && typeof e.longitude === "number") {
+      setCoords({ lat: e.latitude, lng: e.longitude });
+    } else {
+      geocodeVenue(e.venueAddress || e.venue);
+    }
+  };
+
   useEffect(() => {
     const fetchEvent = async () => {
       setLoading(true);
@@ -149,9 +161,8 @@ export default function EventDetailClient({
         const data = await res.json();
         if (data.success && data.data) {
           setEvent(data.data);
-          // Geocode the venue, but serve from the localStorage cache first so
-          // repeat views of the same venue don't re-hit Nominatim.
-          geocodeVenue(data.data.venueAddress || data.data.venue);
+          // Use stored coords when present; else client-geocode (cached) as fallback.
+          applyEventCoords(data.data);
         } else {
           // Successful HTTP but no event payload — treat as not found.
           setEvent(null);
@@ -165,9 +176,9 @@ export default function EventDetailClient({
     };
 
     if (!didInit.current && initialEvent) {
-      // First mount with server-provided data: don't refetch, just geocode.
+      // First mount with server-provided data: don't refetch, just place the map.
       didInit.current = true;
-      geocodeVenue(initialEvent.venueAddress || initialEvent.venue);
+      applyEventCoords(initialEvent);
       return;
     }
     didInit.current = true;

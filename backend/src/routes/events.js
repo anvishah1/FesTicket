@@ -9,6 +9,7 @@ import { authenticateUser, authorizeRoles, optionalAuthenticate } from "../middl
 import { validate } from "../middleware/validate.js";
 import { saveDataUrl, UPLOADS_DIR } from "../utils/storage.js";
 import { createEventSchema, ticketTypeSchema, EVENT_CATEGORIES, normalizeCategory } from "../validators/eventValidator.js";
+import { geocodeEventInBackground, venueQuery } from "../utils/geocode.js";
 import {
   createSponsorSchema,
   updateSponsorSchema,
@@ -830,6 +831,12 @@ router.post("/", authenticateUser, authorizeRoles("EDITOR", "HOST", "ADMIN"), va
       });
     });
 
+    // FE-06: best-effort geocode the venue in the background (never blocks/fails
+    // the create). Online events have no physical venue to place.
+    if (event && !event.isOnline) {
+      geocodeEventInBackground(event.id, venueQuery(event.venue, event.venueAddress), req.log);
+    }
+
     res.status(201).json({
       success: true,
       data: event,
@@ -983,6 +990,9 @@ router.put("/:id", authenticateUser, async (req, res) => {
       }
     }
 
+    // FE-06: whether this update touches the venue/address (drives re-geocoding).
+    const venueChanged = venue !== undefined || venueAddress !== undefined;
+
     const event = await prisma.event.update({
       where: { id: parseInt(id) },
       data: {
@@ -1008,11 +1018,19 @@ router.put("/:id", authenticateUser, async (req, res) => {
         visibility,
         status: nextStatus,
         discount: nextDiscount,
+        // FE-06: when the venue/address changes, drop stale coords so the map
+        // doesn't show the old location; the background geocode below repopulates.
+        ...(venueChanged ? { latitude: null, longitude: null, geocodedAt: null } : {}),
       },
       include: {
         ticketTypes: true,
       },
     });
+
+    // FE-06: re-geocode in the background on a venue edit (never blocks the save).
+    if (venueChanged && event && !event.isOnline) {
+      geocodeEventInBackground(event.id, venueQuery(event.venue, event.venueAddress), req.log);
+    }
 
     res.json({
       success: true,

@@ -162,6 +162,13 @@ model Event {
   endTime          String?
   venue            String?
   venueAddress     String?
+  // FE-06: venue coordinates geocoded server-side (best-effort, Nominatim) when an
+  // organizer saves the venue, so the detail-page map renders instantly instead of
+  // every viewer hitting Nominatim. Null until geocoded; the client geocode is the
+  // fallback.
+  latitude         Float?
+  longitude        Float?
+  geocodedAt       DateTime?
   onlineLink       String?
   isOnline         Boolean     @default(false)
   visibility       Visibility  @default(PUBLIC)

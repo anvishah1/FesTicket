@@ -32,15 +32,14 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const canonical = siteUrl(`/events/${event.id}`);
   const title = event.name;
   const description = metaDescription(event);
-  // Only an absolute http(s) image is a valid OG image; SEO-03's opengraph-image
-  // route takes precedence anyway.
-  const images = event.image && /^https?:\/\//.test(event.image) ? [event.image] : undefined;
+  // The branded share image comes from the file-based opengraph-image route
+  // (SEO-03); Next injects it automatically, so no openGraph.images here.
 
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, type: "website", ...(images ? { images } : {}) },
+    openGraph: { title, description, url: canonical, type: "website" },
     twitter: { card: "summary_large_image", title, description },
   };
 }

@@ -1,32 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
 import FestEventRedirectPage from "./page";
 
-const replace = vi.fn();
+// FE-07: the page is now an async Server Component that calls redirect(). redirect
+// throws NEXT_REDIRECT; mock it so we can assert the target without the throw.
+const redirect = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace, back: vi.fn(), prefetch: vi.fn() }),
-  useParams: () => ({ festId: "1", eventId: "42" }),
-  useSearchParams: () => new URLSearchParams(),
-  usePathname: () => "/fests/1/events/42",
+  redirect: (url: string) => redirect(url),
 }));
 
-vi.mock("@/components/Header", () => ({ default: () => <header /> }));
-vi.mock("@/components/Footer", () => ({ default: () => <footer /> }));
+beforeEach(() => redirect.mockClear());
 
-beforeEach(() => {
-  replace.mockClear();
-});
-
-describe("Fest event route (redirect, no fabricated data)", () => {
-  it("redirects to the canonical /events/[id] page", () => {
-    render(<FestEventRedirectPage />);
-    expect(replace).toHaveBeenCalledWith("/events/42");
+describe("Fest event route (server redirect)", () => {
+  it("redirects to the canonical /events/[id] page", async () => {
+    await FestEventRedirectPage({ params: Promise.resolve({ festId: "1", eventId: "42" }) });
+    expect(redirect).toHaveBeenCalledWith("/events/42");
   });
 
-  it("does not render any hardcoded sample event data", () => {
-    render(<FestEventRedirectPage />);
-    // Old fabricated content must be gone.
-    expect(screen.queryByText(/Proshow Day 1/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Book Now/i)).not.toBeInTheDocument();
+  it("encodes the event id in the redirect target", async () => {
+    await FestEventRedirectPage({ params: Promise.resolve({ festId: "1", eventId: "a b" }) });
+    expect(redirect).toHaveBeenCalledWith("/events/a%20b");
+  });
+
+  it("falls back to /events when the id is missing", async () => {
+    await FestEventRedirectPage({ params: Promise.resolve({ festId: "1", eventId: "" }) });
+    expect(redirect).toHaveBeenCalledWith("/events");
   });
 });

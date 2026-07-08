@@ -2248,6 +2248,72 @@ describe("GET /api/events/:eventId/waitlist", () => {
   });
 });
 
+// ==================== SEO-05: discover facets ====================
+describe("GET /api/events discover facets (SEO-05)", () => {
+  beforeEach(() => {
+    prismaMock.event.findMany.mockResolvedValue([]);
+    prismaMock.event.count.mockResolvedValue(0);
+  });
+
+  it("maps dateFrom/dateTo to a startDate gte/lte range", async () => {
+    await request(app).get("/api/events").query({ dateFrom: "2026-06-01", dateTo: "2026-06-30" });
+    expect(prismaMock.event.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ startDate: { gte: expect.any(Date), lte: expect.any(Date) } }),
+      })
+    );
+  });
+
+  it("ignores an unparseable date", async () => {
+    await request(app).get("/api/events").query({ dateFrom: "garbage" });
+    const call = prismaMock.event.findMany.mock.calls[0][0];
+    expect(call.where.startDate).toBeUndefined();
+  });
+
+  it("maps isOnline=true / false to a boolean filter", async () => {
+    await request(app).get("/api/events").query({ isOnline: "true" });
+    expect(prismaMock.event.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ isOnline: true }) })
+    );
+    prismaMock.event.findMany.mockClear();
+    await request(app).get("/api/events").query({ isOnline: "false" });
+    expect(prismaMock.event.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ isOnline: false }) })
+    );
+  });
+
+  it("maps college to a case-insensitive fest.college contains", async () => {
+    await request(app).get("/api/events").query({ college: "IIT" });
+    expect(prismaMock.event.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          fest: expect.objectContaining({ college: { contains: "IIT", mode: "insensitive" } }),
+        }),
+      })
+    );
+  });
+
+  it("free=true requires >=1 ticket type and excludes any priced > 0", async () => {
+    await request(app).get("/api/events").query({ free: "true" });
+    const call = prismaMock.event.findMany.mock.calls[0][0];
+    expect(call.where.ticketTypes).toEqual({ some: {} });
+    expect(call.where.NOT).toEqual({ ticketTypes: { some: { price: { gt: 0 } } } });
+  });
+
+  it("combines facets with the public visibility gate (AND semantics)", async () => {
+    await request(app).get("/api/events").query({ isOnline: "true", category: "Concert" });
+    const call = prismaMock.event.findMany.mock.calls[0][0];
+    expect(call.where).toEqual(
+      expect.objectContaining({
+        isOnline: true,
+        category: "Concert",
+        status: "PUBLISHED",
+        visibility: "PUBLIC",
+      })
+    );
+  });
+});
+
 // ==================== SEO-08: trending sort + goingCount ====================
 describe("GET /api/events?sort=trending (SEO-08)", () => {
   it("orders by descending COMPLETED-booking count, startDate asc tie-break", async () => {

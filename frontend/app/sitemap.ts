@@ -30,6 +30,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: siteUrl("/"), changeFrequency: "daily", priority: 1 },
     { url: siteUrl("/fests"), changeFrequency: "daily", priority: 0.8 },
+    // SEO-05 global discover page. (Category landing pages come with SEO-10.)
+    { url: siteUrl("/events"), changeFrequency: "daily", priority: 0.8 },
   ];
 
   const festRoutes: MetadataRoute.Sitemap = fests.map((f) => ({

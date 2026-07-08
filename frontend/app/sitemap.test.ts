@@ -43,7 +43,11 @@ describe("sitemap (SEO-04)", () => {
   it("degrades to just the static routes when the backend is unreachable", async () => {
     sf.mockResolvedValue({ status: 0, data: null, body: null });
     const map = await sitemap();
-    expect(map.map((e) => e.url)).toEqual(["https://tiqr.test/", "https://tiqr.test/fests"]);
+    expect(map.map((e) => e.url)).toEqual([
+      "https://tiqr.test/",
+      "https://tiqr.test/fests",
+      "https://tiqr.test/events",
+    ]);
   });
 
   it("omits lastModified for an unparseable updatedAt", async () => {

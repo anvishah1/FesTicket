@@ -178,7 +178,7 @@ export default function BookingConfirmationPage() {
             <Link href="/bookings" className="px-4 py-2 bg-primary-600 text-white rounded-md">
               Look up a booking
             </Link>
-            <Link href="/fests" className="px-4 py-2 border rounded-md">
+            <Link href="/events" className="px-4 py-2 border rounded-md">
               Discover events
             </Link>
           </div>
@@ -386,7 +386,7 @@ export default function BookingConfirmationPage() {
               View my bookings
             </Link>
             <Link
-              href="/fests"
+              href="/events"
               className="flex-1 text-center px-4 py-3 rounded-md border hover:bg-slate-50 font-semibold"
             >
               Discover more events

@@ -276,7 +276,8 @@ async function goingCountsByEvent(eventIds) {
 // returns data as an array plus a pagination summary.
 router.get("/", optionalAuthenticate, async (req, res) => {
   try {
-    const { status, category, festId, hostId, search, sort } = req.query;
+    const { status, category, festId, hostId, search, sort, dateFrom, dateTo, isOnline, college, free } =
+      req.query;
 
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 12));
@@ -287,6 +288,28 @@ router.get("/", optionalAuthenticate, async (req, res) => {
     if (hostId) where.hostId = parseInt(hostId);
     if (search && String(search).trim()) {
       where.name = { contains: String(search).trim(), mode: "insensitive" };
+    }
+
+    // SEO-05 discover facets (AND-combined with the gate below):
+    // startDate range (safeDate ignores unparseable input).
+    const df = safeDate(dateFrom);
+    const dt = safeDate(dateTo);
+    if (df || dt) {
+      where.startDate = { ...(df ? { gte: df } : {}), ...(dt ? { lte: dt } : {}) };
+    }
+    // Online-only toggle.
+    if (isOnline === "true") where.isOnline = true;
+    else if (isOnline === "false") where.isOnline = false;
+    // City proxy: the event's fest.college (case-insensitive contains). Implies a
+    // fest, so fest-less events naturally drop out of a college-filtered search.
+    if (college && String(college).trim()) {
+      where.fest = { ...(where.fest || {}), college: { contains: String(college).trim(), mode: "insensitive" } };
+    }
+    // Free-only: every ticket type priced 0, AND the event must have >=1 ticket
+    // type (a no-ticket event isn't a "free" event, it's un-bookable).
+    if (free === "true") {
+      where.ticketTypes = { ...(where.ticketTypes || {}), some: {} };
+      where.NOT = { ticketTypes: { some: { price: { gt: 0 } } } };
     }
 
     // Visibility gate: anonymous and cross-tenant callers only ever see

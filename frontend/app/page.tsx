@@ -33,7 +33,7 @@ export default function Home() {
                 </button>
               </Link>
 
-              <Link href="/fests" className="inline-block">
+              <Link href="/events" className="inline-block">
                 <button className="px-8 py-4 bg-[#C5BAC4] border-2 border-[#6B597F] text-[#29104A] font-semibold rounded-xl hover:bg-[#6B597F] hover:text-[#DEDCDC] transition-all duration-300">
                   Discover Events
                 </button>
@@ -120,7 +120,7 @@ export default function Home() {
                   Start Hosting
                 </button>
               </Link>
-              <Link href="/fests">
+              <Link href="/events">
                 <button className="px-6 py-3 border-2 border-[#C5BAC4]/50 text-[#C5BAC4] font-semibold rounded-xl hover:bg-[#C5BAC4]/10 transition-colors">
                   Discover
                 </button>

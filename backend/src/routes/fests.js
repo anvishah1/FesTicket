@@ -98,6 +98,27 @@ router.get("/", async (req, res) => {
   }
 });
 
+// GET /api/fests/sitemap - Lightweight public feed (id + updatedAt) of every
+// non-deleted fest that has at least one PUBLISHED+PUBLIC event, for the SEO-04
+// sitemap. Same trusted gate as GET /: a soft-deleted fest or a fest with no
+// public event never appears. Declared before /:id so "sitemap" isn't an id.
+router.get("/sitemap", async (req, res) => {
+  try {
+    const fests = await prisma.fest.findMany({
+      where: {
+        isDeleted: false,
+        events: { some: { visibility: "PUBLIC", status: "PUBLISHED" } },
+      },
+      select: { id: true, updatedAt: true },
+      orderBy: { id: "asc" },
+    });
+    res.ok(fests);
+  } catch (error) {
+    req.log.error({ err: error }, "Error building fests sitemap");
+    res.fail(500, "FETCH_ERROR", "Failed to build fests sitemap");
+  }
+});
+
 // GET /api/fests/:id - Get fest by ID with its events
 router.get("/:id", async (req, res) => {
   try {

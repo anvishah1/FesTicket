@@ -727,3 +727,42 @@ describe("GET /api/fests/:festId/events", () => {
     expect(res.body.error).toEqual({ code: "FETCH_ERROR", message: "Failed to fetch events" });
   });
 });
+
+// ==================== GET /api/fests/sitemap (SEO-04) ====================
+describe("GET /api/fests/sitemap", () => {
+  it("returns id + updatedAt for non-deleted fests that have a public event", async () => {
+    const rows = [
+      { id: 3, updatedAt: "2026-03-01T00:00:00.000Z" },
+      { id: 5, updatedAt: "2026-04-01T00:00:00.000Z" },
+    ];
+    prismaMock.fest.findMany.mockResolvedValue(rows);
+
+    const res = await request(app).get("/api/fests/sitemap");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toEqual(rows);
+    expect(prismaMock.fest.findMany).toHaveBeenCalledWith({
+      where: {
+        isDeleted: false,
+        events: { some: { visibility: "PUBLIC", status: "PUBLISHED" } },
+      },
+      select: { id: true, updatedAt: true },
+      orderBy: { id: "asc" },
+    });
+  });
+
+  it("is not shadowed by /:id (never runs the detail handler)", async () => {
+    prismaMock.fest.findMany.mockResolvedValue([]);
+    const res = await request(app).get("/api/fests/sitemap");
+    expect(res.status).toBe(200);
+    expect(prismaMock.fest.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("500s with FETCH_ERROR when the query fails", async () => {
+    prismaMock.fest.findMany.mockRejectedValue(new Error("db down"));
+    const res = await request(app).get("/api/fests/sitemap");
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe("FETCH_ERROR");
+  });
+});

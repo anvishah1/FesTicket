@@ -2246,3 +2246,45 @@ describe("GET /api/events/:eventId/waitlist", () => {
     expect(res.status).toBe(403);
   });
 });
+
+// ==================== GET /api/events/sitemap (SEO-04) ====================
+describe("GET /api/events/sitemap", () => {
+  it("returns id + updatedAt for PUBLISHED+PUBLIC events with the trusted gate", async () => {
+    const rows = [
+      { id: 1, updatedAt: "2026-01-01T00:00:00.000Z" },
+      { id: 2, updatedAt: "2026-02-01T00:00:00.000Z" },
+    ];
+    prismaMock.event.findMany.mockResolvedValue(rows);
+
+    const res = await request(app).get("/api/events/sitemap");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toEqual(rows);
+    // Same visibility gate as the public list; only id/updatedAt selected.
+    expect(prismaMock.event.findMany).toHaveBeenCalledWith({
+      where: {
+        status: "PUBLISHED",
+        visibility: "PUBLIC",
+        OR: [{ festId: null }, { fest: { isDeleted: false } }],
+      },
+      select: { id: true, updatedAt: true },
+      orderBy: { id: "asc" },
+    });
+  });
+
+  it("is not shadowed by /:id (never runs the detail handler)", async () => {
+    prismaMock.event.findMany.mockResolvedValue([]);
+    const res = await request(app).get("/api/events/sitemap");
+    expect(res.status).toBe(200);
+    // The detail route would call findUnique; the sitemap route never does.
+    expect(prismaMock.event.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("500s with FETCH_ERROR when the query fails", async () => {
+    prismaMock.event.findMany.mockRejectedValue(new Error("db down"));
+    const res = await request(app).get("/api/events/sitemap");
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe("FETCH_ERROR");
+  });
+});

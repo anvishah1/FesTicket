@@ -332,6 +332,30 @@ router.get("/", optionalAuthenticate, async (req, res) => {
   }
 });
 
+// GET /api/events/sitemap - Lightweight public feed (id + updatedAt) of every
+// PUBLISHED+PUBLIC event on a non-deleted fest, for the SEO-04 sitemap. No auth,
+// no pagination — just the fields the sitemap needs so crawlers don't force many
+// paginated round-trips. Trusts the same visibility gate as GET /: never exposes
+// a DRAFT/PRIVATE event or one on a soft-deleted fest. Declared before /:id so
+// "sitemap" isn't captured as an id.
+router.get("/sitemap", async (req, res) => {
+  try {
+    const events = await prisma.event.findMany({
+      where: {
+        status: "PUBLISHED",
+        visibility: "PUBLIC",
+        OR: [{ festId: null }, { fest: { isDeleted: false } }],
+      },
+      select: { id: true, updatedAt: true },
+      orderBy: { id: "asc" },
+    });
+    res.ok(events);
+  } catch (error) {
+    req.log.error({ err: error }, "Error building events sitemap");
+    res.fail(500, "FETCH_ERROR", "Failed to build events sitemap");
+  }
+});
+
 // GET /api/events/analytics/fest/:festId - Aggregate analytics for a fest's
 // events (revenue, tickets sold, event/booking counts) derived from COMPLETED
 // bookings. Auth + the caller must own/manage the fest (managed or editor fest).

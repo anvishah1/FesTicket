@@ -1,5 +1,45 @@
 import { z } from "zod";
 
+// SEO-10: the curated event-category taxonomy, mirrored from
+// frontend/lib/categories.ts. Event.category is stored as one of these canonical
+// LABEL strings; values are validated case-insensitively so legacy casing still
+// maps in. Keep this list in sync with the frontend module.
+export const EVENT_CATEGORIES = [
+  "Workshop",
+  "Networking",
+  "Conference",
+  "Meetup",
+  "Hackathon",
+  "Concert",
+  "Cultural",
+  "Technical",
+  "Sports",
+  "Other",
+];
+
+// Canonical label for a value (case-insensitive), or undefined if it is not in
+// the curated set. null/undefined/blank -> null (no category). Shared by the
+// create zod schema and the PUT handler's inline guard.
+export function normalizeCategory(value) {
+  if (value == null) return null;
+  const v = String(value).trim();
+  if (v === "") return null;
+  return EVENT_CATEGORIES.find((l) => l.toLowerCase() === v.toLowerCase());
+}
+
+// zod field: accept a curated label (any casing) and normalize to canonical, or
+// reject with a listing of the allowed values. Blank collapses to null.
+const categoryLike = z
+  .string()
+  .max(100)
+  .transform((v) => v.trim())
+  .refine((v) => v === "" || EVENT_CATEGORIES.some((l) => l.toLowerCase() === v.toLowerCase()), {
+    message: `category must be one of: ${EVENT_CATEGORIES.join(", ")}`,
+  })
+  .transform((v) => (v === "" ? null : EVENT_CATEGORIES.find((l) => l.toLowerCase() === v.toLowerCase())))
+  .optional()
+  .nullable();
+
 // Numbers that may arrive as JS number or numeric string (routes parseInt/parseFloat these).
 const intLike = z.union([
   z.number().int("Must be an integer"),
@@ -101,7 +141,7 @@ export const createEventSchema = z
     description: z.string().max(20000).optional().nullable(),
     aboutEvent: z.string().max(20000).optional().nullable(),
     image: z.string().max(2000).optional().nullable(),
-    category: z.string().max(100).optional().nullable(),
+    category: categoryLike,
     audience: z.string().max(200).optional().nullable(),
     startDate: z.string().max(100).optional().nullable(),
     endDate: z.string().max(100).optional().nullable(),

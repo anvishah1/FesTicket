@@ -8,7 +8,7 @@ import { safeDate } from "../utils/date.js";
 import { authenticateUser, authorizeRoles, optionalAuthenticate } from "../middleware/authMiddleware.js";
 import { validate } from "../middleware/validate.js";
 import { saveDataUrl, UPLOADS_DIR } from "../utils/storage.js";
-import { createEventSchema, ticketTypeSchema } from "../validators/eventValidator.js";
+import { createEventSchema, ticketTypeSchema, EVENT_CATEGORIES, normalizeCategory } from "../validators/eventValidator.js";
 import {
   createSponsorSchema,
   updateSponsorSchema,
@@ -283,7 +283,10 @@ router.get("/", optionalAuthenticate, async (req, res) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 12));
 
     const where = {};
-    if (category) where.category = category;
+    // SEO-10: match category case-insensitively so legacy rows whose casing drifts
+    // from the curated label still surface (and stay consistent with the
+    // case-insensitive counts in GET /api/events/categories).
+    if (category) where.category = { equals: String(category), mode: "insensitive" };
     if (festId) where.festId = parseInt(festId);
     if (hostId) where.hostId = parseInt(hostId);
     if (search && String(search).trim()) {
@@ -415,6 +418,36 @@ router.get("/sitemap", async (req, res) => {
   } catch (error) {
     req.log.error({ err: error }, "Error building events sitemap");
     res.fail(500, "FETCH_ERROR", "Failed to build events sitemap");
+  }
+});
+
+// GET /api/events/categories - Public category facets (SEO-10): each curated
+// category with its count of PUBLISHED+PUBLIC events on a non-deleted fest. Legacy
+// casing is normalized into the canonical labels. Declared before /:id so
+// "categories" isn't captured as an id.
+router.get("/categories", async (req, res) => {
+  try {
+    const groups = await prisma.event.groupBy({
+      by: ["category"],
+      where: {
+        status: "PUBLISHED",
+        visibility: "PUBLIC",
+        OR: [{ festId: null }, { fest: { isDeleted: false } }],
+        category: { not: null },
+      },
+      _count: { _all: true },
+    });
+    const counts = new Map();
+    for (const g of groups || []) {
+      const label = normalizeCategory(g.category);
+      if (!label) continue; // drop legacy values outside the curated set
+      counts.set(label, (counts.get(label) || 0) + (g._count?._all || 0));
+    }
+    const data = EVENT_CATEGORIES.map((category) => ({ category, count: counts.get(category) || 0 }));
+    res.ok(data);
+  } catch (error) {
+    req.log.error({ err: error }, "Error building category facets");
+    res.fail(500, "FETCH_ERROR", "Failed to build category facets");
   }
 });
 
@@ -872,6 +905,25 @@ router.put("/:id", authenticateUser, async (req, res) => {
       });
     }
 
+    // SEO-10: CATEGORY must be in the curated list (case-insensitive, normalized to
+    // canonical). undefined => leave unchanged; null/blank => clear. (PUT has no
+    // zod validator, so guard inline like the other enums above.)
+    let nextCategory; // undefined => unchanged
+    if (category !== undefined) {
+      if (category === null || String(category).trim() === "") {
+        nextCategory = null;
+      } else {
+        const normalized = normalizeCategory(category);
+        if (!normalized) {
+          return res.status(400).json({
+            success: false,
+            error: { code: "VALIDATION_ERROR", message: `category must be one of: ${EVENT_CATEGORIES.join(", ")}` },
+          });
+        }
+        nextCategory = normalized;
+      }
+    }
+
     // DISCOUNT is a percentage; clamp to [0,100] so a negative (overcharge) or
     // >100 (negative total) value can never be stored. (PUT has no zod validator.)
     let nextDiscount; // undefined => leave unchanged
@@ -939,7 +991,7 @@ router.put("/:id", authenticateUser, async (req, res) => {
         description,
         aboutEvent,
         image,
-        category,
+        category: nextCategory,
         refundPolicy: nextRefundPolicy,
         refundCutoffHours: nextRefundCutoffHours,
         maxTicketsPerOrder: nextMaxPerOrder,

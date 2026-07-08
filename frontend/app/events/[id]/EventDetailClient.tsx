@@ -8,7 +8,9 @@ import AddToCalendar from "@/components/AddToCalendar";
 import Footer from "@/components/Footer";
 import { getApiUrl } from "@/lib/auth";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import RelatedEvents from "./RelatedEvents";
+import { labelToSlug } from "@/lib/categories";
 
 interface TicketType {
   id: number;
@@ -309,11 +311,20 @@ export default function EventDetailClient({
                       {event.discount}% OFF
                     </span>
                   )}
-                  {event.category && (
-                    <span className="inline-flex items-center rounded-full bg-[#522C5D]/10 px-3 py-1 text-xs font-medium text-[#522C5D]">
-                      {event.category}
-                    </span>
-                  )}
+                  {/* SEO-10: link the category badge to its landing page */}
+                  {event.category &&
+                    (labelToSlug(event.category) ? (
+                      <Link
+                        href={`/events/category/${labelToSlug(event.category)}`}
+                        className="inline-flex items-center rounded-full bg-[#522C5D]/10 px-3 py-1 text-xs font-medium text-[#522C5D] transition-colors hover:bg-[#522C5D]/20"
+                      >
+                        {event.category}
+                      </Link>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-[#522C5D]/10 px-3 py-1 text-xs font-medium text-[#522C5D]">
+                        {event.category}
+                      </span>
+                    ))}
                   {/* SEO-08: "N going" social proof — COMPLETED bookings only */}
                   {typeof event.goingCount === "number" && event.goingCount > 0 && (
                     <span

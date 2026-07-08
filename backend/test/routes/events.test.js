@@ -95,7 +95,7 @@ describe("GET /api/events", () => {
     expect(prismaMock.event.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          category: "Music",
+          category: { equals: "Music", mode: "insensitive" },
           festId: 3,
           hostId: 4,
           status: "PUBLISHED",
@@ -2306,7 +2306,7 @@ describe("GET /api/events discover facets (SEO-05)", () => {
     expect(call.where).toEqual(
       expect.objectContaining({
         isOnline: true,
-        category: "Concert",
+        category: { equals: "Concert", mode: "insensitive" },
         status: "PUBLISHED",
         visibility: "PUBLIC",
       })
@@ -2411,6 +2411,82 @@ describe("GET /api/events/:id goingCount (SEO-08)", () => {
     expect(prismaMock.booking.count).toHaveBeenCalledWith({
       where: { eventId: 9, status: "COMPLETED" },
     });
+  });
+});
+
+// ==================== SEO-10: curated category taxonomy ====================
+describe("SEO-10 category enforcement", () => {
+  const hostAuth = ["Authorization", `Bearer ${signToken({ userId: 50, role: "HOST" })}`];
+  const ownerToken = signToken({ userId: 10, role: "HOST" });
+
+  it("POST rejects a category outside the curated list (400, no create)", async () => {
+    const res = await request(app).post("/api/events").set(...hostAuth).send({ name: "X", festId: 3, category: "Bogus" });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(prismaMock.event.create).not.toHaveBeenCalled();
+  });
+
+  it("POST normalizes a valid category's casing to canonical", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: null, editorFestId: 3 });
+    prismaMock.event.create.mockResolvedValue({ id: 100 });
+    prismaMock.event.findUnique.mockResolvedValue({ id: 100, ticketTypes: [] });
+
+    const res = await request(app).post("/api/events").set(...hostAuth).send({ name: "X", festId: "3", category: "concert" });
+
+    expect(res.status).toBe(201);
+    expect(prismaMock.event.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ category: "Concert" }) })
+    );
+  });
+
+  it("PUT rejects a category outside the curated list (400, no update)", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 10 });
+    const res = await request(app)
+      .put("/api/events/5")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ category: "Nope" });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(prismaMock.event.update).not.toHaveBeenCalled();
+  });
+
+  it("PUT normalizes a valid category to canonical", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 10 });
+    prismaMock.event.update.mockResolvedValue({ id: 5 });
+    const res = await request(app)
+      .put("/api/events/5")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ category: "cultural" });
+    expect(res.status).toBe(200);
+    expect(prismaMock.event.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ category: "Cultural" }) })
+    );
+  });
+});
+
+describe("GET /api/events/categories (SEO-10)", () => {
+  it("returns all curated categories with public counts, merging legacy casing", async () => {
+    prismaMock.event.groupBy.mockResolvedValue([
+      { category: "Concert", _count: { _all: 3 } },
+      { category: "concert", _count: { _all: 2 } }, // legacy casing merges into Concert
+      { category: "LegacyJunk", _count: { _all: 9 } }, // outside curated set -> dropped
+    ]);
+
+    const res = await request(app).get("/api/events/categories");
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(10); // all curated labels present
+    const map = Object.fromEntries(res.body.data.map((c) => [c.category, c.count]));
+    expect(map.Concert).toBe(5);
+    expect(map.Workshop).toBe(0);
+    expect(map.LegacyJunk).toBeUndefined();
+  });
+
+  it("is not shadowed by /:id", async () => {
+    prismaMock.event.groupBy.mockResolvedValue([]);
+    const res = await request(app).get("/api/events/categories");
+    expect(res.status).toBe(200);
+    expect(prismaMock.event.findUnique).not.toHaveBeenCalled();
   });
 });
 

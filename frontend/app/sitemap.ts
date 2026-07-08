@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { serverFetch, siteUrl } from "@/lib/serverApi";
+import { labelToSlug } from "@/lib/categories";
 
 // SEO-04: dynamic sitemap of every crawlable public page. Fest/event URLs come
 // from the lightweight backend feeds (GET /api/{events,fests}/sitemap) which
@@ -20,12 +21,16 @@ function safeDate(value?: string | null): Date | undefined {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [eventsRes, festsRes] = await Promise.all([
+  const [eventsRes, festsRes, catsRes] = await Promise.all([
     serverFetch<SitemapRow[]>("/api/events/sitemap", { revalidate }),
     serverFetch<SitemapRow[]>("/api/fests/sitemap", { revalidate }),
+    serverFetch<{ category: string; count: number }[]>("/api/events/categories", { revalidate }),
   ]);
   const events = Array.isArray(eventsRes.data) ? eventsRes.data : [];
   const fests = Array.isArray(festsRes.data) ? festsRes.data : [];
+  // SEO-10: only category landing pages that actually have events (a 0-count
+  // page is thin content we don't want crawled).
+  const categories = (Array.isArray(catsRes.data) ? catsRes.data : []).filter((c) => c.count > 0);
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: siteUrl("/"), changeFrequency: "daily", priority: 1 },
@@ -48,5 +53,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  return [...staticRoutes, ...festRoutes, ...eventRoutes];
+  const categoryRoutes: MetadataRoute.Sitemap = categories
+    .map((c) => labelToSlug(c.category))
+    .filter((slug): slug is string => !!slug)
+    .map((slug) => ({
+      url: siteUrl(`/events/category/${slug}`),
+      changeFrequency: "weekly",
+      priority: 0.5,
+    }));
+
+  return [...staticRoutes, ...festRoutes, ...eventRoutes, ...categoryRoutes];
 }

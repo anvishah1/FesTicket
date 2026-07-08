@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { CATEGORY_LABELS } from "@/lib/categories";
 
 interface DescribeEventProps {
   onNext: (data: DescribeEventData) => void;
@@ -15,18 +16,9 @@ export interface DescribeEventData {
   audience: string;
 }
 
-const categories = [
-  "Workshop",
-  "Networking",
-  "Conference",
-  "Meetup",
-  "Hackathon",
-  "Concert",
-  "Cultural",
-  "Technical",
-  "Sports",
-  "Other",
-];
+// SEO-10: single source of truth for categories (shared with the discover facets
+// + backend validator) so the list never drifts.
+const categories = CATEGORY_LABELS;
 
 export default function DescribeEvent({ onNext, onChange, initialData }: DescribeEventProps) {
   const [formData, setFormData] = useState<DescribeEventData>(initialData || {

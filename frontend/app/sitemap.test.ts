@@ -22,6 +22,8 @@ describe("sitemap (SEO-04)", () => {
         return { status: 200, data: [{ id: 10, updatedAt: "2026-05-01T00:00:00.000Z" }], body: null };
       if (path === "/api/fests/sitemap")
         return { status: 200, data: [{ id: 3, updatedAt: "2026-04-01T00:00:00.000Z" }], body: null };
+      if (path === "/api/events/categories")
+        return { status: 200, data: [{ category: "Concert", count: 4 }, { category: "Workshop", count: 0 }], body: null };
       return { status: 0, data: null, body: null };
     });
 
@@ -32,6 +34,9 @@ describe("sitemap (SEO-04)", () => {
     expect(urls).toContain("https://tiqr.test/fests");
     expect(urls).toContain("https://tiqr.test/fests/3/events");
     expect(urls).toContain("https://tiqr.test/events/10");
+    // SEO-10: a category with events is included; a 0-count one is not.
+    expect(urls).toContain("https://tiqr.test/events/category/concert");
+    expect(urls).not.toContain("https://tiqr.test/events/category/workshop");
 
     const ev = map.find((e) => e.url === "https://tiqr.test/events/10");
     expect(ev?.lastModified).toEqual(new Date("2026-05-01T00:00:00.000Z"));

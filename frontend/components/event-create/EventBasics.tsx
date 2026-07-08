@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { FALLBACK_POSTER } from "@/lib/images";
 import { showToast } from "@/lib/toast";
 
 interface EventBasicsProps {
@@ -93,7 +94,7 @@ const defaultImages = [
   },
   {
     id: 2,
-    url: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop",
+    url: FALLBACK_POSTER,
     label: "EDM/DJ"
   },
   {

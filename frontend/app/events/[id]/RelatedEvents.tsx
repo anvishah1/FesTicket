@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FALLBACK_POSTER } from "@/lib/images";
 import { useRouter } from "next/navigation";
 import Card from "@/components/card";
 import { getApiUrl } from "@/lib/auth";
@@ -65,7 +66,7 @@ function Rail({
               }${event.venue ? ` • ${event.venue}` : ""}`}
               image={
                 event.image ||
-                "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop"
+                FALLBACK_POSTER
               }
               discount={event.discount}
               going={event.goingCount}

@@ -9,6 +9,7 @@ import Footer from "@/components/Footer";
 import { getApiUrl } from "@/lib/auth";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import PosterImage from "@/components/PosterImage";
 import RelatedEvents from "./RelatedEvents";
 import { labelToSlug } from "@/lib/categories";
 
@@ -282,11 +283,13 @@ export default function EventDetailClient({
           {/* Hero */}
           <div className="overflow-hidden rounded-2xl border border-[#C5BAC4] bg-white">
             {event.image && (
-              <div className="h-64 w-full overflow-hidden">
-                <img
+              <div className="relative h-64 w-full overflow-hidden">
+                <PosterImage
                   src={event.image}
                   alt={`Poster for ${event.name}`}
-                  className="h-full w-full object-cover"
+                  priority
+                  sizes="(max-width:1024px) 100vw, 66vw"
+                  className="object-cover"
                 />
               </div>
             )}

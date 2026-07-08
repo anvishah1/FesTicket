@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { FALLBACK_POSTER } from "@/lib/images";
 import { formatPaise } from "@/lib/format";
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
@@ -67,7 +68,7 @@ function mapApiEventToHostEvent(e: any): HostEvent {
     venue: e.venue || "TBA",
     image:
       e.image ||
-      "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop",
+      FALLBACK_POSTER,
     category: e.category || "Event",
     status: statusMap[e.effectiveStatus ?? e.status] ?? "upcoming",
     ticketTypes:

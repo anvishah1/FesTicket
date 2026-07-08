@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { FALLBACK_POSTER } from "@/lib/images";
 import { useRouter } from "next/navigation";
 import Card from "@/components/card";
 import Header from "@/components/Header";
@@ -161,7 +162,7 @@ export default function FestsListClient({
                   title={fest.name}
                   subtitle={fest.college}
                   description={formatDate(fest.startDate, fest.endDate)}
-                  image={fest.image || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop"}
+                  image={fest.image || FALLBACK_POSTER}
                   onClick={() => handleFestClick(fest.id)}
                 />
               ))}

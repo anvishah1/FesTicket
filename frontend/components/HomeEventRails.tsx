@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FALLBACK_POSTER } from "@/lib/images";
 import Card from "@/components/card";
 
 // SEO-06: server-rendered "Trending now" + "Upcoming" rails for the homepage.
@@ -6,7 +7,7 @@ import Card from "@/components/card";
 // event URLs are crawlable and present in view-source. Each rail degrades to a
 // friendly CTA when empty.
 
-const FALLBACK_IMG = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop";
+const FALLBACK_IMG = FALLBACK_POSTER;
 
 interface RailEvent {
   id: number;

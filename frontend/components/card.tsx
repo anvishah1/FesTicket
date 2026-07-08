@@ -1,5 +1,7 @@
 "use client";
 
+import PosterImage from "@/components/PosterImage";
+
 interface CardProps {
   title: string;
   description?: string;
@@ -56,10 +58,11 @@ export default function Card({ title, description, image, subtitle, onClick, hov
       {/* Image */}
       {image && (
         <div className="relative w-full h-80 bg-[#C5BAC4]/20 overflow-hidden">
-          <img
+          <PosterImage
             src={image}
             alt={title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
           />
           {/* Hover Overlay */}
           {hoverText && (

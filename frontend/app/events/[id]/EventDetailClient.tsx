@@ -8,6 +8,7 @@ import AddToCalendar from "@/components/AddToCalendar";
 import Footer from "@/components/Footer";
 import { getApiUrl } from "@/lib/auth";
 import dynamic from "next/dynamic";
+import RelatedEvents from "./RelatedEvents";
 
 interface TicketType {
   id: number;
@@ -36,6 +37,7 @@ export interface EventData {
   goingCount?: number;
   status?: string;
   effectiveStatus?: string;
+  festId?: number | null;
   fest?: {
     name: string;
     college: string;
@@ -470,6 +472,14 @@ export default function EventDetailClient({
           </div>
         </aside>
       </main>
+
+      {/* SEO-07: onward-discovery rails (more-at-fest + similar-category) */}
+      <RelatedEvents
+        eventId={event.id}
+        festId={event.festId}
+        festName={event.fest?.name}
+        category={event.category}
+      />
 
       <Footer />
     </div>

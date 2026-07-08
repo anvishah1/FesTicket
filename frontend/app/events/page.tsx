@@ -29,8 +29,11 @@ export const revalidate = 120;
 
 export default async function EventsDiscoverPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, body } = await serverFetch<any[]>("/api/events?page=1&limit=12&sort=date", { revalidate });
-  const initialEvents = Array.isArray(data) ? data : [];
+  const { status, data, body } = await serverFetch<any[]>("/api/events?page=1&limit=12&sort=date", { revalidate });
+  // Distinguish a genuine empty result ([]) from a transient backend failure
+  // (null): the island refetches on mount when it receives null instead of
+  // getting stuck on a misleading empty state (a failed render is ISR-cached).
+  const initialEvents = status === 200 ? (Array.isArray(data) ? data : []) : null;
   const initialPagination = body?.pagination ?? null;
 
   return <EventsDiscoverClient initialEvents={initialEvents} initialPagination={initialPagination} />;

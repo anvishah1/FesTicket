@@ -905,22 +905,21 @@ router.put("/:id", authenticateUser, async (req, res) => {
       });
     }
 
-    // SEO-10: CATEGORY must be in the curated list (case-insensitive, normalized to
-    // canonical). undefined => leave unchanged; null/blank => clear. (PUT has no
-    // zod validator, so guard inline like the other enums above.)
+    // SEO-10: CATEGORY. A curated value (case-insensitive) is normalized to its
+    // canonical label; an explicit blank/null clears it. A NON-curated value is
+    // left UNCHANGED (not rejected) rather than 400-ing the whole update — the
+    // host manage form sends a placeholder ("Event") for uncategorized events and
+    // may carry legacy free-text values, and blocking every field edit on those
+    // is worse than ignoring an out-of-list category. Create-time enforcement
+    // (createEventSchema) keeps new data clean.
     let nextCategory; // undefined => unchanged
     if (category !== undefined) {
       if (category === null || String(category).trim() === "") {
-        nextCategory = null;
+        nextCategory = null; // explicit clear
       } else {
         const normalized = normalizeCategory(category);
-        if (!normalized) {
-          return res.status(400).json({
-            success: false,
-            error: { code: "VALIDATION_ERROR", message: `category must be one of: ${EVENT_CATEGORIES.join(", ")}` },
-          });
-        }
-        nextCategory = normalized;
+        if (normalized) nextCategory = normalized;
+        // else: leave undefined -> category column untouched
       }
     }
 

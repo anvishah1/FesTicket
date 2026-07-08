@@ -2351,6 +2351,42 @@ describe("GET /api/events?sort=trending (SEO-08)", () => {
     );
   });
 
+  it("paginates the globally-ranked set (page 2 = the next-most-booked slice)", async () => {
+    prismaMock.event.findMany
+      .mockResolvedValueOnce([
+        { id: 1, startDate: "2026-01-01T00:00:00.000Z" },
+        { id: 2, startDate: "2026-02-01T00:00:00.000Z" },
+        { id: 3, startDate: "2026-03-01T00:00:00.000Z" },
+      ])
+      .mockResolvedValueOnce([{ id: 3, name: "C" }]); // page-2 rows
+    prismaMock.booking.groupBy.mockResolvedValue([
+      { eventId: 1, _count: { _all: 9 } },
+      { eventId: 2, _count: { _all: 5 } },
+      { eventId: 3, _count: { _all: 1 } },
+    ]);
+
+    const res = await request(app).get("/api/events").query({ sort: "trending", page: "2", limit: "2" });
+
+    // Global ranking 1(9),2(5),3(1); page 2 (skip 2) = [3].
+    expect(res.body.data.map((e) => e.id)).toEqual([3]);
+    expect(res.body.pagination).toEqual({ page: 2, limit: 2, total: 3, totalPages: 2 });
+  });
+
+  it("tie-breaks equal going counts with null startDates by id ascending", async () => {
+    prismaMock.event.findMany
+      .mockResolvedValueOnce([
+        { id: 5, startDate: null },
+        { id: 2, startDate: null },
+        { id: 9, startDate: null },
+      ])
+      .mockResolvedValueOnce([{ id: 2 }, { id: 5 }, { id: 9 }]);
+    prismaMock.booking.groupBy.mockResolvedValue([]); // all 0 going
+
+    const res = await request(app).get("/api/events").query({ sort: "trending" });
+
+    expect(res.body.data.map((e) => e.id)).toEqual([2, 5, 9]);
+  });
+
   it("an event with only PENDING bookings gets goingCount 0 and no boost", async () => {
     prismaMock.event.findMany
       .mockResolvedValueOnce([
@@ -2439,15 +2475,32 @@ describe("SEO-10 category enforcement", () => {
     );
   });
 
-  it("PUT rejects a category outside the curated list (400, no update)", async () => {
+  it("PUT leaves a non-curated category UNCHANGED (does not 400-block the edit)", async () => {
+    // The manage form sends "Event" for uncategorized events; a hard 400 would
+    // block saving name/date/venue too. Non-curated -> category column untouched.
     prismaMock.event.findUnique.mockResolvedValue({ hostId: 10 });
+    prismaMock.event.update.mockResolvedValue({ id: 5 });
     const res = await request(app)
       .put("/api/events/5")
       .set("Authorization", `Bearer ${ownerToken}`)
-      .send({ category: "Nope" });
-    expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe("VALIDATION_ERROR");
-    expect(prismaMock.event.update).not.toHaveBeenCalled();
+      .send({ name: "Renamed", category: "Event" });
+    expect(res.status).toBe(200);
+    expect(prismaMock.event.update).toHaveBeenCalledTimes(1);
+    // category left undefined (Prisma no-op), other fields still written.
+    const data = prismaMock.event.update.mock.calls[0][0].data;
+    expect(data.category).toBeUndefined();
+    expect(data.name).toBe("Renamed");
+  });
+
+  it("PUT clears the category when sent blank/null", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 10 });
+    prismaMock.event.update.mockResolvedValue({ id: 5 });
+    const res = await request(app)
+      .put("/api/events/5")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ category: "" });
+    expect(res.status).toBe(200);
+    expect(prismaMock.event.update.mock.calls[0][0].data.category).toBeNull();
   });
 
   it("PUT normalizes a valid category to canonical", async () => {

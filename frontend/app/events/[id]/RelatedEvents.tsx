@@ -59,6 +59,7 @@ function Rail({
                       month: "short",
                       day: "numeric",
                       year: "numeric",
+                      timeZone: "UTC",
                     })
                   : "Date TBA"
               }${event.venue ? ` • ${event.venue}` : ""}`}

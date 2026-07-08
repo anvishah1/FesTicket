@@ -50,53 +50,9 @@ function loadFonts(): LoadedFont[] {
   return fontsCache;
 }
 
-// --- poster fetch ------------------------------------------------------------
-// Only an absolute http(s) image is usable; a data:/relative /uploads path has no
-// origin ImageResponse can resolve. Fetch it ourselves (short timeout) and inline
-// it as a data URI so a slow/broken remote host degrades to the gradient instead
-// of throwing inside satori. Returns null on any failure.
-export async function fetchPoster(image?: string | null): Promise<string | null> {
-  if (!image || !/^https?:\/\//i.test(image)) return null;
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 2500);
-  try {
-    const res = await fetch(image, { signal: ctrl.signal, headers: { Accept: "image/*" } });
-    if (!res.ok) return null;
-    const ct = res.headers.get("content-type") || "";
-    if (!ct.startsWith("image/")) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length === 0 || buf.length > 5_000_000) return null; // guard empty / huge
-    return `data:${ct};base64,${buf.toString("base64")}`;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-// --- shared formatters (used by both image routes) ---------------------------
-export function formatDateRange(start?: string | null, end?: string | null): string | null {
-  if (!start) return null;
-  const sd = new Date(start);
-  if (Number.isNaN(sd.getTime())) return null;
-  const full = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  if (!end) return full(sd);
-  const ed = new Date(end);
-  if (Number.isNaN(ed.getTime()) || sd.toDateString() === ed.toDateString()) return full(sd);
-  const short = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return `${short(sd)} – ${full(ed)}`;
-}
-
-// "from ₹200" / "Free" / null. Money is INTEGER PAISE (PAY-03).
-export function priceChip(ticketTypes?: any[]): string | null {
-  const prices = (Array.isArray(ticketTypes) ? ticketTypes : [])
-    .map((t) => t?.price)
-    .filter((p) => typeof p === "number");
-  if (!prices.length) return null;
-  const min = Math.min(...prices);
-  if (min <= 0) return "Free";
-  return `from ₹${(min / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-}
+// Pure/data helpers live in ogHelpers.ts (testable without next/og). Re-export
+// them so the opengraph-image routes can keep importing from ogCard.
+export { isPublicHttpUrl, fetchPoster, formatDateRange, priceChip } from "./ogHelpers";
 
 // --- card composition --------------------------------------------------------
 export type CardProps = {
@@ -248,11 +204,23 @@ function Card({ eyebrow, title, subtitle, meta, chip, poster }: CardProps) {
   );
 }
 
-export async function renderCard(props: CardProps): Promise<ImageResponse> {
+export async function renderCard(props: CardProps): Promise<Response> {
   const fonts = loadFonts();
-  return new ImageResponse(<Card {...props} />, {
-    width: size.width,
-    height: size.height,
-    ...(fonts.length ? { fonts } : {}),
-  });
+  const opts = { width: size.width, height: size.height, ...(fonts.length ? { fonts } : {}) };
+  const make = (poster: string | null | undefined) => new ImageResponse(<Card {...props} poster={poster} />, opts);
+
+  // next/og renders lazily when the response stream is consumed — AFTER the image
+  // route's try/catch has returned. A poster whose bytes pass fetchPoster's cheap
+  // checks but can't actually be decoded by satori would then throw mid-stream and
+  // 500 the route. When a poster is present, force the render HERE (arrayBuffer)
+  // so any decode error is caught, and fall back to the gradient card (no poster).
+  if (props.poster) {
+    try {
+      const buf = await make(props.poster).arrayBuffer();
+      return new Response(buf, { headers: { "Content-Type": contentType, "Cache-Control": "public, max-age=3600" } });
+    } catch {
+      return make(null);
+    }
+  }
+  return make(null);
 }

@@ -12,6 +12,19 @@ function absoluteImage(img?: string | null): string | undefined {
   return img && /^https?:\/\//.test(img) ? img : undefined;
 }
 
+// Serialize a JSON-LD object for safe embedding in an inline
+// <script type="application/ld+json"> tag. JSON.stringify does NOT escape "<",
+// so a host-controlled field containing "</script>" (event name, venue, etc.)
+// would break out of the script element and enable stored XSS. Escape the three
+// HTML-significant characters to their \u00XX JSON forms — still valid JSON-LD
+// (the JSON parser decodes them back), but the HTML parser never sees a raw
+// "<"/">"/"&", so the script element cannot be terminated early.
+export function serializeJsonLd(obj: Record<string, any>): string {
+  return JSON.stringify(obj).replace(/[<>&]/g, (c) =>
+    "\\u00" + c.charCodeAt(0).toString(16).padStart(2, "0")
+  );
+}
+
 export function buildEventJsonLd(e: any, canonical: string): Record<string, any> {
   const tickets: any[] = Array.isArray(e?.ticketTypes) ? e.ticketTypes : [];
   const prices = tickets.map((t) => t?.price).filter((p) => typeof p === "number");

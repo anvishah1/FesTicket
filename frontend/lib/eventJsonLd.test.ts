@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildEventJsonLd } from "@/lib/eventJsonLd";
+import { buildEventJsonLd, serializeJsonLd } from "@/lib/eventJsonLd";
 
 const CANON = "https://tiqr.test/events/5";
 
@@ -83,5 +83,26 @@ describe("buildEventJsonLd (SEO-02)", () => {
     const ld = buildEventJsonLd({ ...base, ticketTypes: [{ price: 0, quantity: 100, sold: 0 }] }, CANON);
     expect(ld.offers.lowPrice).toBe("0.00");
     expect(ld.offers.availability).toBe("https://schema.org/InStock");
+  });
+});
+
+describe("serializeJsonLd (XSS-safe embedding)", () => {
+  it("escapes </script> so a hostile event name cannot break out of the tag", () => {
+    const evil = "</script><script>alert(document.cookie)</script>";
+    const out = serializeJsonLd(buildEventJsonLd({ ...base, name: evil }, CANON));
+    // No raw HTML-significant chars survive.
+    expect(out).not.toContain("<");
+    expect(out).not.toContain(">");
+    expect(out).not.toContain("</script>");
+    expect(out).toContain("\\u003c"); // escaped "<"
+    // Still valid JSON that decodes back to the original text (valid JSON-LD).
+    expect(JSON.parse(out).name).toBe(evil);
+  });
+
+  it("escapes ampersands too", () => {
+    const out = serializeJsonLd({ name: "Rock & Roll" });
+    expect(out).not.toContain("&");
+    expect(out).toContain("\\u0026");
+    expect(JSON.parse(out).name).toBe("Rock & Roll");
   });
 });

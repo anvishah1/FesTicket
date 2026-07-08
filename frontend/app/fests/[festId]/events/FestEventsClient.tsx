@@ -70,7 +70,10 @@ export default function FestEventsClient({
     ...Array.from(new Set((initialFest?.events || []).map((e) => e.category || "Other"))),
   ];
 
-  const [festLoading, setFestLoading] = useState(false);
+  // When the server render failed (initialFest null; the page only 404s on a real
+  // missing fest), start in the loading state so the mount refetch shows a spinner
+  // instead of a premature "Fest not found" for a fest that actually exists.
+  const [festLoading, setFestLoading] = useState(!initialFest);
   const [listLoading, setListLoading] = useState(false);
   const [events, setEvents] = useState<Event[]>(initialEvents);
   const [festInfo, setFestInfo] = useState<FestInfo | null>(
@@ -300,7 +303,7 @@ export default function FestEventsClient({
                   subtitle={event.category || "Event"}
                   description={`${event.startDate ? new Date(event.startDate).toLocaleDateString(
                     "en-US",
-                    { month: "short", day: "numeric", year: "numeric" }
+                    { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }
                   ) : "Date TBA"}${event.venue ? ` • ${event.venue}` : ""}`}
                   image={
                     event.image ||

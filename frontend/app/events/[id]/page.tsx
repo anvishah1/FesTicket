@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { serverFetch, siteUrl } from "@/lib/serverApi";
-import { buildEventJsonLd } from "@/lib/eventJsonLd";
+import { buildEventJsonLd, serializeJsonLd } from "@/lib/eventJsonLd";
 import EventDetailClient, { type EventData } from "./EventDetailClient";
 
 // SEO-01: server-render the event detail page. Fetches on the server, exports
@@ -58,7 +58,7 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
       {event && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(buildEventJsonLd(event, siteUrl(`/events/${event.id}`))) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(buildEventJsonLd(event, siteUrl(`/events/${event.id}`))) }}
         />
       )}
       <EventDetailClient eventId={id} initialEvent={event} />

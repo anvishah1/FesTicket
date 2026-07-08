@@ -77,9 +77,22 @@ describe("FestsListClient search + pagination", () => {
     expect(lastUrl).toContain("page=2");
   });
 
-  it("shows an empty state when there are no fests", async () => {
+  it("shows an empty state when there are no fests (genuine empty, no fetch)", async () => {
     render(<FestsListClient initialFests={[]} initialPagination={P({ total: 0, totalPages: 0 })} />);
     expect(await screen.findByText(/0 fests found/)).toBeInTheDocument();
     expect(screen.getByText(/No fests found/)).toBeInTheDocument();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("refetches on mount when the SSR render failed (initialFests=null) instead of sticking empty", async () => {
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValueOnce(festsResponse(["Recovered Fest"], P({ total: 1 })));
+
+    // null => transient outage at render time; the island recovers rather than
+    // showing a misleading "No fests found".
+    render(<FestsListClient initialFests={null} initialPagination={null} />);
+
+    expect(await screen.findByText("Recovered Fest")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

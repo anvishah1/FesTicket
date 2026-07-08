@@ -41,11 +41,13 @@ export default async function CategoryLandingPage({
   if (!label) notFound();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, body } = await serverFetch<any[]>(
+  const { status, data, body } = await serverFetch<any[]>(
     `/api/events?category=${encodeURIComponent(label)}&page=1&limit=12&sort=date`,
     { revalidate }
   );
-  const initialEvents = Array.isArray(data) ? data : [];
+  // null on a transient failure (island refetches on mount) vs [] for a genuine
+  // empty category.
+  const initialEvents = status === 200 ? (Array.isArray(data) ? data : []) : null;
   const initialPagination = body?.pagination ?? null;
 
   return (

@@ -18,8 +18,10 @@ export const metadata: Metadata = {
 };
 
 export default async function FestsPage() {
-  const { data, body } = await serverFetch<Fest[]>("/api/fests?page=1", { revalidate: 120 });
-  const initialFests = Array.isArray(data) ? data : [];
+  const { status, data, body } = await serverFetch<Fest[]>("/api/fests?page=1", { revalidate: 120 });
+  // null on a transient backend failure (island refetches on mount) vs [] for a
+  // genuinely empty result — so an outage at render time isn't a sticky "No fests".
+  const initialFests = status === 200 ? (Array.isArray(data) ? data : []) : null;
   const initialPagination = (body?.pagination as Pagination) ?? null;
   return <FestsListClient initialFests={initialFests} initialPagination={initialPagination} />;
 }

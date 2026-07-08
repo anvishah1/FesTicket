@@ -61,8 +61,10 @@ export default function EventsDiscoverClient({
   initialPagination,
   lockedCategory,
 }: {
+  // null => the server render failed (transient outage); the island refetches on
+  // mount rather than showing a sticky "No events". [] => a genuine empty result.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  initialEvents: any[];
+  initialEvents: any[] | null;
   initialPagination: Pagination | null;
   lockedCategory?: string;
 }) {
@@ -70,7 +72,7 @@ export default function EventsDiscoverClient({
 
   const [events, setEvents] = useState<EventItem[]>((initialEvents || []).map(mapEvent));
   const [pagination, setPagination] = useState<Pagination | null>(initialPagination);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(initialEvents == null);
   const didInit = useRef(false);
 
   // Facet state
@@ -102,7 +104,9 @@ export default function EventsDiscoverClient({
   }, [category, dateFrom, dateTo, onlineOnly, freeOnly, sort]);
 
   useEffect(() => {
-    // Skip the first fetch — the server already provided the initial page.
+    // Skip the first fetch when the server provided the initial page (incl. a
+    // genuine empty []). If initialEvents is null (failed SSR render), fall
+    // through and fetch on mount to recover.
     if (!didInit.current && initialEvents) {
       didInit.current = true;
       return;
@@ -343,6 +347,7 @@ export default function EventsDiscoverClient({
                             month: "short",
                             day: "numeric",
                             year: "numeric",
+                            timeZone: "UTC",
                           })
                         : "Date TBA"
                     }${event.venue ? ` • ${event.venue}` : ""}`}

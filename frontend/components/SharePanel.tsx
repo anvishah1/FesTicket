@@ -4,17 +4,20 @@ import { useEffect, useState } from "react";
 import { showToast } from "@/lib/toast";
 
 // SEO-09: post-booking referral share panel. Builds a share link back to the
-// event carrying ?ref={bookingCode} so a resulting booking can be attributed.
-// WhatsApp deep link + native share (feature-detected) + copy-to-clipboard. The
-// share text contains NO PII (no attendee email/phone) — only the event name.
+// event carrying ?ref={bookingId} so a resulting booking can be attributed.
+// IMPORTANT: the ref is the referring booking's numeric id — NOT its bookingCode,
+// which is a secret capability token (it alone authorizes reading a booking's PII
+// and transferring/stealing the ticket). Broadcasting the id is safe; the id-keyed
+// endpoints all require ownership. WhatsApp deep link + native share
+// (feature-detected) + copy-to-clipboard. Share text carries NO PII.
 
 export default function SharePanel({
   eventId,
-  bookingCode,
+  bookingId,
   eventName,
 }: {
   eventId: number;
-  bookingCode: string;
+  bookingId: number;
   eventName?: string | null;
 }) {
   // Prefer the configured site origin; fall back to the browser origin only after
@@ -29,7 +32,7 @@ export default function SharePanel({
     setCanNativeShare(typeof navigator !== "undefined" && typeof navigator.share === "function");
   }, []);
 
-  const shareUrl = `${origin}/events/${eventId}?ref=${encodeURIComponent(bookingCode)}`;
+  const shareUrl = `${origin}/events/${eventId}?ref=${encodeURIComponent(String(bookingId))}`;
   const message = `Check out ${eventName || "this event"} on tiqr!`;
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${message} ${shareUrl}`)}`;
 

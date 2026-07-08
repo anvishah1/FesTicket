@@ -28,12 +28,14 @@ export default function FestsListClient({
   initialFests,
   initialPagination,
 }: {
-  initialFests: Fest[];
+  // null => the server render failed (transient outage); the island refetches on
+  // mount instead of showing a sticky "No fests". [] => a genuine empty result.
+  initialFests: Fest[] | null;
   initialPagination: Pagination | null;
 }) {
   const router = useRouter();
-  const [fests, setFests] = useState<Fest[]>(initialFests);
-  const [loading, setLoading] = useState(false);
+  const [fests, setFests] = useState<Fest[]>(initialFests || []);
+  const [loading, setLoading] = useState(initialFests == null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -55,9 +57,11 @@ export default function FestsListClient({
 
   useEffect(() => {
     if (!didInit.current) {
-      // First mount reflects the server-rendered page-1 data — don't refetch.
       didInit.current = true;
-      return;
+      // First mount reflects the server-rendered page-1 data — don't refetch...
+      // UNLESS that render failed (initialFests === null), in which case fall
+      // through and fetch on the client to recover.
+      if (initialFests !== null) return;
     }
     setLoading(true);
     setError(false);
@@ -84,10 +88,12 @@ export default function FestsListClient({
   const formatDate = (startDate: string | null, endDate: string | null) => {
     if (!startDate) return "Date TBA";
     const start = new Date(startDate);
-    const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
+    // timeZone: "UTC" so the SSR (server tz) and client (user tz) render the same
+    // calendar day for a midnight-UTC/date-only value — no hydration mismatch.
+    const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" };
     if (endDate) {
       const end = new Date(endDate);
-      return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${end.toLocaleDateString("en-US", options)}`;
+      return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })} - ${end.toLocaleDateString("en-US", options)}`;
     }
     return start.toLocaleDateString("en-US", options);
   };

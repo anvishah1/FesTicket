@@ -331,12 +331,16 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
     // A guest (no token) can never attribute a booking to someone else's account.
     const userId = req.user ? req.user.userId : null;
 
-    // SEO-09: sanitize the referral code to the bookingCode charset and ignore an
-    // authenticated user referring themselves. Attribution only — never money.
-    let referredByCode = typeof ref === "string" ? ref.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) : "";
+    // SEO-09: referral attribution. `ref` is the referring booking's NUMERIC id
+    // (never its bookingCode — that is a secret capability token). Sanitize to
+    // digits, and ignore an authenticated user referring their own booking.
+    // Attribution only — never touches money.
+    let referredByCode = typeof ref === "string" || typeof ref === "number"
+      ? String(ref).replace(/[^0-9]/g, "").slice(0, 18)
+      : "";
     if (referredByCode && userId) {
       const referrer = await prisma.booking.findUnique({
-        where: { bookingCode: referredByCode },
+        where: { id: parseInt(referredByCode) },
         select: { userId: true },
       });
       if (referrer?.userId && referrer.userId === userId) referredByCode = ""; // self-referral

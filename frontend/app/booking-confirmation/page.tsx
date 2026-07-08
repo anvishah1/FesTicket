@@ -383,7 +383,7 @@ export default function BookingConfirmationPage() {
             <div className="mb-4">
               <SharePanel
                 eventId={booking.event.id}
-                bookingCode={booking.bookingCode}
+                bookingId={booking.id}
                 eventName={booking.event?.name}
               />
             </div>

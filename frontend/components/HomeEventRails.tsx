@@ -37,7 +37,7 @@ function mapEvent(e: any): RailEvent {
 
 function dateVenue(e: RailEvent): string {
   const date = e.startDate
-    ? new Date(e.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    ? new Date(e.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
     : "Date TBA";
   return `${date}${e.venue ? ` • ${e.venue}` : ""}`;
 }

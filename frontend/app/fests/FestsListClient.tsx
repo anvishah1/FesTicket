@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { FALLBACK_POSTER } from "@/lib/images";
 import { useRouter } from "next/navigation";
 import Card from "@/components/card";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { getApiUrl } from "@/lib/auth";
+import { useApi } from "@/lib/api";
 
 export interface Fest {
   id: number;
@@ -35,17 +35,9 @@ export default function FestsListClient({
   initialPagination: Pagination | null;
 }) {
   const router = useRouter();
-  const [fests, setFests] = useState<Fest[]>(initialFests || []);
-  const [loading, setLoading] = useState(initialFests == null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState<Pagination | null>(initialPagination);
-  const didInit = useRef(false);
-  // Track a genuine fetch failure (network error / non-ok / unsuccessful body)
-  // separately from an empty-but-successful result so the two don't look alike.
-  const [error, setError] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
 
   // Debounce the search input so typing doesn't fire a request per keystroke.
   useEffect(() => {
@@ -56,35 +48,28 @@ export default function FestsListClient({
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => {
-    if (!didInit.current) {
-      didInit.current = true;
-      // First mount reflects the server-rendered page-1 data — don't refetch...
-      // UNLESS that render failed (initialFests === null), in which case fall
-      // through and fetch on the client to recover.
-      if (initialFests !== null) return;
-    }
-    setLoading(true);
-    setError(false);
-    const params = new URLSearchParams();
-    if (debouncedSearch) params.set("search", debouncedSearch);
-    params.set("page", String(page));
+  // FE-02: SWR-backed fetch. The key encodes the query, so search/page changes
+  // refetch (and dedup) automatically — no manual loading/error/reload bookkeeping.
+  const params = new URLSearchParams();
+  if (debouncedSearch) params.set("search", debouncedSearch);
+  params.set("page", String(page));
+  const key = `/api/fests?${params.toString()}`;
 
-    fetch(`${getApiUrl()}/api/fests?${params.toString()}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
-        const response = await res.json();
-        if (!response.success) throw new Error("Request was not successful");
-        setFests(Array.isArray(response.data) ? response.data : []);
-        // New API shape includes `pagination`; fall back gracefully if absent.
-        setPagination(response.pagination ?? null);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch fests:", err);
-        setError(true);
-      })
-      .finally(() => setLoading(false));
-  }, [debouncedSearch, page, reloadKey]);
+  // Seed ONLY the initial key (page 1, no search) from the SSR payload. A null
+  // seed (failed server render) leaves fallbackData unset so SWR fetches on mount.
+  const onInitialKey = !debouncedSearch && page === 1;
+  const { data, pagination, error, isLoading, mutate } = useApi<Fest[]>(key, {
+    ...(onInitialKey && initialFests != null
+      ? { fallbackData: { data: initialFests, pagination: initialPagination ?? undefined } }
+      : {}),
+  });
+
+  const fests = data ?? [];
+  // Show the loading state only when there's genuinely nothing to display yet —
+  // SWR's isLoading stays true during background revalidation even with seeded
+  // fallbackData, which would flash "Loading" over the seed. `data === undefined`
+  // is true only on a real first load with no seed/cache (the null-recovery path).
+  const loading = data === undefined && isLoading;
 
   const formatDate = (startDate: string | null, endDate: string | null) => {
     if (!startDate) return "Date TBA";
@@ -144,7 +129,7 @@ export default function FestsListClient({
             <div role="alert" className="text-[#6B597F]">
               <p>Something went wrong while loading fests. Please check your connection and try again.</p>
               <button
-                onClick={() => setReloadKey((k) => k + 1)}
+                onClick={() => mutate()}
                 className="mt-3 rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm font-medium text-[#522C5D] transition-colors hover:bg-[#C5BAC4]"
               >
                 Try again

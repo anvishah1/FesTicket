@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { FALLBACK_POSTER } from "@/lib/images";
 import { useRouter } from "next/navigation";
 import Card from "@/components/card";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { getApiUrl } from "@/lib/auth";
+import { useApi } from "@/lib/api";
 
 interface Event {
   id: number;
@@ -40,6 +40,10 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: "newest", label: "Newest" },
 ];
 
+// Raw event shape from the API (loosely typed; mapEvent normalizes it).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type EventRaw = any;
+
 function mapEvent(e: any): Event {
   return {
     id: e.id,
@@ -65,27 +69,7 @@ export default function FestEventsClient({
 }) {
   const router = useRouter();
 
-  const initialEvents = (initialFest?.events || []).map(mapEvent);
-  const initialCategories = [
-    "All",
-    ...Array.from(new Set((initialFest?.events || []).map((e) => e.category || "Other"))),
-  ];
-
-  // When the server render failed (initialFest null; the page only 404s on a real
-  // missing fest), start in the loading state so the mount refetch shows a spinner
-  // instead of a premature "Fest not found" for a fest that actually exists.
-  const [festLoading, setFestLoading] = useState(!initialFest);
-  const [listLoading, setListLoading] = useState(false);
-  const [events, setEvents] = useState<Event[]>(initialEvents);
-  const [festInfo, setFestInfo] = useState<FestInfo | null>(
-    initialFest ? { id: initialFest.id, name: initialFest.name, college: initialFest.college } : null
-  );
-  const [categories, setCategories] = useState<string[]>(initialCategories);
-  const [pagination, setPagination] = useState<Pagination | null>(
-    initialFest ? { page: 1, limit: initialEvents.length || 1, total: initialEvents.length, totalPages: 1 } : null
-  );
-  const didInitFest = useRef(false);
-  const didInitEvents = useRef(false);
+  const initialEventsRaw = initialFest?.events || [];
 
   // Filters / query state
   const [search, setSearch] = useState("");
@@ -93,36 +77,6 @@ export default function FestEventsClient({
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [sort, setSort] = useState<string>("date");
   const [page, setPage] = useState(1);
-
-  // Load fest info once (name/college) and derive the full category list so the
-  // category chips stay stable even when the event list is server-filtered.
-  useEffect(() => {
-    if (!didInitFest.current && initialFest) {
-      didInitFest.current = true;
-      return;
-    }
-    didInitFest.current = true;
-    const fetchFest = async () => {
-      try {
-        const res = await fetch(`${getApiUrl()}/api/fests/${festId}`);
-        const json = await res.json();
-        if (json.success && json.data) {
-          setFestInfo({ id: json.data.id, name: json.data.name, college: json.data.college });
-          const evs = (json.data.events || []) as any[];
-          const cats = Array.from(new Set(evs.map((e) => e.category || "Other")));
-          setCategories(["All", ...cats]);
-        } else {
-          setFestInfo(null);
-        }
-      } catch (err) {
-        console.error("Failed to load fest:", err);
-        setFestInfo(null);
-      } finally {
-        setFestLoading(false);
-      }
-    };
-    fetchFest();
-  }, [festId]);
 
   // Debounce the search box.
   useEffect(() => {
@@ -138,43 +92,50 @@ export default function FestEventsClient({
     setPage(1);
   }, [selectedCategory, sort]);
 
-  // Fetch the (filtered / sorted / paginated) event list.
-  useEffect(() => {
-    if (!Number.isFinite(festId)) return;
-    if (!didInitEvents.current && initialFest) {
-      didInitEvents.current = true;
-      return;
-    }
-    didInitEvents.current = true;
-    const fetchEvents = async () => {
-      setListLoading(true);
-      try {
-        const qs = new URLSearchParams();
-        qs.set("festId", String(festId));
-        if (debouncedSearch) qs.set("search", debouncedSearch);
-        if (selectedCategory && selectedCategory !== "All") qs.set("category", selectedCategory);
-        if (sort) qs.set("sort", sort);
-        qs.set("page", String(page));
+  // FE-02: fest info (name/college + the full category list) via SWR, seeded from
+  // the SSR payload. The category chips derive from the fest's own events so they
+  // stay stable even when the list below is server-filtered.
+  const { data: festData, error: festError } = useApi<FestInfo & { events?: EventRaw[] }>(
+    Number.isFinite(festId) ? `/api/fests/${festId}` : null,
+    initialFest ? { fallbackData: { data: initialFest } } : undefined
+  );
+  const festInfo: FestInfo | null = festData
+    ? { id: festData.id, name: festData.name, college: festData.college }
+    : null;
+  const categories = ["All", ...Array.from(new Set((festData?.events || []).map((e) => e.category || "Other")))];
+  // Loading only while there's no fest data AND no error yet — so a transient
+  // failure shows the spinner, not a premature "Fest not found".
+  const festLoading = festData === undefined && !festError;
 
-        const res = await fetch(`${getApiUrl()}/api/events?${qs.toString()}`);
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          setEvents(json.data.map(mapEvent));
-          setPagination(json.pagination ?? null);
-        } else {
-          setEvents([]);
-          setPagination(null);
+  // FE-02: the filtered / sorted / paginated event list via SWR.
+  const qs = new URLSearchParams();
+  qs.set("festId", String(festId));
+  if (debouncedSearch) qs.set("search", debouncedSearch);
+  if (selectedCategory && selectedCategory !== "All") qs.set("category", selectedCategory);
+  if (sort) qs.set("sort", sort);
+  qs.set("page", String(page));
+  const eventsKey = Number.isFinite(festId) ? `/api/events?${qs.toString()}` : null;
+
+  // Seed only the initial view (page 1, date sort, All, no search) from the SSR
+  // events; other queries fetch fresh.
+  const onInitialEventsKey = !debouncedSearch && selectedCategory === "All" && sort === "date" && page === 1;
+  const { data: eventsData, pagination } = useApi<EventRaw[]>(eventsKey, {
+    ...(onInitialEventsKey && initialFest
+      ? {
+          fallbackData: {
+            data: initialEventsRaw,
+            pagination: {
+              page: 1,
+              limit: initialEventsRaw.length || 1,
+              total: initialEventsRaw.length,
+              totalPages: 1,
+            },
+          },
         }
-      } catch (err) {
-        console.error("Failed to load events:", err);
-        setEvents([]);
-        setPagination(null);
-      } finally {
-        setListLoading(false);
-      }
-    };
-    fetchEvents();
-  }, [festId, debouncedSearch, selectedCategory, sort, page]);
+      : {}),
+  });
+  const events: Event[] = (eventsData ?? []).map(mapEvent);
+  const listLoading = eventsData === undefined;
 
   const handleEventClick = (eventId: number) => {
     router.push(`/events/${eventId}`);

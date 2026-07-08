@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { SWRConfig } from "swr";
 // SEO-01: interactivity lives in the client island; the server page is covered
-// by build/live checks.
+// by build/live checks. FE-02: the island is now SWR-backed.
 import FestEventsClient from "./FestEventsClient";
 
 const push = vi.fn();
@@ -17,14 +18,17 @@ const LIST_EVENTS = [
   { id: 2, name: "Hack Day", category: "Tech", startDate: "2026-08-02", venue: "Lab", image: null, discount: 0 },
 ];
 
-// The server page seeds the island with the fest (incl. its events) for the
-// initial list + category chips; filter/sort/page interactions hit /api/events.
 const initialFest = { id: 1, name: "TechFest", college: "IIT", events: LIST_EVENTS };
 
+// Mock both endpoints: GET /api/fests/:id returns the fest object; GET /api/events
+// returns the (filtered) events list. SWR revalidates on mount, so every call is
+// answered.
 function installFetch(listEvents = LIST_EVENTS) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  globalThis.fetch = vi.fn((url: string) => {
-    const u = new URL(url, "http://localhost");
+  globalThis.fetch = vi.fn((url: string | URL) => {
+    const u = new URL(String(url), "http://localhost");
+    if (/\/api\/fests\/\d+/.test(u.pathname)) {
+      return Promise.resolve({ ok: true, json: async () => ({ success: true, data: initialFest }) });
+    }
     const search = (u.searchParams.get("search") || "").toLowerCase();
     const category = u.searchParams.get("category");
     const page = Number(u.searchParams.get("page") || "1");
@@ -39,21 +43,30 @@ function installFetch(listEvents = LIST_EVENTS) {
   }) as any;
 }
 
-const renderIsland = () => render(<FestEventsClient festId={1} initialFest={initialFest} />);
+const renderIsland = () =>
+  render(
+    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+      <FestEventsClient festId={1} initialFest={initialFest} />
+    </SWRConfig>
+  );
 
 beforeEach(() => {
+  push.mockReset();
   installFetch();
 });
 
-describe("Fest events discovery", () => {
-  it("renders the server-provided events with a discount badge on discounted cards", async () => {
+function eventsUrls() {
+  const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+  return fetchMock.mock.calls.map((c) => String(c[0])).filter((u) => u.includes("/api/events"));
+}
+
+describe("Fest events discovery (SWR)", () => {
+  it("renders the server-seeded events with a discount badge on discounted cards", async () => {
     renderIsland();
     expect(await screen.findByText("Rock Night")).toBeInTheDocument();
     const badges = screen.getAllByTestId("discount-badge");
     expect(badges).toHaveLength(1);
     expect(badges[0]).toHaveTextContent("20% OFF");
-    // Seeded from props — no client fetch on first mount.
-    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("filters the list by search term via the API", async () => {
@@ -63,10 +76,8 @@ describe("Fest events discovery", () => {
 
     await waitFor(() => expect(screen.queryByText("Hack Day")).not.toBeInTheDocument());
     expect(screen.getByText("Rock Night")).toBeInTheDocument();
-    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
-    const lastUrl = fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0] as string;
-    expect(lastUrl).toContain("search=Rock");
-    expect(lastUrl).toContain("festId=1");
+    const urls = eventsUrls();
+    expect(urls.some((u) => u.includes("search=Rock") && u.includes("festId=1"))).toBe(true);
   });
 
   it("filters by category chip", async () => {
@@ -79,9 +90,7 @@ describe("Fest events discovery", () => {
 
     await waitFor(() => expect(screen.queryByText("Rock Night")).not.toBeInTheDocument());
     expect(screen.getByText("Hack Day")).toBeInTheDocument();
-    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
-    const lastUrl = fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0] as string;
-    expect(lastUrl).toContain("category=Tech");
+    expect(eventsUrls().some((u) => u.includes("category=Tech"))).toBe(true);
   });
 
   it("shows the result count", async () => {

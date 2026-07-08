@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SWRConfig } from "swr";
 import CompleteProfileModal from "@/components/CompleteProfileModal";
 import Toaster from "@/components/Toaster";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
@@ -70,7 +71,10 @@ export default function ClientRoot({
   const showProfileModal = profileRequired && !dismissed;
 
   return (
-    <>
+    // FE-02: one SWRConfig for the whole app so useApi/useApiMutation hooks share
+    // a cache (dedup + stale-while-revalidate across client navigations). A fresh
+    // Map provider keeps the cache clearable; no refetch storm on tab focus.
+    <SWRConfig value={{ revalidateOnFocus: false, provider: () => new Map() }}>
       <ServiceWorkerRegistrar />
       <Toaster />
       {!loading && (
@@ -120,6 +124,6 @@ export default function ClientRoot({
       <div id="main-content" tabIndex={-1}>
         {children}
       </div>
-    </>
+    </SWRConfig>
   );
 }

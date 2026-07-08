@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Card from "@/components/card";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { useApi } from "@/lib/api";
+import { useApi, prefetchApi } from "@/lib/api";
 
 interface Event {
   id: number;
@@ -107,19 +107,25 @@ export default function FestEventsClient({
   // failure shows the spinner, not a premature "Fest not found".
   const festLoading = festData === undefined && !festError;
 
-  // FE-02: the filtered / sorted / paginated event list via SWR.
-  const qs = new URLSearchParams();
-  qs.set("festId", String(festId));
-  if (debouncedSearch) qs.set("search", debouncedSearch);
-  if (selectedCategory && selectedCategory !== "All") qs.set("category", selectedCategory);
-  if (sort) qs.set("sort", sort);
-  qs.set("page", String(page));
-  const eventsKey = Number.isFinite(festId) ? `/api/events?${qs.toString()}` : null;
+  // FE-02: the filtered / sorted / paginated event list via SWR. FE-08:
+  // keepPreviousData keeps the current cards visible while the next page loads.
+  const eventsKeyFor = (p: number) => {
+    if (!Number.isFinite(festId)) return null;
+    const q = new URLSearchParams();
+    q.set("festId", String(festId));
+    if (debouncedSearch) q.set("search", debouncedSearch);
+    if (selectedCategory && selectedCategory !== "All") q.set("category", selectedCategory);
+    if (sort) q.set("sort", sort);
+    q.set("page", String(p));
+    return `/api/events?${q.toString()}`;
+  };
+  const eventsKey = eventsKeyFor(page);
 
   // Seed only the initial view (page 1, date sort, All, no search) from the SSR
   // events; other queries fetch fresh.
   const onInitialEventsKey = !debouncedSearch && selectedCategory === "All" && sort === "date" && page === 1;
-  const { data: eventsData, pagination } = useApi<EventRaw[]>(eventsKey, {
+  const { data: eventsData, pagination, isValidating } = useApi<EventRaw[]>(eventsKey, {
+    keepPreviousData: true,
     ...(onInitialEventsKey && initialFest
       ? {
           fallbackData: {
@@ -136,6 +142,22 @@ export default function FestEventsClient({
   });
   const events: Event[] = (eventsData ?? []).map(mapEvent);
   const listLoading = eventsData === undefined;
+  const listPaging = isValidating && !listLoading;
+
+  // FE-08: warm the adjacent pages once the current one settles (skip first/last).
+  useEffect(() => {
+    if (eventsData === undefined || isValidating) return;
+    const tp = pagination?.totalPages ?? 1;
+    if (page < tp) {
+      const k = eventsKeyFor(page + 1);
+      if (k) prefetchApi(k);
+    }
+    if (page > 1) {
+      const k = eventsKeyFor(page - 1);
+      if (k) prefetchApi(k);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventsData, isValidating, page, pagination, debouncedSearch, selectedCategory, sort, festId]);
 
   const handleEventClick = (eventId: number) => {
     router.push(`/events/${eventId}`);
@@ -257,7 +279,12 @@ export default function FestEventsClient({
           {listLoading ? (
             <p className="text-[#6B597F]">Loading events...</p>
           ) : events.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div
+              aria-busy={listPaging}
+              className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 transition-opacity duration-200 ${
+                listPaging ? "opacity-60" : "opacity-100"
+              }`}
+            >
               {events.map((event) => (
                 <Card
                   key={event.id}

@@ -10,6 +10,12 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/components/Header", () => ({ default: () => <header /> }));
 vi.mock("@/components/Footer", () => ({ default: () => <footer /> }));
+// Keep useApi real but stub the FE-08 prefetch (its preload writes to SWR's
+// default global cache, which would bleed across tests).
+vi.mock("@/lib/api", async (importActual) => ({
+  ...(await importActual<typeof import("@/lib/api")>()),
+  prefetchApi: vi.fn(),
+}));
 
 function festList(names: string[]): Fest[] {
   return names.map((name, i) => ({
@@ -103,7 +109,9 @@ describe("FestsListClient (SWR) search + pagination", () => {
   });
 
   it("recovers by fetching on mount when the SSR render failed (initialFests=null)", async () => {
-    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(respond(["Recovered Fest"], P({ total: 1 })));
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(() =>
+      Promise.resolve(respond(["Recovered Fest"], P({ total: 1 })))
+    );
     renderSWR(<FestsListClient initialFests={null} initialPagination={null} />);
     expect(await screen.findByText("Recovered Fest")).toBeInTheDocument();
   });

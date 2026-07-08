@@ -72,9 +72,11 @@ export default function ClientRoot({
 
   return (
     // FE-02: one SWRConfig for the whole app so useApi/useApiMutation hooks share
-    // a cache (dedup + stale-while-revalidate across client navigations). A fresh
-    // Map provider keeps the cache clearable; no refetch storm on tab focus.
-    <SWRConfig value={{ revalidateOnFocus: false, provider: () => new Map() }}>
+    // a cache (dedup + stale-while-revalidate across client navigations). Uses
+    // SWR's default cache so FE-08 preload() and useApi() hit the SAME cache (a
+    // custom provider would send prefetches to a different Map). No refetch storm
+    // on tab focus.
+    <SWRConfig value={{ revalidateOnFocus: false }}>
       <ServiceWorkerRegistrar />
       <Toaster />
       {!loading && (

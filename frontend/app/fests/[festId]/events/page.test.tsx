@@ -12,6 +12,12 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/components/Header", () => ({ default: () => <header /> }));
 vi.mock("@/components/Footer", () => ({ default: () => <footer /> }));
+// Keep useApi real but stub the FE-08 prefetch (its preload writes to SWR's
+// default global cache, which would bleed across tests).
+vi.mock("@/lib/api", async (importActual) => ({
+  ...(await importActual<typeof import("@/lib/api")>()),
+  prefetchApi: vi.fn(),
+}));
 
 const LIST_EVENTS = [
   { id: 1, name: "Rock Night", category: "Music", startDate: "2026-08-01", venue: "Arena", image: null, discount: 20 },

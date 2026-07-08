@@ -10,7 +10,7 @@
 // across the data-loading pages, and gives dedup + stale-while-revalidate for
 // free.
 
-import useSWR, { type SWRConfiguration, type KeyedMutator } from "swr";
+import useSWR, { preload, type SWRConfiguration, type KeyedMutator } from "swr";
 import { useCallback } from "react";
 import { apiFetch } from "@/lib/auth";
 
@@ -54,6 +54,12 @@ async function fetcher<T>(path: string): Promise<Parsed<T>> {
   }
   // Bare body (auth/user/roleRequests legacy shape)
   return { data: body as T };
+}
+
+// FE-08: warm the SWR cache for a key (e.g. the next page) so a later useApi(key)
+// resolves instantly. Shares the same cache entry as useApi (SWR keys by string).
+export function prefetchApi(key: string): Promise<unknown> {
+  return preload(key, fetcher);
 }
 
 export type UseApiResult<T> = {

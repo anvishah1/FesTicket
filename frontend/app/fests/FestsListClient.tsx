@@ -1,12 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FALLBACK_POSTER } from "@/lib/images";
 import { useRouter } from "next/navigation";
 import Card from "@/components/card";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { useApi } from "@/lib/api";
+import { useApi, prefetchApi } from "@/lib/api";
+
+function festsKey(search: string, page: number) {
+  const p = new URLSearchParams();
+  if (search) p.set("search", search);
+  p.set("page", String(page));
+  return `/api/fests?${p.toString()}`;
+}
 
 export interface Fest {
   id: number;
@@ -49,27 +56,47 @@ export default function FestsListClient({
   }, [search]);
 
   // FE-02: SWR-backed fetch. The key encodes the query, so search/page changes
-  // refetch (and dedup) automatically — no manual loading/error/reload bookkeeping.
-  const params = new URLSearchParams();
-  if (debouncedSearch) params.set("search", debouncedSearch);
-  params.set("page", String(page));
-  const key = `/api/fests?${params.toString()}`;
+  // refetch (and dedup) automatically.
+  const key = festsKey(debouncedSearch, page);
 
   // Seed ONLY the initial key (page 1, no search) from the SSR payload. A null
   // seed (failed server render) leaves fallbackData unset so SWR fetches on mount.
   const onInitialKey = !debouncedSearch && page === 1;
-  const { data, pagination, error, isLoading, mutate } = useApi<Fest[]>(key, {
+  const { data, pagination: pageData, error, mutate } = useApi<Fest[]>(key, {
     ...(onInitialKey && initialFests != null
       ? { fallbackData: { data: initialFests, pagination: initialPagination ?? undefined } }
       : {}),
   });
 
-  const fests = data ?? [];
-  // Show the loading state only when there's genuinely nothing to display yet —
-  // SWR's isLoading stays true during background revalidation even with seeded
-  // fallbackData, which would flash "Loading" over the seed. `data === undefined`
-  // is true only on a real first load with no seed/cache (the null-recovery path).
-  const loading = data === undefined && isLoading;
+  // FE-08: keep the last successfully loaded page on screen while the next one
+  // loads (SWR's own keepPreviousData mishandles the no-seed first load, so we
+  // track the displayed page ourselves). `data === undefined` means the current
+  // key is fetching with no cache hit.
+  const [shown, setShown] = useState<{ fests: Fest[]; pagination?: Pagination }>({
+    fests: initialFests ?? [],
+    pagination: initialPagination ?? undefined,
+  });
+  const hasLoaded = useRef(initialFests != null);
+  useEffect(() => {
+    if (data !== undefined) {
+      setShown({ fests: data, pagination: pageData });
+      hasLoaded.current = true;
+    }
+  }, [data, pageData]);
+
+  const fests = shown.fests;
+  const pagination = shown.pagination;
+  const totalPages = pagination?.totalPages ?? 1;
+  const loading = !hasLoaded.current && data === undefined; // first load, never had data
+  const paging = hasLoaded.current && data === undefined; // new key loading; prior stays
+
+  // FE-08: once the current page has settled, warm the cache for the adjacent
+  // pages so Next/Prev feels instant (a prefetched page swaps in with no flash).
+  useEffect(() => {
+    if (data === undefined) return;
+    if (page < totalPages) prefetchApi(festsKey(debouncedSearch, page + 1));
+    if (page > 1) prefetchApi(festsKey(debouncedSearch, page - 1));
+  }, [data, page, totalPages, debouncedSearch]);
 
   const formatDate = (startDate: string | null, endDate: string | null) => {
     if (!startDate) return "Date TBA";
@@ -88,7 +115,6 @@ export default function FestsListClient({
     router.push(`/fests/${festId}/events`);
   };
 
-  const totalPages = pagination?.totalPages ?? 1;
   const total = pagination?.total;
 
   return (
@@ -140,7 +166,12 @@ export default function FestsListClient({
               {debouncedSearch ? `No fests match “${debouncedSearch}”.` : "No fests found"}
             </p>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div
+              aria-busy={paging}
+              className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 transition-opacity duration-200 ${
+                paging ? "opacity-60" : "opacity-100"
+              }`}
+            >
               {fests.map((fest) => (
                 <Card
                   key={fest.id}

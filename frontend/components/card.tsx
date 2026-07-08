@@ -8,10 +8,12 @@ interface CardProps {
   onClick?: () => void;
   hoverText?: string; // Optional hover overlay text (e.g., "Register Now")
   discount?: number; // Percentage discount; when > 0 a "X% OFF" badge is shown
+  going?: number; // SEO-08: COMPLETED-booking count; when > 0 an "N going" badge shows
 }
 
-export default function Card({ title, description, image, subtitle, onClick, hoverText, discount }: CardProps) {
+export default function Card({ title, description, image, subtitle, onClick, hoverText, discount, going }: CardProps) {
   const hasDiscount = typeof discount === "number" && discount > 0;
+  const hasGoing = typeof going === "number" && going > 0;
   const isInteractive = typeof onClick === "function";
 
   // When the card acts as a control, expose real button semantics so it is
@@ -82,6 +84,17 @@ export default function Card({ title, description, image, subtitle, onClick, hov
         
         {description && (
           <p className="text-sm text-[#6B597F] line-clamp-2">{description}</p>
+        )}
+
+        {/* SEO-08: "N going" social proof — only when there are COMPLETED bookings */}
+        {hasGoing && (
+          <span
+            data-testid="going-badge"
+            className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full bg-[#522C5D]/10 px-2.5 py-1 text-xs font-medium text-[#522C5D]"
+          >
+            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            {going} going
+          </span>
         )}
       </div>
     </div>

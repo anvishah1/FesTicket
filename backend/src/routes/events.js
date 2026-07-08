@@ -249,6 +249,27 @@ function eventOrderBy(sort) {
   }
 }
 
+// Shared include for the public list response (public-safe relations only).
+const EVENT_LIST_INCLUDE = {
+  fest: { select: { id: true, name: true, college: true } },
+  host: { select: { id: true, name: true } },
+  ticketTypes: true,
+  _count: { select: { bookings: true } },
+};
+
+// SEO-08: COMPLETED-booking count per event — the "N going" social proof and the
+// trending signal. _count.bookings counts ALL statuses, so a PENDING inventory
+// hold would inflate it; group by COMPLETED only. Returns Map<eventId, number>.
+async function goingCountsByEvent(eventIds) {
+  if (!eventIds.length) return new Map();
+  const groups = await prisma.booking.groupBy({
+    by: ["eventId"],
+    where: { status: "COMPLETED", eventId: { in: eventIds } },
+    _count: { _all: true },
+  });
+  return new Map((groups || []).map((g) => [g.eventId, g._count?._all || 0]));
+}
+
 // GET /api/events - List events (public + host). Optional hostId = only events
 // created by that host. Also supports search (name contains, case-insensitive),
 // category filter, sort (date|name|newest), and page/limit pagination. Always
@@ -290,32 +311,50 @@ router.get("/", optionalAuthenticate, async (req, res) => {
       where.OR = [{ festId: null }, { fest: { isDeleted: false } }];
     }
 
-    const [events, total] = await Promise.all([
-      prisma.event.findMany({
-        where,
-        orderBy: eventOrderBy(sort),
-        skip: (page - 1) * limit,
-        take: limit,
-        include: {
-          fest: {
-            select: { id: true, name: true, college: true },
-          },
-          host: {
-            select: { id: true, name: true },
-          },
-          ticketTypes: true,
-          _count: {
-            select: { bookings: true },
-          },
-        },
-      }),
-      prisma.event.count({ where }),
-    ]);
+    let events;
+    let totalCount;
+    let goingMap;
 
-    const totalCount = total || 0;
+    if (sort === "trending") {
+      // SEO-08: trending ranks by COMPLETED-booking count, which Prisma can't
+      // express as an orderBy on a status-filtered relation _count. Rank the full
+      // matching set in memory (events are bounded per fest) then page the ranked
+      // ids, so page 1 of ?sort=trending is the globally most-booked events, not
+      // just the most-booked within an arbitrary page.
+      const candidates = await prisma.event.findMany({ where, select: { id: true, startDate: true } });
+      totalCount = candidates.length;
+      goingMap = await goingCountsByEvent(candidates.map((c) => c.id));
+      candidates.sort((a, b) => {
+        const diff = (goingMap.get(b.id) || 0) - (goingMap.get(a.id) || 0);
+        if (diff !== 0) return diff; // more going first
+        const ta = a.startDate ? new Date(a.startDate).getTime() : Infinity;
+        const tb = b.startDate ? new Date(b.startDate).getTime() : Infinity;
+        if (ta !== tb) return ta - tb; // earlier startDate first (TBA last)
+        return a.id - b.id; // stable tie-break
+      });
+      const pageIds = candidates.slice((page - 1) * limit, page * limit).map((c) => c.id);
+      const rows = await prisma.event.findMany({ where: { id: { in: pageIds } }, include: EVENT_LIST_INCLUDE });
+      const byId = new Map(rows.map((e) => [e.id, e]));
+      events = pageIds.map((id) => byId.get(id)).filter(Boolean);
+    } else {
+      const [rows, total] = await Promise.all([
+        prisma.event.findMany({
+          where,
+          orderBy: eventOrderBy(sort),
+          skip: (page - 1) * limit,
+          take: limit,
+          include: EVENT_LIST_INCLUDE,
+        }),
+        prisma.event.count({ where }),
+      ]);
+      events = rows;
+      totalCount = total || 0;
+      goingMap = await goingCountsByEvent(events.map((e) => e.id));
+    }
+
     res.json({
       success: true,
-      data: events.map(withEffectiveStatus),
+      data: events.map((e) => ({ ...withEffectiveStatus(e), goingCount: goingMap.get(e.id) || 0 })),
       pagination: {
         page,
         limit,
@@ -585,9 +624,15 @@ router.get("/:id", optionalAuthenticate, async (req, res) => {
       event.host = { id: event.host.id, name: event.host.name };
     }
 
+    // SEO-08: "N going" social proof — COMPLETED bookings only (PENDING/CANCELLED
+    // excluded), consistent with the list's goingCount.
+    const goingCount = await prisma.booking.count({
+      where: { eventId: event.id, status: "COMPLETED" },
+    });
+
     res.json({
       success: true,
-      data: withEffectiveStatus(event),
+      data: { ...withEffectiveStatus(event), goingCount },
     });
   } catch (error) {
     req.log.error({ err: error }, "Error fetching event");

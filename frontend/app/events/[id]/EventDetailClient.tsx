@@ -33,6 +33,7 @@ export interface EventData {
   venue?: string | null;
   venueAddress?: string | null;
   discount?: number;
+  goingCount?: number;
   status?: string;
   effectiveStatus?: string;
   fest?: {
@@ -309,6 +310,16 @@ export default function EventDetailClient({
                   {event.category && (
                     <span className="inline-flex items-center rounded-full bg-[#522C5D]/10 px-3 py-1 text-xs font-medium text-[#522C5D]">
                       {event.category}
+                    </span>
+                  )}
+                  {/* SEO-08: "N going" social proof — COMPLETED bookings only */}
+                  {typeof event.goingCount === "number" && event.goingCount > 0 && (
+                    <span
+                      data-testid="going-badge"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-[#522C5D]/10 px-3 py-1 text-xs font-medium text-[#522C5D]"
+                    >
+                      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      {event.goingCount} going
                     </span>
                   )}
                 </div>

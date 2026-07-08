@@ -36,7 +36,8 @@ describe("GET /api/events", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       success: true,
-      data: events,
+      // SEO-08: each event carries goingCount (0 with no COMPLETED bookings mocked)
+      data: events.map((e) => ({ ...e, goingCount: 0 })),
       pagination: { page: 1, limit: 12, total: 1, totalPages: 1 },
     });
     // public listing forces PUBLISHED+PUBLIC and excludes soft-deleted fests
@@ -2244,6 +2245,106 @@ describe("GET /api/events/:eventId/waitlist", () => {
       .get("/api/events/5/waitlist")
       .set("Authorization", `Bearer ${signToken({ userId: 10, role: "ADMIN" })}`);
     expect(res.status).toBe(403);
+  });
+});
+
+// ==================== SEO-08: trending sort + goingCount ====================
+describe("GET /api/events?sort=trending (SEO-08)", () => {
+  it("orders by descending COMPLETED-booking count, startDate asc tie-break", async () => {
+    // candidates (id + startDate) then the paged full rows (unordered).
+    prismaMock.event.findMany
+      .mockResolvedValueOnce([
+        { id: 1, startDate: "2026-01-01T00:00:00.000Z" },
+        { id: 2, startDate: "2026-02-01T00:00:00.000Z" },
+        { id: 3, startDate: "2026-03-01T00:00:00.000Z" },
+      ])
+      .mockResolvedValueOnce([
+        { id: 2, name: "B" },
+        { id: 1, name: "A" },
+        { id: 3, name: "C" },
+      ]);
+    // ids 1 & 2 tie at 5 going -> earlier startDate (id 1) wins; id 3 last.
+    prismaMock.booking.groupBy.mockResolvedValue([
+      { eventId: 2, _count: { _all: 5 } },
+      { eventId: 1, _count: { _all: 5 } },
+      { eventId: 3, _count: { _all: 1 } },
+    ]);
+
+    const res = await request(app).get("/api/events").query({ sort: "trending" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((e) => e.id)).toEqual([1, 2, 3]);
+    expect(res.body.data.map((e) => e.goingCount)).toEqual([5, 5, 1]);
+    expect(res.body.pagination.total).toBe(3);
+    // trending counts are COMPLETED only.
+    expect(prismaMock.booking.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        by: ["eventId"],
+        where: { status: "COMPLETED", eventId: { in: [1, 2, 3] } },
+      })
+    );
+  });
+
+  it("an event with only PENDING bookings gets goingCount 0 and no boost", async () => {
+    prismaMock.event.findMany
+      .mockResolvedValueOnce([
+        { id: 1, startDate: "2026-01-01T00:00:00.000Z" },
+        { id: 2, startDate: "2026-02-01T00:00:00.000Z" },
+      ])
+      .mockResolvedValueOnce([
+        { id: 2, name: "Booked" },
+        { id: 1, name: "OnlyPending" },
+      ]);
+    // Only id 2 has COMPLETED bookings; id 1's PENDING holds don't count.
+    prismaMock.booking.groupBy.mockResolvedValue([{ eventId: 2, _count: { _all: 4 } }]);
+
+    const res = await request(app).get("/api/events").query({ sort: "trending" });
+
+    expect(res.body.data.map((e) => e.id)).toEqual([2, 1]);
+    expect(res.body.data.find((e) => e.id === 1).goingCount).toBe(0);
+  });
+});
+
+describe("GET /api/events goingCount (SEO-08)", () => {
+  it("attaches COMPLETED-only goingCount to each listed event (0 when none)", async () => {
+    prismaMock.event.findMany.mockResolvedValue([
+      { id: 1, name: "A" },
+      { id: 2, name: "B" },
+    ]);
+    prismaMock.event.count.mockResolvedValue(2);
+    prismaMock.booking.groupBy.mockResolvedValue([{ eventId: 1, _count: { _all: 3 } }]);
+
+    const res = await request(app).get("/api/events");
+
+    expect(res.body.data.find((e) => e.id === 1).goingCount).toBe(3);
+    expect(res.body.data.find((e) => e.id === 2).goingCount).toBe(0);
+    expect(prismaMock.booking.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: "COMPLETED", eventId: { in: [1, 2] } } })
+    );
+  });
+});
+
+describe("GET /api/events/:id goingCount (SEO-08)", () => {
+  it("includes goingCount (COMPLETED only) on the detail response", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({
+      id: 9,
+      name: "Detail",
+      status: "PUBLISHED",
+      visibility: "PUBLIC",
+      fest: { id: 1, isDeleted: false },
+      host: { id: 2, name: "Host", email: "h@x.com" },
+      ticketTypes: [],
+      questions: [],
+    });
+    prismaMock.booking.count.mockResolvedValue(7);
+
+    const res = await request(app).get("/api/events/9");
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.goingCount).toBe(7);
+    expect(prismaMock.booking.count).toHaveBeenCalledWith({
+      where: { eventId: 9, status: "COMPLETED" },
+    });
   });
 });
 

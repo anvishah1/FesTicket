@@ -17,6 +17,7 @@ interface Event {
   image: string | null;
   category: string | null;
   discount?: number;
+  goingCount?: number;
 }
 
 export interface FestInfo {
@@ -49,6 +50,7 @@ function mapEvent(e: any): Event {
     image: e.image,
     category: e.category,
     discount: e.discount,
+    goingCount: e.goingCount,
   };
 }
 
@@ -305,6 +307,7 @@ export default function FestEventsClient({
                     "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop"
                   }
                   discount={event.discount}
+                  going={event.goingCount}
                   hoverText="View Details"
                   onClick={() => handleEventClick(event.id)}
                 />

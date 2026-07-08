@@ -103,4 +103,17 @@ describe("Card", () => {
     rerender(<Card title="No deal" />);
     expect(screen.queryByTestId("discount-badge")).not.toBeInTheDocument();
   });
+
+  // SEO-08: "N going" social-proof badge.
+  it("shows an 'N going' badge when going > 0", () => {
+    render(<Card title="Popular" going={42} />);
+    expect(screen.getByTestId("going-badge")).toHaveTextContent("42 going");
+  });
+
+  it("does not show the going badge when going is 0 or omitted", () => {
+    const { rerender } = render(<Card title="Quiet" going={0} />);
+    expect(screen.queryByTestId("going-badge")).not.toBeInTheDocument();
+    rerender(<Card title="Quiet" />);
+    expect(screen.queryByTestId("going-badge")).not.toBeInTheDocument();
+  });
 });

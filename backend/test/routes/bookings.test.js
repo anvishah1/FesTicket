@@ -341,6 +341,68 @@ describe("POST /api/bookings", () => {
     );
   });
 
+  // ---- SEO-09: referral attribution ----
+  const seedCreateMocks = () => {
+    prismaMock.event.findUnique.mockResolvedValue({
+      id: 1,
+      status: "PUBLISHED",
+      visibility: "PUBLIC",
+      ticketTypes: [{ id: 10, name: "GA", price: 100, quantity: 50, sold: 0 }],
+    });
+    prismaMock.booking.create.mockResolvedValue({ id: 99, items: [] });
+    prismaMock.ticketType.updateMany.mockResolvedValue({ count: 1 });
+  };
+
+  it("SEO-09: persists a sanitized referredByCode from ?ref (guest)", async () => {
+    seedCreateMocks();
+    prismaMock.booking.findUnique.mockResolvedValue({ id: 99, event: { id: 1, name: "X" }, items: [], attendees: [] });
+
+    const res = await request(app)
+      .post("/api/bookings")
+      .send({ eventId: 1, guestEmail: "g@x.com", tickets: [{ ticketTypeId: 10, quantity: 1 }], ref: "ab!! cd-12@#" });
+
+    expect(res.status).toBe(201);
+    // Non-[A-Za-z0-9_-] chars stripped -> "abcd-12".
+    expect(prismaMock.booking.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ referredByCode: "abcd-12" }) })
+    );
+  });
+
+  it("SEO-09: stores null referredByCode when no ref is supplied", async () => {
+    seedCreateMocks();
+    prismaMock.booking.findUnique.mockResolvedValue({ id: 99, event: { id: 1, name: "X" }, items: [], attendees: [] });
+
+    const res = await request(app)
+      .post("/api/bookings")
+      .send({ eventId: 1, guestEmail: "g@x.com", tickets: [{ ticketTypeId: 10, quantity: 1 }] });
+
+    expect(res.status).toBe(201);
+    expect(prismaMock.booking.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ referredByCode: null }) })
+    );
+  });
+
+  it("SEO-09: ignores self-referral (authenticated user's own bookingCode)", async () => {
+    seedCreateMocks();
+    // 1st findUnique = self-referral lookup (same user); 2nd = final booking.
+    prismaMock.booking.findUnique
+      .mockResolvedValueOnce({ userId: 7 })
+      .mockResolvedValueOnce({ id: 99, event: { id: 1, name: "X" }, items: [], attendees: [] });
+
+    const res = await request(app)
+      .post("/api/bookings")
+      .set("Authorization", `Bearer ${signToken({ userId: 7, role: "VIEWER" })}`)
+      .send({ eventId: 1, tickets: [{ ticketTypeId: 10, quantity: 1 }], ref: "SELFCODE" });
+
+    expect(res.status).toBe(201);
+    expect(prismaMock.booking.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { bookingCode: "SELFCODE" } })
+    );
+    expect(prismaMock.booking.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ referredByCode: null, userId: 7 }) })
+    );
+  });
+
   it("ignores a body userId for a guest booking (L2 anti-spoof)", async () => {
     prismaMock.event.findUnique.mockResolvedValue({
       id: 3,

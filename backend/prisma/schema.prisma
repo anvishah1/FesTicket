@@ -286,6 +286,9 @@ model Booking {
   promoDiscount Int          @default(0) // paise discounted by the promo code
   refundedAmount Int         @default(0) // paise refunded so far (PAY-02)
   refundReason String?
+  // SEO-09: the bookingCode of the referring booking, when the buyer arrived via
+  // a ?ref= share link. Optional; never affects money.
+  referredByCode String?
   purchaseDate DateTime?
   // NOTIF-02: stamped once when the abandoned-checkout recovery email is sent, so
   // a later sweep pass never re-sends for the same PENDING booking.

@@ -11,6 +11,7 @@ import { showToast } from "@/lib/toast";
 import { QRCodeSVG } from "qrcode.react";
 import AddToCalendar from "@/components/AddToCalendar";
 import WalletButtons from "@/components/WalletButtons";
+import SharePanel from "@/components/SharePanel";
 
 interface ConfirmationBooking {
   id: number;
@@ -376,6 +377,17 @@ export default function BookingConfirmationPage() {
                 <WalletButtons bookingCode={booking.bookingCode} apple={wallet.apple} google={wallet.google} />
               </div>
             )}
+
+          {/* SEO-09: referral share loop — turn a confirmed buyer into a channel */}
+          {booking.event?.id != null && (
+            <div className="mb-4">
+              <SharePanel
+                eventId={booking.event.id}
+                bookingCode={booking.bookingCode}
+                eventName={booking.event?.name}
+              />
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3">

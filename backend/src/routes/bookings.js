@@ -324,11 +324,24 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
       attendees, // Array of { ticketTypeId, name, email }
       answers, // Optional array of { questionId, value } — per-booking question answers
       promoCode, // Optional promo code string (PAY-04) — discount derived server-side
+      ref, // SEO-09: optional referral code (a referring booking's bookingCode)
     } = req.body;
 
     // L2: the owning user comes ONLY from a verified token, never from the body.
     // A guest (no token) can never attribute a booking to someone else's account.
     const userId = req.user ? req.user.userId : null;
+
+    // SEO-09: sanitize the referral code to the bookingCode charset and ignore an
+    // authenticated user referring themselves. Attribution only — never money.
+    let referredByCode = typeof ref === "string" ? ref.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) : "";
+    if (referredByCode && userId) {
+      const referrer = await prisma.booking.findUnique({
+        where: { bookingCode: referredByCode },
+        select: { userId: true },
+      });
+      if (referrer?.userId && referrer.userId === userId) referredByCode = ""; // self-referral
+    }
+    referredByCode = referredByCode || null;
 
     // Validation
     if (!eventId || !tickets || tickets.length === 0) {
@@ -609,6 +622,7 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
           total,
           status: isFree ? "COMPLETED" : "PENDING",
           purchaseDate: isFree ? new Date() : null,
+          referredByCode, // SEO-09 (null unless a valid ?ref= was supplied)
           items: {
             create: bookingItems,
           },

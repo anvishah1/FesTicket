@@ -43,5 +43,8 @@ export const createBookingSchema = z
     // PAY-04: an optional promo code string. The DISCOUNT is derived server-side
     // from the stored PromoCode, never from the client.
     promoCode: z.string().max(64, "Promo code is too long").optional().nullable(),
+    // SEO-09: optional referral code (the referring booking's bookingCode) from a
+    // ?ref= share link. Sanitized + attribution-only in the handler; never money.
+    ref: z.string().max(64, "Referral code is too long").optional().nullable(),
   })
   .passthrough();

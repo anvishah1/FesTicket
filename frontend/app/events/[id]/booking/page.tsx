@@ -3,7 +3,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import TicketSelector from "@/components/TicketSelector";
 import BookingSummary from "@/components/BookingSummary";
@@ -58,7 +58,10 @@ interface EventData {
 export default function BookingPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const eventId = params.id as string;
+  // SEO-09: carry a referral code (from a ?ref= share link) into the booking.
+  const refCode = searchParams.get("ref");
 
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -363,6 +366,8 @@ export default function BookingPage() {
             // PAY-04: the server re-validates + redeems this and stores the
             // authoritative promoDiscount/promoCodeId.
             promoCode: appliedPromo?.code,
+            // SEO-09: referral attribution (server sanitizes + ignores self-refer).
+            ref: refCode || undefined,
           }),
         },
         { redirectOnAuthFailure: false }

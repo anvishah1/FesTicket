@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { FALLBACK_POSTER } from "@/lib/images";
-import { useRouter } from "next/navigation";
 import Card from "@/components/card";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -69,8 +68,6 @@ export default function EventsDiscoverClient({
   initialPagination: Pagination | null;
   lockedCategory?: string;
 }) {
-  const router = useRouter();
-
   const [events, setEvents] = useState<EventItem[]>((initialEvents || []).map(mapEvent));
   const [pagination, setPagination] = useState<Pagination | null>(initialPagination);
   const [loading, setLoading] = useState(initialEvents == null);
@@ -359,7 +356,7 @@ export default function EventsDiscoverClient({
                     discount={event.discount}
                     going={event.goingCount}
                     hoverText="View Details"
-                    onClick={() => router.push(`/events/${event.id}`)}
+                    href={`/events/${event.id}`}
                   />
                 ))}
               </div>

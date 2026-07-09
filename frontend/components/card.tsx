@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import PosterImage from "@/components/PosterImage";
 
 interface CardProps {
@@ -8,43 +9,40 @@ interface CardProps {
   image?: string;
   subtitle?: string;
   onClick?: () => void;
+  href?: string; // FE-09: when set, the card is a real <Link> anchor (prefetched, crawlable, new-tab-able)
   hoverText?: string; // Optional hover overlay text (e.g., "Register Now")
   discount?: number; // Percentage discount; when > 0 a "X% OFF" badge is shown
   going?: number; // SEO-08: COMPLETED-booking count; when > 0 an "N going" badge shows
 }
 
-export default function Card({ title, description, image, subtitle, onClick, hoverText, discount, going }: CardProps) {
+export default function Card({ title, description, image, subtitle, onClick, href, hoverText, discount, going }: CardProps) {
   const hasDiscount = typeof discount === "number" && discount > 0;
   const hasGoing = typeof going === "number" && going > 0;
-  const isInteractive = typeof onClick === "function";
+  const isButton = !href && typeof onClick === "function";
 
-  // When the card acts as a control, expose real button semantics so it is
-  // keyboard-focusable (Tab), activates on Enter/Space, and has an accessible name.
+  // When the card acts as a control (no href), expose real button semantics so it
+  // is keyboard-focusable (Tab), activates on Enter/Space, and has an accessible
+  // name. With an href the <Link> anchor is natively focusable/activatable.
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!isInteractive) return;
+    if (!isButton) return;
     if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
       e.preventDefault();
       onClick?.();
     }
   };
 
-  return (
-    <div
-      onClick={onClick}
-      onKeyDown={isInteractive ? handleKeyDown : undefined}
-      role={isInteractive ? "button" : undefined}
-      tabIndex={isInteractive ? 0 : undefined}
-      aria-label={isInteractive ? title : undefined}
-      className={`
-        group relative
-        bg-white border border-[#C5BAC4] rounded-xl overflow-hidden
-        transition-all duration-200
-        hover:shadow-lg hover:-translate-y-1
-        flex flex-col
-        focus:outline-none focus-visible:ring-2 focus-visible:ring-[#522C5D] focus-visible:ring-offset-2
-        ${isInteractive ? "cursor-pointer" : ""}
-      `}
-    >
+  const className = `
+    group relative
+    bg-white border border-[#C5BAC4] rounded-xl overflow-hidden
+    transition-all duration-200
+    hover:shadow-lg hover:-translate-y-1
+    flex flex-col
+    focus:outline-none focus-visible:ring-2 focus-visible:ring-[#522C5D] focus-visible:ring-offset-2
+    ${href || isButton ? "cursor-pointer" : ""}
+  `;
+
+  const inner = (
+    <>
       {/* Discount badge */}
       {hasDiscount && (
         <span
@@ -74,20 +72,14 @@ export default function Card({ title, description, image, subtitle, onClick, hov
           )}
         </div>
       )}
-      
+
       {/* Content */}
       <div className="p-5 flex flex-col flex-grow">
-        <h2 className="text-base font-semibold text-[#29104A] mb-1 line-clamp-2">
-          {title}
-        </h2>
-        
-        {subtitle && (
-          <p className="text-sm text-[#522C5D] mb-2">{subtitle}</p>
-        )}
-        
-        {description && (
-          <p className="text-sm text-[#6B597F] line-clamp-2">{description}</p>
-        )}
+        <h2 className="text-base font-semibold text-[#29104A] mb-1 line-clamp-2">{title}</h2>
+
+        {subtitle && <p className="text-sm text-[#522C5D] mb-2">{subtitle}</p>}
+
+        {description && <p className="text-sm text-[#6B597F] line-clamp-2">{description}</p>}
 
         {/* SEO-08: "N going" social proof — only when there are COMPLETED bookings */}
         {hasGoing && (
@@ -100,6 +92,29 @@ export default function Card({ title, description, image, subtitle, onClick, hov
           </span>
         )}
       </div>
+    </>
+  );
+
+  // FE-09: a navigational card is a real anchor (prefetched, ctrl/middle-click to
+  // open in a new tab, crawlable). A non-navigational card keeps button semantics.
+  if (href) {
+    return (
+      <Link href={href} className={className} aria-label={title}>
+        {inner}
+      </Link>
+    );
+  }
+
+  return (
+    <div
+      onClick={onClick}
+      onKeyDown={isButton ? handleKeyDown : undefined}
+      role={isButton ? "button" : undefined}
+      tabIndex={isButton ? 0 : undefined}
+      aria-label={isButton ? title : undefined}
+      className={className}
+    >
+      {inner}
     </div>
   );
 }

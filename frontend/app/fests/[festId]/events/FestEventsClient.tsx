@@ -159,9 +159,6 @@ export default function FestEventsClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventsData, isValidating, page, pagination, debouncedSearch, selectedCategory, sort, festId]);
 
-  const handleEventClick = (eventId: number) => {
-    router.push(`/events/${eventId}`);
-  };
 
   if (festLoading) {
     return (
@@ -301,7 +298,7 @@ export default function FestEventsClient({
                   discount={event.discount}
                   going={event.goingCount}
                   hoverText="View Details"
-                  onClick={() => handleEventClick(event.id)}
+                  href={`/events/${event.id}`}
                 />
               ))}
             </div>

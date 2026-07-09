@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { FALLBACK_POSTER } from "@/lib/images";
-import { useRouter } from "next/navigation";
 import Card from "@/components/card";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -41,7 +40,6 @@ export default function FestsListClient({
   initialFests: Fest[] | null;
   initialPagination: Pagination | null;
 }) {
-  const router = useRouter();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -76,19 +74,21 @@ export default function FestsListClient({
     fests: initialFests ?? [],
     pagination: initialPagination ?? undefined,
   });
-  const hasLoaded = useRef(initialFests != null);
+  // State (not a ref) so it can be read during render without tripping the
+  // "no ref access during render" rule; flips true once any page has loaded.
+  const [hasLoaded, setHasLoaded] = useState(initialFests != null);
   useEffect(() => {
     if (data !== undefined) {
       setShown({ fests: data, pagination: pageData });
-      hasLoaded.current = true;
+      setHasLoaded(true);
     }
   }, [data, pageData]);
 
   const fests = shown.fests;
   const pagination = shown.pagination;
   const totalPages = pagination?.totalPages ?? 1;
-  const loading = !hasLoaded.current && data === undefined; // first load, never had data
-  const paging = hasLoaded.current && data === undefined; // new key loading; prior stays
+  const loading = !hasLoaded && data === undefined; // first load, never had data
+  const paging = hasLoaded && data === undefined; // new key loading; prior stays
 
   // FE-08: once the current page has settled, warm the cache for the adjacent
   // pages so Next/Prev feels instant (a prefetched page swaps in with no flash).
@@ -109,10 +109,6 @@ export default function FestsListClient({
       return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })} - ${end.toLocaleDateString("en-US", options)}`;
     }
     return start.toLocaleDateString("en-US", options);
-  };
-
-  const handleFestClick = (festId: number) => {
-    router.push(`/fests/${festId}/events`);
   };
 
   const total = pagination?.total;
@@ -179,7 +175,7 @@ export default function FestsListClient({
                   subtitle={fest.college}
                   description={formatDate(fest.startDate, fest.endDate)}
                   image={fest.image || FALLBACK_POSTER}
-                  onClick={() => handleFestClick(fest.id)}
+                  href={`/fests/${fest.id}/events`}
                 />
               ))}
             </div>

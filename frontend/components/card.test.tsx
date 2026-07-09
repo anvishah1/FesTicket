@@ -104,6 +104,22 @@ describe("Card", () => {
     expect(screen.queryByTestId("discount-badge")).not.toBeInTheDocument();
   });
 
+  // FE-09: navigational cards render as real <a href> anchors.
+  it("renders as an anchor with the href when href is provided", () => {
+    render(<Card title="Music Fest" href="/fests/1/events" />);
+    const link = screen.getByRole("link", { name: "Music Fest" });
+    expect(link).toHaveAttribute("href", "/fests/1/events");
+    // Not a button when it's a link.
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("prefers href over onClick (renders a link, not a button)", () => {
+    const onClick = vi.fn();
+    render(<Card title="Music Fest" href="/x" onClick={onClick} />);
+    expect(screen.getByRole("link", { name: "Music Fest" })).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
   // SEO-08: "N going" social-proof badge.
   it("shows an 'N going' badge when going > 0", () => {
     render(<Card title="Popular" going={42} />);

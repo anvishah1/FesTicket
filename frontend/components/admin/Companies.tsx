@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { getApiUrl, apiFetch } from "@/lib/auth";
 import { resolveMarketingFile } from "@/lib/files";
 import { formatPaise } from "@/lib/format";
+import { showToast } from "@/lib/toast";
+
+type SponsorStatus = "negotiating" | "pending" | "confirmed";
 
 interface Company {
   id: number;
@@ -11,11 +14,21 @@ interface Company {
   contactPerson: string;
   email: string;
   amount: number;
+  received: number; // ANL-07: paise received so far (for the outstanding rollup)
   agreementUrl: string;
   uploadedAt: string;
   type: "image" | "pdf";
-  status: "confirmed" | "pending" | "negotiating";
+  status: SponsorStatus;
 }
+
+// ANL-07: pipeline columns (ordered), their enum + a product-defined weight for
+// the weighted-pipeline value (Confirmed counts fully; earlier stages discounted).
+const STATUS_ORDER: SponsorStatus[] = ["negotiating", "pending", "confirmed"];
+const STATUS_META: Record<SponsorStatus, { label: string; enum: string; weight: number }> = {
+  negotiating: { label: "Negotiating", enum: "NEGOTIATING", weight: 0.3 },
+  pending: { label: "Pending", enum: "PENDING", weight: 0.6 },
+  confirmed: { label: "Confirmed", enum: "CONFIRMED", weight: 1.0 },
+};
 
 interface CompaniesProps {
   festId: number;
@@ -66,6 +79,7 @@ export default function Companies({ festId }: CompaniesProps) {
           contactPerson: s.contactPerson,
           email: s.email || "",
           amount: s.sponsorshipAmount || 0,
+          received: s.receivedAmount || 0,
           agreementUrl: s.agreementUrl || "",
           uploadedAt: s.createdAt,
           type: (s.agreementType === "PDF" ? "pdf" : "image") as
@@ -98,6 +112,34 @@ export default function Companies({ festId }: CompaniesProps) {
 
   const totalSponsorship = companies.reduce((sum, c) => sum + c.amount, 0);
 
+  // ANL-07: pipeline rollups. Weighted pipeline discounts earlier stages; the
+  // outstanding tile is committed minus received across all sponsors.
+  const weightedPipeline = companies.reduce(
+    (sum, c) => sum + Math.round(c.amount * STATUS_META[c.status].weight),
+    0
+  );
+  const outstanding = companies.reduce((sum, c) => sum + Math.max(0, c.amount - c.received), 0);
+  const byStatus = (st: SponsorStatus) => companies.filter((c) => c.status === st);
+
+  // Move a sponsor to a new status: optimistic update, then persist via the
+  // existing PUT (which enforces cross-tenant ownership). Revert on failure.
+  const moveSponsor = async (company: Company, next: SponsorStatus) => {
+    if (company.status === next) return;
+    const prev = companies;
+    setCompanies((cs) => cs.map((c) => (c.id === company.id ? { ...c, status: next } : c)));
+    try {
+      const res = await apiFetch(`${getApiUrl()}/api/events/marketing/sponsors/${company.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: STATUS_META[next].enum }),
+      });
+      if (!res.ok) throw new Error("move failed");
+    } catch {
+      setCompanies(prev); // revert
+      showToast("Could not move the sponsor.", "error");
+    }
+  };
+
   return (
     <>
       {/* Stats */}
@@ -118,9 +160,75 @@ export default function Companies({ festId }: CompaniesProps) {
         </div>
       </div>
 
+      {/* ANL-07: pipeline rollups */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
+          <p className="text-sm text-[var(--text-muted)]">Weighted pipeline</p>
+          <p className="text-2xl font-bold text-[var(--text-primary)]">{formatPaise(weightedPipeline)}</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">Negotiating ×0.3 · Pending ×0.6 · Confirmed ×1.0</p>
+        </div>
+        <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
+          <p className="text-sm text-[var(--text-muted)]">Outstanding</p>
+          <p className="text-2xl font-bold text-amber-600">{formatPaise(outstanding)}</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">committed − received</p>
+        </div>
+      </div>
+
+      {/* ANL-07: pipeline board — one column per status. Move via keyboard-
+          accessible ◀ ▶ buttons (persisted through the existing PUT). */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {STATUS_ORDER.map((st) => {
+          const col = byStatus(st);
+          const committed = col.reduce((sum, c) => sum + c.amount, 0);
+          const idx = STATUS_ORDER.indexOf(st);
+          return (
+            <div key={st} className="rounded-xl border border-[var(--border-card)] bg-[color-mix(in_srgb,var(--surface-card)_15%,transparent)] p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">{STATUS_META[st].label}</h4>
+                <span className="text-xs text-[var(--text-muted)]">
+                  {col.length} · {formatPaise(committed)}
+                </span>
+              </div>
+              <div className="space-y-2 min-h-[40px]">
+                {col.map((c) => (
+                  <div key={c.id} className="rounded-lg bg-[var(--surface)] border border-[var(--border-card)] p-2.5">
+                    <p className="text-sm font-medium text-[var(--text-primary)] truncate">{c.name}</p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {formatPaise(c.amount)}
+                      {c.amount - c.received > 0 ? ` · ${formatPaise(c.amount - c.received)} due` : " · paid"}
+                    </p>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => moveSponsor(c, STATUS_ORDER[idx - 1])}
+                        disabled={idx === 0}
+                        aria-label={`Move ${c.name} to ${idx > 0 ? STATUS_META[STATUS_ORDER[idx - 1]].label : ""}`}
+                        className="text-xs px-2 py-0.5 rounded border border-[var(--border-card)] text-[var(--text-secondary)] hover:bg-[var(--surface-slate-100)] disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        ◀
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveSponsor(c, STATUS_ORDER[idx + 1])}
+                        disabled={idx === STATUS_ORDER.length - 1}
+                        aria-label={`Move ${c.name} to ${idx < STATUS_ORDER.length - 1 ? STATUS_META[STATUS_ORDER[idx + 1]].label : ""}`}
+                        className="text-xs px-2 py-0.5 rounded border border-[var(--border-card)] text-[var(--text-secondary)] hover:bg-[var(--surface-slate-100)] disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        ▶
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {col.length === 0 && <p className="text-xs text-[var(--text-muted)] italic">None</p>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT: Company List */}
-        <div className="space-y-4">
+        <div className="space-y-4" data-testid="sponsor-list">
           {/* Search + Sort */}
           <div className="flex gap-3">
             <div className="relative flex-1">

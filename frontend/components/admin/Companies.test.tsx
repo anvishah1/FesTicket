@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Companies from "@/components/admin/Companies";
+
+// ANL-07 added a pipeline board that also lists sponsor names, so name queries
+// are scoped to the existing left-hand list to stay unambiguous.
+const inList = () => within(screen.getByTestId("sponsor-list"));
 
 const sponsors = [
   {
@@ -42,7 +46,7 @@ describe("Companies", () => {
 
   it("fetches fest sponsors from the scoped marketing endpoint", async () => {
     render(<Companies festId={7} />);
-    await screen.findByText("Acme Corp");
+    await inList().findByText("Acme Corp");
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining("/api/events/marketing/fest/7/sponsors"),
       expect.objectContaining({ headers: expect.anything() })
@@ -51,16 +55,17 @@ describe("Companies", () => {
 
   it("renders sponsor cards and header stats from fetched data", async () => {
     render(<Companies festId={7} />);
-    await screen.findByText("Acme Corp");
-    expect(screen.getByText("Beta LLC")).toBeInTheDocument();
+    await inList().findByText("Acme Corp");
+    expect(inList().getByText("Beta LLC")).toBeInTheDocument();
     expect(screen.getByText("Alice")).toBeInTheDocument();
 
     // Total Sponsors = 2
     expect(screen.getByText("Total Sponsors").nextElementSibling).toHaveTextContent("2");
-    // Confirmed = 1 (only Acme is CONFIRMED)
-    expect(screen.getByText("Confirmed").nextElementSibling).toHaveTextContent("1");
+    // Confirmed = 1 (only Acme is CONFIRMED). Scope to the stat tile <p> — the
+    // pipeline board also has a "Confirmed" column heading.
+    expect(screen.getByText("Confirmed", { selector: "p" }).nextElementSibling).toHaveTextContent("1");
     // Total Sponsorship (paise) = 5000000 + 3000000 = 8000000 = ₹80,000.00
-    expect(screen.getByText("₹80,000.00")).toBeInTheDocument();
+    expect(screen.getByText("Total Sponsorship").nextElementSibling).toHaveTextContent("₹80,000.00");
   });
 
   it("shows the empty state when there are no sponsors", async () => {
@@ -88,28 +93,28 @@ describe("Companies", () => {
 
   it("filters the list by the search box", async () => {
     render(<Companies festId={7} />);
-    await screen.findByText("Acme Corp");
+    await inList().findByText("Acme Corp");
     await userEvent.type(
       screen.getByPlaceholderText("Search sponsors..."),
       "Beta"
     );
-    expect(screen.getByText("Beta LLC")).toBeInTheDocument();
-    expect(screen.queryByText("Acme Corp")).not.toBeInTheDocument();
+    expect(inList().getByText("Beta LLC")).toBeInTheDocument();
+    expect(inList().queryByText("Acme Corp")).not.toBeInTheDocument();
   });
 
   it("re-orders alphabetically when the sort is set to A → Z", async () => {
     render(<Companies festId={7} />);
-    await screen.findByText("Acme Corp");
+    await inList().findByText("Acme Corp");
     // default sort is "recent": Beta (Jan 5) comes before Acme (Jan 2)
-    const before = screen.getByText("Beta LLC");
+    const before = inList().getByText("Beta LLC");
     expect(
-      before.compareDocumentPosition(screen.getByText("Acme Corp")) &
+      before.compareDocumentPosition(inList().getByText("Acme Corp")) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
 
-    await userEvent.selectOptions(screen.getByRole("combobox"), "name-asc");
-    const acme = screen.getByText("Acme Corp");
-    const beta = screen.getByText("Beta LLC");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /sort sponsors/i }), "name-asc");
+    const acme = inList().getByText("Acme Corp");
+    const beta = inList().getByText("Beta LLC");
     expect(
       acme.compareDocumentPosition(beta) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
@@ -117,7 +122,7 @@ describe("Companies", () => {
 
   it("shows a placeholder until a sponsor is selected", async () => {
     render(<Companies festId={7} />);
-    await screen.findByText("Acme Corp");
+    await inList().findByText("Acme Corp");
     expect(
       screen.getByText("Select a sponsor to view their agreement")
     ).toBeInTheDocument();
@@ -125,7 +130,7 @@ describe("Companies", () => {
 
   it("opens the agreement preview panel when a sponsor card is clicked", async () => {
     render(<Companies festId={7} />);
-    const card = await screen.findByText("Acme Corp");
+    const card = await inList().findByText("Acme Corp");
     await userEvent.click(card);
     // email only shows in the detail panel
     expect(screen.getByText("alice@acme.com")).toBeInTheDocument();
@@ -158,7 +163,7 @@ describe("Companies", () => {
       ],
     });
     render(<Companies festId={7} />);
-    await userEvent.click(await screen.findByText("Gamma Inc"));
+    await userEvent.click(await inList().findByText("Gamma Inc"));
     // Detail panel opens (email is only in the detail panel)
     expect(screen.getByText("carol@gamma.com")).toBeInTheDocument();
     // ...but every agreement affordance is hidden
@@ -189,7 +194,7 @@ describe("Companies", () => {
     URL.revokeObjectURL = vi.fn() as unknown as typeof URL.revokeObjectURL;
 
     render(<Companies festId={7} />);
-    await userEvent.click(await screen.findByText("Acme Corp"));
+    await userEvent.click(await inList().findByText("Acme Corp"));
 
     await waitFor(() =>
       expect(g).toHaveBeenCalledWith(
@@ -204,14 +209,14 @@ describe("Companies", () => {
 
   it("opens and closes the full-screen zoom modal", async () => {
     render(<Companies festId={7} />);
-    await userEvent.click(await screen.findByText("Acme Corp"));
+    await userEvent.click(await inList().findByText("Acme Corp"));
     await userEvent.click(screen.getByRole("button", { name: "Full Screen" }));
     expect(screen.getByText("Acme Corp - Agreement")).toBeInTheDocument();
   });
 
   it("labels the search box and sort control (WCAG 1.3.1/4.1.2)", async () => {
     render(<Companies festId={7} />);
-    await screen.findByText("Acme Corp");
+    await inList().findByText("Acme Corp");
     expect(screen.getByRole("textbox", { name: /search sponsors/i })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /sort sponsors/i })).toBeInTheDocument();
   });
@@ -229,7 +234,7 @@ describe("Companies", () => {
 
   it("exposes the zoom modal as a labelled dialog with a named close button", async () => {
     render(<Companies festId={7} />);
-    await userEvent.click(await screen.findByText("Acme Corp"));
+    await userEvent.click(await inList().findByText("Acme Corp"));
     await userEvent.click(screen.getByRole("button", { name: "Full Screen" }));
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAttribute("aria-labelledby", "agreement-zoom-title");

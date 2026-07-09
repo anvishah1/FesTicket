@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations, useLocale } from "next-intl";
 import { FALLBACK_POSTER } from "@/lib/images";
 import Card from "@/components/card";
 import Header from "@/components/Header";
@@ -41,6 +42,8 @@ export default function FestsListClient({
   initialFests: Fest[] | null;
   initialPagination: Pagination | null;
 }) {
+  const t = useTranslations("fests");
+  const locale = useLocale();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -100,16 +103,17 @@ export default function FestsListClient({
   }, [data, page, totalPages, debouncedSearch]);
 
   const formatDate = (startDate: string | null, endDate: string | null) => {
-    if (!startDate) return "Date TBA";
+    if (!startDate) return t("dateTba");
     const start = new Date(startDate);
     // timeZone: "UTC" so the SSR (server tz) and client (user tz) render the same
     // calendar day for a midnight-UTC/date-only value — no hydration mismatch.
+    // FE-12: format through the active locale.
     const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" };
     if (endDate) {
       const end = new Date(endDate);
-      return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })} - ${end.toLocaleDateString("en-US", options)}`;
+      return `${start.toLocaleDateString(locale, { month: "short", day: "numeric", timeZone: "UTC" })} - ${end.toLocaleDateString(locale, options)}`;
     }
-    return start.toLocaleDateString("en-US", options);
+    return start.toLocaleDateString(locale, options);
   };
 
   const total = pagination?.total;
@@ -120,9 +124,9 @@ export default function FestsListClient({
       <main className="py-8 px-4">
         {/* Page Title */}
         <div className="max-w-6xl mx-auto mb-6">
-          <h1 className="text-3xl font-bold text-[var(--text-primary)]">Discover Fests</h1>
+          <h1 className="text-3xl font-bold text-[var(--text-primary)]">{t("title")}</h1>
           <p className="text-[var(--text-muted)] mt-1">
-            Explore the most exciting college festivals across India
+            {t("subtitle")}
           </p>
         </div>
 
@@ -132,14 +136,15 @@ export default function FestsListClient({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search fests by name…"
-            aria-label="Search fests"
+            placeholder={t("searchPlaceholder")}
+            aria-label={t("searchAria")}
             className="w-full sm:max-w-md rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:border-[var(--border-plum)] focus:outline-none"
           />
           {!loading && !error && typeof total === "number" && (
             <p className="mt-2 text-sm text-[var(--text-muted)]" role="status" aria-live="polite">
-              {total} {total === 1 ? "fest" : "fests"} found
-              {debouncedSearch ? ` for “${debouncedSearch}”` : ""}
+              {debouncedSearch
+                ? t("resultsFoundFor", { count: total, query: debouncedSearch })
+                : t("resultsFound", { count: total })}
             </p>
           )}
         </div>
@@ -150,17 +155,17 @@ export default function FestsListClient({
             <CardGridSkeleton />
           ) : error ? (
             <div role="alert" className="text-[var(--text-muted)]">
-              <p>Something went wrong while loading fests. Please check your connection and try again.</p>
+              <p>{t("errorBody")}</p>
               <button
                 onClick={() => mutate()}
                 className="mt-3 rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-card)]"
               >
-                Try again
+                {t("tryAgain")}
               </button>
             </div>
           ) : fests.length === 0 ? (
             <p className="text-[var(--text-muted)]">
-              {debouncedSearch ? `No fests match “${debouncedSearch}”.` : "No fests found"}
+              {debouncedSearch ? t("emptyForQuery", { query: debouncedSearch }) : t("empty")}
             </p>
           ) : (
             <div
@@ -186,27 +191,27 @@ export default function FestsListClient({
         {/* Pagination */}
         {!loading && !error && pagination && totalPages > 1 && (
           <nav
-            aria-label="Fests pagination"
+            aria-label={t("paginationAria")}
             className="max-w-6xl mx-auto mt-8 flex items-center justify-center gap-4"
           >
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              aria-label="Previous page"
+              aria-label={t("prevAria")}
               className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-card)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <span aria-hidden="true">←</span> Prev
+              <span aria-hidden="true">←</span> {t("prev")}
             </button>
             <span className="text-sm text-[var(--text-muted)]" aria-current="page">
-              Page {page} of {totalPages}
+              {t("pageOf", { page, total: totalPages })}
             </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              aria-label="Next page"
+              aria-label={t("nextAria")}
               className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-card)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Next <span aria-hidden="true">→</span>
+              {t("next")} <span aria-hidden="true">→</span>
             </button>
           </nav>
         )}

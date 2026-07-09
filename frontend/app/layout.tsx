@@ -2,6 +2,7 @@ import "../globals.css";
 // FE-04: Leaflet CSS is imported inside components/EventMap.tsx (the dynamically
 // imported map island) so it is code-split out of the global bundle.
 import type { Metadata, Viewport } from "next";
+import LocaleProvider from "@/components/LocaleProvider";
 import ClientRoot from "./_ClientRoot";
 
 export const metadata: Metadata = {
@@ -54,19 +55,23 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // <html lang> starts at the default locale so the page renders statically
+  // (FE-03 SSG/ISR); the inline script below and LocaleProvider correct it from
+  // the NEXT_LOCALE cookie before/at hydration (FE-12).
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
-        {/* FE-11: apply a stored theme choice before first paint so there is no
-            light->dark flash. With no stored choice we leave data-theme unset
-            and let the prefers-color-scheme CSS in globals.css decide. */}
+        {/* Before first paint: apply the stored theme (FE-11, no light->dark
+            flash) and the chosen locale onto <html> (FE-12, correct lang). */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var t=localStorage.getItem('tiqr-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();",
+              "(function(){try{var t=localStorage.getItem('tiqr-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}var m=document.cookie.match(/(?:^|;\\s*)NEXT_LOCALE=([^;]+)/);if(m&&(m[1]==='hi'||m[1]==='en')){document.documentElement.lang=m[1];}}catch(e){}})();",
           }}
         />
-        <ClientRoot>{children}</ClientRoot>
+        <LocaleProvider>
+          <ClientRoot>{children}</ClientRoot>
+        </LocaleProvider>
       </body>
     </html>
   );

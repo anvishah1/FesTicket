@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useTranslations, useLocale } from "next-intl";
 import { FALLBACK_POSTER } from "@/lib/images";
 import Card from "@/components/card";
 import Header from "@/components/Header";
@@ -34,12 +35,13 @@ interface Pagination {
   totalPages: number;
 }
 
+// FE-12: labels resolved from the dictionary (t("sort…")) at render time.
 const SORT_OPTIONS = [
-  { value: "date", label: "Date" },
-  { value: "trending", label: "Trending" },
-  { value: "name", label: "Name" },
-  { value: "newest", label: "Newest" },
-];
+  { value: "date", key: "sortDate" },
+  { value: "trending", key: "sortTrending" },
+  { value: "name", key: "sortName" },
+  { value: "newest", key: "sortNewest" },
+] as const;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapEvent(e: any): EventItem {
@@ -69,6 +71,8 @@ export default function EventsDiscoverClient({
   initialPagination: Pagination | null;
   lockedCategory?: string;
 }) {
+  const t = useTranslations("events");
+  const locale = useLocale();
   const [events, setEvents] = useState<EventItem[]>((initialEvents || []).map(mapEvent));
   const [pagination, setPagination] = useState<Pagination | null>(initialPagination);
   const [loading, setLoading] = useState(initialEvents == null);
@@ -194,12 +198,12 @@ export default function EventsDiscoverClient({
       <main className="py-8 px-4">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl font-bold text-[var(--text-primary)]">
-            {lockedCategory ? `${lockedCategory} Events` : "Discover Events"}
+            {lockedCategory ? t("titleCategory", { category: lockedCategory }) : t("title")}
           </h1>
           <p className="text-[var(--text-muted)] mt-1">
             {lockedCategory
-              ? `Browse ${lockedCategory.toLowerCase()} events across every fest on tiqr.`
-              : "Browse and book tickets for events across every fest on tiqr."}
+              ? t("subtitleCategory", { category: lockedCategory.toLowerCase() })
+              : t("subtitle")}
           </p>
         </div>
 
@@ -209,22 +213,22 @@ export default function EventsDiscoverClient({
             <div className="rounded-xl border border-[var(--border-card)] bg-[var(--surface)] p-4 space-y-5">
               <div>
                 <label htmlFor="q" className="block text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1">
-                  Search
+                  {t("searchLabel")}
                 </label>
                 <input
                   id="q"
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Event name…"
+                  placeholder={t("searchPlaceholder")}
                   className="w-full rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:border-[var(--border-plum)] focus:outline-none"
                 />
               </div>
 
               {!lockedCategory && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-2">Category</p>
-                  <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-2">{t("categoryLabel")}</p>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label={t("categoryFilterAria")}>
                     {["All", ...CATEGORY_LABELS].map((c) => (
                       <button
                         key={c}
@@ -234,7 +238,7 @@ export default function EventsDiscoverClient({
                           category === c ? "bg-[var(--fill-plum)] text-white" : "bg-[var(--surface-tint)] text-[var(--text-muted)] hover:bg-[var(--surface-card)]"
                         }`}
                       >
-                        {c}
+                        {c === "All" ? t("categoryAll") : c}
                       </button>
                     ))}
                   </div>
@@ -242,18 +246,18 @@ export default function EventsDiscoverClient({
               )}
 
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-2">Date range</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-2">{t("dateRangeLabel")}</p>
                 <div className="flex flex-col gap-2">
                   <input
                     type="date"
-                    aria-label="From date"
+                    aria-label={t("fromDateAria")}
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
                     className="w-full rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-plum)] focus:outline-none"
                   />
                   <input
                     type="date"
-                    aria-label="To date"
+                    aria-label={t("toDateAria")}
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
                     className="w-full rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-plum)] focus:outline-none"
@@ -263,14 +267,14 @@ export default function EventsDiscoverClient({
 
               <div>
                 <label htmlFor="college" className="block text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1">
-                  City / College
+                  {t("cityCollegeLabel")}
                 </label>
                 <input
                   id="college"
                   type="text"
                   value={college}
                   onChange={(e) => setCollege(e.target.value)}
-                  placeholder="e.g. IIT Bombay"
+                  placeholder={t("cityCollegePlaceholder")}
                   className="w-full rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:border-[var(--border-plum)] focus:outline-none"
                 />
               </div>
@@ -283,7 +287,7 @@ export default function EventsDiscoverClient({
                     onChange={(e) => setOnlineOnly(e.target.checked)}
                     className="h-4 w-4 rounded border-[var(--border-card)] text-[var(--text-secondary)] focus:ring-[var(--ring-plum)]"
                   />
-                  Online only
+                  {t("onlineOnly")}
                 </label>
                 <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                   <input
@@ -292,13 +296,13 @@ export default function EventsDiscoverClient({
                     onChange={(e) => setFreeOnly(e.target.checked)}
                     className="h-4 w-4 rounded border-[var(--border-card)] text-[var(--text-secondary)] focus:ring-[var(--ring-plum)]"
                   />
-                  Free only
+                  {t("freeOnly")}
                 </label>
               </div>
 
               {hasActiveFilters && (
                 <button onClick={clearFilters} className="text-sm text-[var(--text-secondary)] hover:underline">
-                  Clear all filters
+                  {t("clearFilters")}
                 </button>
               )}
             </div>
@@ -309,22 +313,22 @@ export default function EventsDiscoverClient({
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               {!loading && typeof total === "number" ? (
                 <p className="text-sm text-[var(--text-muted)]" role="status" aria-live="polite">
-                  {total} {total === 1 ? "event" : "events"} found
+                  {t("resultsFound", { count: total })}
                 </p>
               ) : (
                 <span />
               )}
               <label className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
-                Sort by
+                {t("sortBy")}
                 <select
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
-                  aria-label="Sort events"
+                  aria-label={t("sortAria")}
                   className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-plum)] focus:outline-none"
                 >
                   {SORT_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
-                      {o.label}
+                      {t(o.key)}
                     </option>
                   ))}
                 </select>
@@ -339,16 +343,16 @@ export default function EventsDiscoverClient({
                   <Card
                     key={event.id}
                     title={event.name}
-                    subtitle={event.category || event.festName || "Event"}
+                    subtitle={event.category || event.festName || t("defaultSubtitle")}
                     description={`${
                       event.startDate
-                        ? new Date(event.startDate).toLocaleDateString("en-US", {
+                        ? new Date(event.startDate).toLocaleDateString(locale, {
                             month: "short",
                             day: "numeric",
                             year: "numeric",
                             timeZone: "UTC",
                           })
-                        : "Date TBA"
+                        : t("dateTba")
                     }${event.venue ? ` • ${event.venue}` : ""}`}
                     image={
                       event.image ||
@@ -356,43 +360,43 @@ export default function EventsDiscoverClient({
                     }
                     discount={event.discount}
                     going={event.goingCount}
-                    hoverText="View Details"
+                    hoverText={t("viewDetails")}
                     href={`/events/${event.id}`}
                   />
                 ))}
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-[var(--border-card)] p-10 text-center">
-                <p className="text-[var(--text-primary)] font-medium">No events match your filters.</p>
-                <p className="text-sm text-[var(--text-muted)] mt-1">Try widening your date range or clearing a filter.</p>
+                <p className="text-[var(--text-primary)] font-medium">{t("emptyTitle")}</p>
+                <p className="text-sm text-[var(--text-muted)] mt-1">{t("emptyHint")}</p>
                 {hasActiveFilters && (
                   <button onClick={clearFilters} className="mt-4 text-sm text-[var(--text-secondary)] hover:underline">
-                    Clear all filters
+                    {t("clearFilters")}
                   </button>
                 )}
               </div>
             )}
 
             {!loading && pagination && totalPages > 1 && (
-              <nav aria-label="Events pagination" className="mt-8 flex items-center justify-center gap-4">
+              <nav aria-label={t("paginationAria")} className="mt-8 flex items-center justify-center gap-4">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
-                  aria-label="Previous page"
+                  aria-label={t("prevAria")}
                   className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-card)] disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  <span aria-hidden="true">←</span> Prev
+                  <span aria-hidden="true">←</span> {t("prev")}
                 </button>
                 <span className="text-sm text-[var(--text-muted)]" aria-current="page">
-                  Page {page} of {totalPages}
+                  {t("pageOf", { page, total: totalPages })}
                 </span>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
-                  aria-label="Next page"
+                  aria-label={t("nextAria")}
                   className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-card)] disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Next <span aria-hidden="true">→</span>
+                  {t("next")} <span aria-hidden="true">→</span>
                 </button>
               </nav>
             )}

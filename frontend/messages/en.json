@@ -1,0 +1,83 @@
+{
+  "nav": {
+    "discover": "Discover",
+    "about": "About",
+    "support": "Support",
+    "signIn": "Sign In"
+  },
+  "account": {
+    "dashboard": "Dashboard",
+    "myBookings": "My bookings",
+    "account": "Account",
+    "logOut": "Log out"
+  },
+  "header": {
+    "skipToContent": "Skip to main content",
+    "toggleNav": "Toggle navigation menu"
+  },
+  "theme": {
+    "toDark": "Switch to dark theme",
+    "toLight": "Switch to light theme"
+  },
+  "locale": {
+    "label": "Language",
+    "en": "English",
+    "hi": "हिन्दी"
+  },
+  "fests": {
+    "title": "Discover Fests",
+    "subtitle": "Explore the most exciting college festivals across India",
+    "searchPlaceholder": "Search fests by name…",
+    "searchAria": "Search fests",
+    "resultsFound": "{count, plural, =1 {# fest} other {# fests}} found",
+    "resultsFoundFor": "{count, plural, =1 {# fest} other {# fests}} found for “{query}”",
+    "errorBody": "Something went wrong while loading fests. Please check your connection and try again.",
+    "tryAgain": "Try again",
+    "empty": "No fests found",
+    "emptyForQuery": "No fests match “{query}”.",
+    "dateTba": "Date TBA",
+    "paginationAria": "Fests pagination",
+    "prev": "Prev",
+    "next": "Next",
+    "prevAria": "Previous page",
+    "nextAria": "Next page",
+    "pageOf": "Page {page} of {total}"
+  },
+  "events": {
+    "title": "Discover Events",
+    "titleCategory": "{category} Events",
+    "subtitle": "Browse and book tickets for events across every fest on tiqr.",
+    "subtitleCategory": "Browse {category} events across every fest on tiqr.",
+    "searchLabel": "Search",
+    "searchPlaceholder": "Event name…",
+    "categoryLabel": "Category",
+    "categoryAll": "All",
+    "categoryFilterAria": "Filter by category",
+    "dateRangeLabel": "Date range",
+    "fromDateAria": "From date",
+    "toDateAria": "To date",
+    "cityCollegeLabel": "City / College",
+    "cityCollegePlaceholder": "e.g. IIT Bombay",
+    "onlineOnly": "Online only",
+    "freeOnly": "Free only",
+    "clearFilters": "Clear all filters",
+    "resultsFound": "{count, plural, =1 {# event} other {# events}} found",
+    "sortBy": "Sort by",
+    "sortAria": "Sort events",
+    "sortDate": "Date",
+    "sortTrending": "Trending",
+    "sortName": "Name",
+    "sortNewest": "Newest",
+    "viewDetails": "View Details",
+    "defaultSubtitle": "Event",
+    "dateTba": "Date TBA",
+    "emptyTitle": "No events match your filters.",
+    "emptyHint": "Try widening your date range or clearing a filter.",
+    "paginationAria": "Events pagination",
+    "prev": "Prev",
+    "next": "Next",
+    "prevAria": "Previous page",
+    "nextAria": "Next page",
+    "pageOf": "Page {page} of {total}"
+  }
+}

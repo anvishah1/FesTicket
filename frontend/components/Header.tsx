@@ -3,9 +3,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { getStoredUser, isAuthenticated, logout } from "@/lib/auth";
 import NotificationBell from "@/components/NotificationBell";
 import ThemeToggle from "@/components/ThemeToggle";
+import LocaleSwitcher from "@/components/LocaleSwitcher";
 
 type StoredUser = ReturnType<typeof getStoredUser>;
 
@@ -21,12 +23,14 @@ function initialOf(user: NonNullable<StoredUser>): string {
   return source.charAt(0).toUpperCase() || "?";
 }
 
+// FE-12: labels are resolved from the dictionary at render time (t("nav.…")).
 const NAV_LINKS = [
-  { href: "/fests", label: "Discover" },
-  { href: "/about", label: "About" },
-];
+  { href: "/fests", key: "discover" },
+  { href: "/about", key: "about" },
+] as const;
 
 export default function Header() {
+  const t = useTranslations();
   // Auth-dependent bits render only after mount to avoid SSR/hydration mismatch.
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<StoredUser>(null);
@@ -158,7 +162,7 @@ export default function Header() {
       {/* First focusable element on the page: lets keyboard/SR users jump
           past the nav straight to the page's <main id="main-content">. */}
       <a href="#main-content" className="skip-link">
-        Skip to main content
+        {t("header.skipToContent")}
       </a>
     <header className="sticky top-0 z-40 bg-gradient-to-r from-[#29104A] via-[#3D1B5C] to-[#522C5D] shadow-md">
       <div className="container flex items-center justify-between h-16">
@@ -172,10 +176,10 @@ export default function Header() {
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
           <Link href="/fests" className="text-white/80 hover:text-white transition-colors">
-            Discover
+            {t("nav.discover")}
           </Link>
           <Link href="/about" className="text-white/80 hover:text-white transition-colors">
-            About
+            {t("nav.about")}
           </Link>
         </nav>
 
@@ -183,11 +187,14 @@ export default function Header() {
           {/* FE-11: light/dark theme toggle — visible on every breakpoint. */}
           <ThemeToggle />
 
+          {/* FE-12: locale switcher (desktop). */}
+          <LocaleSwitcher className="hidden sm:inline-flex" />
+
           <Link
             href="/contact"
             className="hidden sm:inline-flex px-4 py-2 text-sm font-medium text-white/80 border border-white/30 rounded-lg hover:bg-white/10 hover:text-white transition-colors"
           >
-            Support
+            {t("nav.support")}
           </Link>
 
           {/* NOTIF-08: in-app notification bell (desktop, logged-in only). */}
@@ -230,7 +237,7 @@ export default function Header() {
                       onClick={() => setMenuOpen(false)}
                       className="block px-4 py-2 text-[var(--text-primary)] hover:bg-[var(--surface-slate-100)]"
                     >
-                      Dashboard
+                      {t("account.dashboard")}
                     </Link>
                   )}
                   <Link
@@ -239,7 +246,7 @@ export default function Header() {
                     onClick={() => setMenuOpen(false)}
                     className="block px-4 py-2 text-[var(--text-primary)] hover:bg-[var(--surface-slate-100)]"
                   >
-                    My bookings
+                    {t("account.myBookings")}
                   </Link>
                   <Link
                     href="/account"
@@ -247,7 +254,7 @@ export default function Header() {
                     onClick={() => setMenuOpen(false)}
                     className="block px-4 py-2 text-[var(--text-primary)] hover:bg-[var(--surface-slate-100)]"
                   >
-                    Account
+                    {t("account.account")}
                   </Link>
                   <button
                     type="button"
@@ -255,7 +262,7 @@ export default function Header() {
                     onClick={handleLogout}
                     className="w-full text-left px-4 py-2 text-red-600 hover:bg-[var(--surface-slate-100)]"
                   >
-                    Log out
+                    {t("account.logOut")}
                   </button>
                 </div>
               )}
@@ -265,7 +272,7 @@ export default function Header() {
               href="/signin"
               className="hidden sm:inline-flex px-4 py-2 text-sm font-semibold text-[var(--text-primary)] bg-[var(--surface)] rounded-lg hover:bg-white/90 transition-all"
             >
-              Sign In
+              {t("nav.signIn")}
             </Link>
           )}
 
@@ -274,7 +281,7 @@ export default function Header() {
             type="button"
             ref={mobileButtonRef}
             onClick={() => setMobileOpen((o) => !o)}
-            aria-label="Toggle navigation menu"
+            aria-label={t("header.toggleNav")}
             aria-expanded={mobileOpen}
             aria-controls="mobile-nav"
             className="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg text-white hover:bg-white/10 transition-colors"
@@ -300,12 +307,12 @@ export default function Header() {
         >
           {NAV_LINKS.map((l) => (
             <Link
-              key={l.label}
+              key={l.key}
               href={l.href}
               onClick={() => setMobileOpen(false)}
               className="block px-2 py-2 rounded-lg text-white/90 hover:bg-white/10"
             >
-              {l.label}
+              {t(`nav.${l.key}`)}
             </Link>
           ))}
           <Link
@@ -313,7 +320,7 @@ export default function Header() {
             onClick={() => setMobileOpen(false)}
             className="block px-2 py-2 rounded-lg text-white/90 hover:bg-white/10"
           >
-            Support
+            {t("nav.support")}
           </Link>
 
           <div className="pt-2 mt-2 border-t border-white/10">
@@ -325,7 +332,7 @@ export default function Header() {
                     onClick={() => setMobileOpen(false)}
                     className="block px-2 py-2 rounded-lg text-white/90 hover:bg-white/10"
                   >
-                    Dashboard
+                    {t("account.dashboard")}
                   </Link>
                 )}
                 <Link
@@ -333,21 +340,21 @@ export default function Header() {
                   onClick={() => setMobileOpen(false)}
                   className="block px-2 py-2 rounded-lg text-white/90 hover:bg-white/10"
                 >
-                  My bookings
+                  {t("account.myBookings")}
                 </Link>
                 <Link
                   href="/account"
                   onClick={() => setMobileOpen(false)}
                   className="block px-2 py-2 rounded-lg text-white/90 hover:bg-white/10"
                 >
-                  Account
+                  {t("account.account")}
                 </Link>
                 <button
                   type="button"
                   onClick={handleLogout}
                   className="w-full text-left px-2 py-2 rounded-lg text-red-200 hover:bg-white/10"
                 >
-                  Log out
+                  {t("account.logOut")}
                 </button>
               </>
             ) : (
@@ -356,9 +363,14 @@ export default function Header() {
                 onClick={() => setMobileOpen(false)}
                 className="block px-2 py-2 rounded-lg font-semibold text-white bg-white/10 hover:bg-white/20"
               >
-                Sign In
+                {t("nav.signIn")}
               </Link>
             )}
+          </div>
+
+          {/* FE-12: locale switcher (mobile sheet). */}
+          <div className="pt-2 mt-2 border-t border-white/10">
+            <LocaleSwitcher className="w-full" />
           </div>
         </nav>
       )}

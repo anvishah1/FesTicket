@@ -6,6 +6,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 export const THEME_STORAGE_KEY = "tiqr-theme";
 
@@ -21,6 +22,7 @@ function currentTheme(): "light" | "dark" {
 }
 
 export default function ThemeToggle({ className = "" }: { className?: string }) {
+  const t = useTranslations("theme");
   // SSR and the first client render both assume light so the markup matches;
   // the real theme is resolved in the effect below (no hydration mismatch).
   const [mounted, setMounted] = useState(false);
@@ -49,7 +51,7 @@ export default function ThemeToggle({ className = "" }: { className?: string }) 
   }, []);
 
   const isDark = mounted && theme === "dark";
-  const label = isDark ? "Switch to light theme" : "Switch to dark theme";
+  const label = isDark ? t("toLight") : t("toDark");
 
   return (
     <button

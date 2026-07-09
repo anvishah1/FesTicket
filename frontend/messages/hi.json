@@ -1,0 +1,83 @@
+{
+  "nav": {
+    "discover": "खोजें",
+    "about": "परिचय",
+    "support": "सहायता",
+    "signIn": "साइन इन"
+  },
+  "account": {
+    "dashboard": "डैशबोर्ड",
+    "myBookings": "मेरी बुकिंग",
+    "account": "खाता",
+    "logOut": "लॉग आउट"
+  },
+  "header": {
+    "skipToContent": "मुख्य सामग्री पर जाएँ",
+    "toggleNav": "नेविगेशन मेनू टॉगल करें"
+  },
+  "theme": {
+    "toDark": "डार्क थीम पर स्विच करें",
+    "toLight": "लाइट थीम पर स्विच करें"
+  },
+  "locale": {
+    "label": "भाषा",
+    "en": "English",
+    "hi": "हिन्दी"
+  },
+  "fests": {
+    "title": "फ़ेस्ट खोजें",
+    "subtitle": "पूरे भारत के सबसे रोमांचक कॉलेज फ़ेस्टिवल देखें",
+    "searchPlaceholder": "नाम से फ़ेस्ट खोजें…",
+    "searchAria": "फ़ेस्ट खोजें",
+    "resultsFound": "{count, plural, =1 {# फ़ेस्ट} other {# फ़ेस्ट}} मिले",
+    "resultsFoundFor": "“{query}” के लिए {count, plural, =1 {# फ़ेस्ट} other {# फ़ेस्ट}} मिले",
+    "errorBody": "फ़ेस्ट लोड करते समय कुछ गड़बड़ हुई। कृपया अपना कनेक्शन जाँचें और फिर से प्रयास करें।",
+    "tryAgain": "फिर से प्रयास करें",
+    "empty": "कोई फ़ेस्ट नहीं मिला",
+    "emptyForQuery": "“{query}” से मेल खाता कोई फ़ेस्ट नहीं मिला।",
+    "dateTba": "तारीख़ शीघ्र",
+    "paginationAria": "फ़ेस्ट पेजिनेशन",
+    "prev": "पिछला",
+    "next": "अगला",
+    "prevAria": "पिछला पेज",
+    "nextAria": "अगला पेज",
+    "pageOf": "पेज {page} / {total}"
+  },
+  "events": {
+    "title": "इवेंट खोजें",
+    "titleCategory": "{category} इवेंट",
+    "subtitle": "tiqr पर हर फ़ेस्ट के इवेंट देखें और टिकट बुक करें।",
+    "subtitleCategory": "tiqr पर हर फ़ेस्ट के {category} इवेंट देखें।",
+    "searchLabel": "खोज",
+    "searchPlaceholder": "इवेंट का नाम…",
+    "categoryLabel": "श्रेणी",
+    "categoryAll": "सभी",
+    "categoryFilterAria": "श्रेणी से फ़िल्टर करें",
+    "dateRangeLabel": "तारीख़ सीमा",
+    "fromDateAria": "आरंभ तारीख़",
+    "toDateAria": "अंतिम तारीख़",
+    "cityCollegeLabel": "शहर / कॉलेज",
+    "cityCollegePlaceholder": "जैसे IIT बॉम्बे",
+    "onlineOnly": "केवल ऑनलाइन",
+    "freeOnly": "केवल निःशुल्क",
+    "clearFilters": "सभी फ़िल्टर हटाएँ",
+    "resultsFound": "{count, plural, =1 {# इवेंट} other {# इवेंट}} मिले",
+    "sortBy": "क्रमबद्ध करें",
+    "sortAria": "इवेंट क्रमबद्ध करें",
+    "sortDate": "तारीख़",
+    "sortTrending": "ट्रेंडिंग",
+    "sortName": "नाम",
+    "sortNewest": "नवीनतम",
+    "viewDetails": "विवरण देखें",
+    "defaultSubtitle": "इवेंट",
+    "dateTba": "तारीख़ शीघ्र",
+    "emptyTitle": "आपके फ़िल्टर से मेल खाता कोई इवेंट नहीं।",
+    "emptyHint": "अपनी तारीख़ सीमा बढ़ाएँ या कोई फ़िल्टर हटाएँ।",
+    "paginationAria": "इवेंट पेजिनेशन",
+    "prev": "पिछला",
+    "next": "अगला",
+    "prevAria": "पिछला पेज",
+    "nextAria": "अगला पेज",
+    "pageOf": "पेज {page} / {total}"
+  }
+}

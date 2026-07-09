@@ -1,4 +1,8 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+// FE-12: point next-intl at the request config (cookie-based locale, no routing).
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 // FE-01: enumerate allowed image hosts for next/image and prefer modern formats.
 // Unsplash is the shared card fallback; the backend host serves /uploads posters.
@@ -30,4 +34,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

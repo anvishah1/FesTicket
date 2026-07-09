@@ -8,6 +8,7 @@ import { getApiUrl, getStoredUser, getAccessToken, isAuthenticated, updateStored
 import { showToast } from "@/lib/toast";
 import { formatPaise } from "@/lib/format";
 
+import SalesTrendChart, { type TrendPoint } from "@/components/analytics/SalesTrendChart";
 import RoleRequests from "@/components/admin/RoleRequests";
 import FestEvents from "@/components/admin/FestEvents";
 import Companies from "@/components/admin/Companies";
@@ -33,6 +34,7 @@ export default function AdminDashboardPage() {
   } | null>(null);
   const [totalSpend, setTotalSpend] = useState<number | null>(null);
   const [sponsorIncome, setSponsorIncome] = useState<number | null>(null);
+  const [trend, setTrend] = useState<TrendPoint[] | null>(null); // ANL-01
 
   const managedFestId = user?.managedFestId ?? null;
 
@@ -102,6 +104,14 @@ export default function AdminDashboardPage() {
             bookingsCount: data.data.bookingsCount ?? 0,
           });
         }
+      })
+      .catch(() => {});
+
+    // ANL-01: day-bucketed sales trend for the chart under the stat grid.
+    apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}/timeseries`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.success && Array.isArray(data.data?.points)) setTrend(data.data.points);
       })
       .catch(() => {});
 
@@ -345,6 +355,23 @@ export default function AdminDashboardPage() {
                       </p>
                       <p className="text-xs text-[var(--text-muted)] mt-1">sold · events · bookings</p>
                     </div>
+                  </div>
+
+                  {/* ANL-01: sales trend chart */}
+                  <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-5 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <h2 className="text-sm font-semibold text-[var(--text-primary)]">Sales trend</h2>
+                      <span className="text-xs text-[var(--text-muted)]">completed bookings</span>
+                    </div>
+                    {trend == null ? (
+                      <div className="h-40 rounded-lg bg-[var(--surface-slate-100)] animate-pulse" aria-hidden="true" />
+                    ) : trend.reduce((a, p) => a + p.revenue, 0) === 0 ? (
+                      <div className="h-40 flex items-center justify-center text-sm text-[var(--text-muted)]">
+                        No sales yet — your daily revenue will chart here.
+                      </div>
+                    ) : (
+                      <SalesTrendChart points={trend} />
+                    )}
                   </div>
                 </div>
 

@@ -508,6 +508,152 @@ router.get("/analytics/fest/:festId", authenticateUser, async (req, res) => {
   }
 });
 
+// ---- ANL-01: sales time-series helpers ----------------------------------------
+const ANL_DEFAULT_WINDOW_DAYS = 90; // default zero-fill window when no from/to
+const ANL_MAX_POINTS = 400; // safety cap on the returned point array
+
+// yyyy-mm-dd for a Date in the given IANA timezone ('en-CA' => ISO ordering).
+function dayKeyInTz(date, tz) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+  }
+}
+
+// Monday (yyyy-mm-dd) of the ISO week containing a given yyyy-mm-dd key.
+function weekKeyForDay(dayKey) {
+  const d = new Date(`${dayKey}T00:00:00Z`);
+  const delta = (d.getUTCDay() + 6) % 7; // 0=Mon..6=Sun -> days back to Monday
+  d.setUTCDate(d.getUTCDate() - delta);
+  return d.toISOString().slice(0, 10);
+}
+
+// Inclusive list of yyyy-mm-dd keys from startKey..endKey (UTC-anchored math).
+function eachDayKey(startKey, endKey, cap) {
+  const out = [];
+  const cur = new Date(`${startKey}T00:00:00Z`);
+  const end = new Date(`${endKey}T00:00:00Z`);
+  while (cur <= end && out.length < cap) {
+    out.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
+}
+
+// GET /api/events/analytics/fest/:festId/timeseries (ANL-01) - COMPLETED bookings
+// bucketed by calendar day (or ISO week) in `tz`, zero-filled so the trend line is
+// continuous. revenue is INTEGER PAISE (subtotal-discount), matching the headline
+// analytics endpoint above. Same auth/scope as that endpoint.
+router.get("/analytics/fest/:festId/timeseries", authenticateUser, async (req, res) => {
+  try {
+    const festId = parseInt(req.params.festId);
+    if (Number.isNaN(festId)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Invalid fest id" },
+      });
+    }
+    if (!canAccessFest(festId, await callerFests(req))) return forbid(res);
+
+    const interval = req.query.interval === "week" ? "week" : "day";
+    const tz = typeof req.query.tz === "string" && req.query.tz ? req.query.tz : "Asia/Kolkata";
+    const fromParsed = req.query.from ? new Date(req.query.from) : null;
+    const toParsed = req.query.to ? new Date(req.query.to) : null;
+    const from = fromParsed && !Number.isNaN(fromParsed.getTime()) ? fromParsed : null;
+    const toRaw = toParsed && !Number.isNaN(toParsed.getTime()) ? toParsed : null;
+    // DB upper bound includes the whole `to` day; the zero-fill window is derived
+    // from `toRaw` (below) so a tz shift doesn't push the last bucket a day out.
+    const toEnd = toRaw ? new Date(new Date(toRaw).setUTCHours(23, 59, 59, 999)) : null;
+
+    const events = await prisma.event.findMany({ where: { festId }, select: { id: true } });
+    const eventIds = events.map((e) => e.id);
+
+    let points = [];
+    if (eventIds.length) {
+      const bookings = await prisma.booking.findMany({
+        where: {
+          eventId: { in: eventIds },
+          status: "COMPLETED",
+          purchaseDate: { not: null, ...(from ? { gte: from } : {}), ...(toEnd ? { lte: toEnd } : {}) },
+        },
+        select: {
+          purchaseDate: true,
+          subtotal: true,
+          discount: true,
+          items: { select: { quantity: true } },
+        },
+      });
+
+      // Aggregate into per-bucket totals; track the observed day span for zero-fill.
+      const buckets = new Map(); // key -> { revenue, ticketsSold, bookings }
+      let minKey = null;
+      let maxKey = null;
+      for (const b of bookings) {
+        const dk = dayKeyInTz(b.purchaseDate, tz);
+        if (!minKey || dk < minKey) minKey = dk;
+        if (!maxKey || dk > maxKey) maxKey = dk;
+        const key = interval === "week" ? weekKeyForDay(dk) : dk;
+        const cur = buckets.get(key) || { revenue: 0, ticketsSold: 0, bookings: 0 };
+        cur.revenue += (b.subtotal || 0) - (b.discount || 0); // integer paise
+        cur.ticketsSold += b.items.reduce((a, i) => a + (i.quantity || 0), 0);
+        cur.bookings += 1;
+        buckets.set(key, cur);
+      }
+
+      const todayKey = dayKeyInTz(new Date(), tz);
+      let startKey;
+      if (from) {
+        startKey = dayKeyInTz(from, tz);
+      } else {
+        // Default window: the last N days, but never earlier than the first sale.
+        const back = new Date();
+        back.setUTCDate(back.getUTCDate() - (ANL_DEFAULT_WINDOW_DAYS - 1));
+        const backKey = dayKeyInTz(back, tz);
+        startKey = minKey && minKey > backKey ? minKey : backKey;
+      }
+      let endKey = toRaw ? dayKeyInTz(toRaw, tz) : todayKey;
+      // Never drop a bucket that actually has data at the tz boundary.
+      if (minKey && minKey < startKey) startKey = minKey;
+      if (maxKey && maxKey > endKey) endKey = maxKey;
+      if (endKey < startKey) endKey = startKey;
+
+      // Zero-fill: build the ordered unique interval keys across [startKey,endKey].
+      const seen = new Set();
+      const orderedKeys = [];
+      for (const d of eachDayKey(startKey, endKey, ANL_MAX_POINTS * 7)) {
+        const key = interval === "week" ? weekKeyForDay(d) : d;
+        if (!seen.has(key)) {
+          seen.add(key);
+          orderedKeys.push(key);
+        }
+      }
+      points = orderedKeys.slice(0, ANL_MAX_POINTS).map((key) => {
+        const v = buckets.get(key) || { revenue: 0, ticketsSold: 0, bookings: 0 };
+        return { date: key, revenue: v.revenue, ticketsSold: v.ticketsSold, bookings: v.bookings };
+      });
+    }
+
+    res.json({ success: true, data: { interval, points } });
+  } catch (error) {
+    req.log.error({ err: error }, "Error fetching fest timeseries");
+    res.status(500).json({
+      success: false,
+      error: { code: "FETCH_ERROR", message: "Failed to fetch timeseries" },
+    });
+  }
+});
+
 // ==================== PAY-04: PROMO CODES (host/admin scoped) ====================
 // Registered BEFORE GET /:id so "promo-codes" isn't captured as an :id param.
 const PROMO_KINDS = ["PERCENT", "FLAT"];

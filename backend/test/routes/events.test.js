@@ -2018,6 +2018,69 @@ describe("GET /api/events/analytics/fest/:festId", () => {
   });
 });
 
+// ============ GET /api/events/analytics/fest/:festId/timeseries (ANL-01) ============
+describe("GET /api/events/analytics/fest/:festId/timeseries", () => {
+  const auth = ["Authorization", `Bearer ${signToken({ userId: 42, role: "HOST" })}`];
+
+  it("returns 401 without a token", async () => {
+    const res = await request(app).get("/api/events/analytics/fest/7/timeseries");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 when the fest is not the caller's", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 999, editorFestId: null });
+    const res = await request(app).get("/api/events/analytics/fest/7/timeseries").set(...auth);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 400 for a non-numeric fest id", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    const res = await request(app).get("/api/events/analytics/fest/abc/timeseries").set(...auth);
+    expect(res.status).toBe(400);
+  });
+
+  it("buckets COMPLETED bookings by IST day, zero-fills gaps, revenue = subtotal-discount (paise)", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.event.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+    prismaMock.booking.findMany.mockResolvedValue([
+      { purchaseDate: new Date("2026-06-01T06:00:00Z"), subtotal: 5000, discount: 0, items: [{ quantity: 2 }] },
+      { purchaseDate: new Date("2026-06-01T09:00:00Z"), subtotal: 3000, discount: 500, items: [{ quantity: 1 }] },
+      { purchaseDate: new Date("2026-06-03T06:00:00Z"), subtotal: 2000, discount: 0, items: [{ quantity: 1 }] },
+    ]);
+
+    const res = await request(app)
+      .get("/api/events/analytics/fest/7/timeseries?from=2026-06-01&to=2026-06-03")
+      .set(...auth);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.interval).toBe("day");
+    expect(res.body.data.points).toEqual([
+      { date: "2026-06-01", revenue: 7500, ticketsSold: 3, bookings: 2 },
+      { date: "2026-06-02", revenue: 0, ticketsSold: 0, bookings: 0 },
+      { date: "2026-06-03", revenue: 2000, ticketsSold: 1, bookings: 1 },
+    ]);
+    // Only COMPLETED, purchaseDate-bearing bookings for the fest's events are read.
+    expect(prismaMock.booking.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          eventId: { in: [1, 2] },
+          status: "COMPLETED",
+          purchaseDate: expect.objectContaining({ not: null }),
+        }),
+      })
+    );
+  });
+
+  it("returns an empty points array when the fest has no events", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.event.findMany.mockResolvedValue([]);
+    const res = await request(app).get("/api/events/analytics/fest/7/timeseries").set(...auth);
+    expect(res.status).toBe(200);
+    expect(res.body.data.points).toEqual([]);
+    expect(prismaMock.booking.findMany).not.toHaveBeenCalled();
+  });
+});
+
 // ==================== FILE STORAGE: inline base64 -> /uploads URL ====================
 describe("inline base64 uploads are stored and their /uploads URL persisted", () => {
   const mktAuth2 = ["Authorization", `Bearer ${signToken({ userId: 42, role: "HOST" })}`];

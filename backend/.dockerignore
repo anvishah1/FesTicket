@@ -1,0 +1,16 @@
+# OPS-08: keep the build context small and never copy host node_modules over the
+# image's own (which holds the generated Prisma client) or leak local secrets.
+node_modules
+npm-debug.log*
+.env
+.env.*
+!.env.example
+coverage
+test
+__mocks__
+uploads
+*.log
+.git
+.DS_Store
+Dockerfile
+.dockerignore

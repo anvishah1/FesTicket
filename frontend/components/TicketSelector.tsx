@@ -91,10 +91,13 @@ export default function TicketSelector({
         ) : null
       ) : (
         <div className="flex items-center gap-2">
+          {/* FE-15: 44px min tap targets (was 36px); disabled at the bounds. */}
           <button
+            type="button"
             aria-label={`Decrease ${ticket.name}`}
             onClick={() => onChange(Math.max(0, value - 1))}
-            className="w-9 h-9 rounded-md bg-slate-100 flex items-center justify-center text-slate-700"
+            disabled={value <= 0}
+            className="min-w-11 min-h-11 rounded-md bg-slate-100 flex items-center justify-center text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             −
           </button>
@@ -102,21 +105,36 @@ export default function TicketSelector({
           <input
             aria-label={`${ticket.name} quantity`}
             type="number"
+            inputMode="numeric"
+            pattern="[0-9]*"
             min={0}
             max={ticket.available}
             value={value}
-            onChange={(e) => onChange(Number(e.target.value || 0))}
+            onChange={(e) => {
+              // FE-15: guard NaN (empty / non-numeric) and clamp to [0, available].
+              const n = parseInt(e.target.value, 10);
+              onChange(Number.isNaN(n) ? 0 : Math.min(ticket.available, Math.max(0, n)));
+            }}
             className="w-16 text-center border rounded-md px-2 py-1"
           />
 
           <button
+            type="button"
             aria-label={`Increase ${ticket.name}`}
             onClick={() => onChange(Math.min(ticket.available, value + 1))}
-            className="w-9 h-9 rounded-md bg-primary-500 text-white flex items-center justify-center"
+            disabled={value >= ticket.available}
+            className="min-w-11 min-h-11 rounded-md bg-primary-500 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
           >
             +
           </button>
         </div>
+      )}
+
+      {/* FE-15: announce the new quantity + line total to assistive tech. */}
+      {!soldOut && (
+        <span className="sr-only" role="status" aria-live="polite" data-testid="qty-announce">
+          {value} {value === 1 ? "ticket" : "tickets"}, {formatPaise(value * ticket.price)}
+        </span>
       )}
     </div>
   );

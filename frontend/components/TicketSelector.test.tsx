@@ -28,18 +28,14 @@ describe("TicketSelector", () => {
     expect(onChange).toHaveBeenCalledWith(2);
   });
 
-  it("does not exceed availability", async () => {
-    const onChange = vi.fn();
-    render(<TicketSelector ticket={ticket} value={5} onChange={onChange} />);
-    await userEvent.click(screen.getByLabelText("Increase General"));
-    expect(onChange).toHaveBeenCalledWith(5);
+  it("disables the increase button at availability (FE-15)", () => {
+    render(<TicketSelector ticket={ticket} value={5} onChange={vi.fn()} />);
+    expect(screen.getByLabelText("Increase General")).toBeDisabled();
   });
 
-  it("decrements but not below zero", async () => {
-    const onChange = vi.fn();
-    render(<TicketSelector ticket={ticket} value={0} onChange={onChange} />);
-    await userEvent.click(screen.getByLabelText("Decrease General"));
-    expect(onChange).toHaveBeenCalledWith(0);
+  it("disables the decrease button at zero (FE-15)", () => {
+    render(<TicketSelector ticket={ticket} value={0} onChange={vi.fn()} />);
+    expect(screen.getByLabelText("Decrease General")).toBeDisabled();
   });
 
   it("updates from direct numeric input", async () => {
@@ -48,6 +44,24 @@ describe("TicketSelector", () => {
     const input = screen.getByLabelText("General quantity");
     await userEvent.type(input, "3");
     expect(onChange).toHaveBeenCalledWith(3);
+  });
+
+  it("uses a numeric input mode and guards NaN + clamps (FE-15)", async () => {
+    const onChange = vi.fn();
+    render(<TicketSelector ticket={ticket} value={2} onChange={onChange} />);
+    const input = screen.getByLabelText("General quantity");
+    expect(input).toHaveAttribute("inputMode", "numeric");
+    // Clearing to empty -> NaN -> 0 (no NaN leaks to the parent).
+    await userEvent.clear(input);
+    expect(onChange).toHaveBeenLastCalledWith(0);
+  });
+
+  it("announces the quantity + line total via an aria-live region (FE-15)", () => {
+    render(<TicketSelector ticket={ticket} value={2} onChange={vi.fn()} />);
+    const region = screen.getByTestId("qty-announce");
+    expect(region).toHaveAttribute("aria-live", "polite");
+    // 2 × ₹500.00 = ₹1,000.00
+    expect(region).toHaveTextContent("2 tickets, ₹1,000.00");
   });
 
   describe("sold-out waitlist (PAY-08)", () => {

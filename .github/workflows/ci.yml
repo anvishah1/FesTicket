@@ -169,11 +169,10 @@ jobs:
         run: npm run test:integration
 
   e2e:
-    name: E2E (Playwright, optional)
+    name: E2E (Playwright)
     runs-on: ubuntu-latest
-    # Optional gate: e2e depends on a real DB + browser boot and can be flaky.
-    # It does not block the pipeline (the required signal is backend + frontend).
-    continue-on-error: true
+    # OPS-05: BLOCKING — a failing money-path journey (guest checkout,
+    # cancel-restore, role-approval, event-create, booking->complete) fails CI.
 
     services:
       postgres:
@@ -258,9 +257,24 @@ jobs:
           done
           echo "npm ci failed after 3 attempts"; exit 1
 
+      # OPS-05: cache the Playwright browser binaries keyed off the e2e lock file
+      # so a warm run skips the ~100MB chromium download.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
+
       - name: Install Playwright browsers
         working-directory: e2e
-        run: npx playwright install --with-deps chromium
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            # Browsers restored from cache — only (re)install the OS libraries.
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
 
       # playwright.config.ts boots both dev servers itself (webServer[]),
       # so we don't start them by hand here.

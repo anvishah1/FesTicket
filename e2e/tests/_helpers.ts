@@ -5,6 +5,13 @@
 
 import { APIRequestContext, Page, request } from "@playwright/test";
 import crypto from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
+
+const helpersDir = path.dirname(fileURLToPath(import.meta.url));
+// e2e/tests/_helpers.ts -> repo root -> backend/
+const backendDir = path.resolve(helpersDir, "..", "..", "backend");
 
 /** Canonical public/auth routes exercised by the smoke suite. */
 export const ROUTES = {
@@ -172,16 +179,27 @@ export async function signupPrimedSession(
 const E2E_JWT_SECRET =
   process.env.E2E_JWT_SECRET || "e2e-local-jwt-secret-at-least-32-characters-long!!";
 
-function signJwt(userId: number, role: string): string {
+// Optional `tokenVersion` is only embedded when provided: authMiddleware compares
+// the token's tokenVersion (defaulting to 0) against the DB user's. A fresh user
+// is at 0, so omitting it matches; after a role change bumps the DB to N, mint a
+// fresh token with tokenVersion=N so it stays valid.
+function signJwt(userId: number, role: string, tokenVersion?: number): string {
   const enc = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");
   const now = Math.floor(Date.now() / 1000);
   const head = enc({ alg: "HS256", typ: "JWT" });
-  const body = enc({ userId, role, iat: now, exp: now + 3600 });
+  const payload: Record<string, unknown> = { userId, role, iat: now, exp: now + 3600 };
+  if (tokenVersion !== undefined) payload.tokenVersion = tokenVersion;
+  const body = enc(payload);
   const sig = crypto
     .createHmac("sha256", E2E_JWT_SECRET)
     .update(`${head}.${body}`)
     .digest("base64url");
   return `${head}.${body}.${sig}`;
+}
+
+/** Mint a valid HS256 access token for a seeded user (E2E infra). */
+export function signSessionJwt(userId: number, role: string, tokenVersion?: number): string {
+  return signJwt(userId, role, tokenVersion);
 }
 
 function signHostJwt(userId: number): string {
@@ -253,7 +271,8 @@ export async function createEvent(
       name,
       shortDescription: "Seeded by the E2E suite.",
       description: "This event was created by the automated E2E test suite.",
-      category: "Music",
+      // Must be one of the curated categories (SEO-10); "Music" is no longer valid.
+      category: "Concert",
       venue: "Main Auditorium",
       venueAddress: "Main Auditorium, Campus",
       startDate: start.toISOString(),
@@ -316,4 +335,81 @@ export async function primeAuth(
       values: [accessToken, session.refreshToken, JSON.stringify(user)],
     }
   );
+}
+
+// ===========================================================================
+// OPS-05: money-path journey seeding
+// ===========================================================================
+
+export interface SignedUpUser {
+  userId: number;
+  email: string;
+  token: string; // valid HS256 access token for the given role
+}
+
+/**
+ * Sign up a fresh user (unique email so it's always a 201, never the rate-limited
+ * signin) and return its real id + a valid access token minted for `role`. Used
+ * by journeys that need an authenticated, ownership-bearing caller (e.g. a buyer
+ * who can then cancel their own booking).
+ */
+export async function signupUser(
+  api: APIRequestContext,
+  opts: { role?: string; email?: string; name?: string } = {}
+): Promise<SignedUpUser> {
+  const email = opts.email || uniqueEmail("user");
+  const signup = await api.post("/api/auth/signup", {
+    data: { email, password: STRONG_PASSWORD, name: opts.name || "E2E User" },
+  });
+  if (![201, 409].includes(signup.status())) {
+    throw new Error(`signupUser failed (${signup.status()}): ${await signup.text()}`);
+  }
+  const body = await signup.json().catch(() => ({}));
+  const uid = body?.data?.userId ?? body?.userId;
+  if (typeof uid !== "number") {
+    throw new Error(`signupUser: no userId in signup response for ${email}`);
+  }
+  return { userId: uid, email, token: signSessionJwt(uid, opts.role || "VIEWER") };
+}
+
+export interface SeededFestAdmin {
+  festId: number;
+  adminKey: string;
+  adminUserId: number;
+  adminEmail: string;
+}
+
+/**
+ * Seed a Fest (with a known adminKey) + an ADMIN who manages it. There is no
+ * public API for either (both are DB-level onboarding steps), so this shells out
+ * to a backend script that talks to the same Postgres the API uses. Requires the
+ * backend env (DATABASE_URL) to be present — which it is whenever E2E_HAS_DB is.
+ */
+export function seedFestAdmin(): SeededFestAdmin {
+  const out = execFileSync("node", ["src/scripts/e2eSeedFestAdmin.js"], {
+    cwd: backendDir,
+    encoding: "utf8",
+    env: process.env,
+  });
+  const line = out.trim().split(/\r?\n/).pop() as string;
+  return JSON.parse(line) as SeededFestAdmin;
+}
+
+/** Build a POST /api/bookings body for one ticket line. */
+export function bookingBody(
+  event: SeededEvent,
+  opts: { quantity?: number; guestEmail?: string; ticketTypeIndex?: number } = {}
+) {
+  const tt = event.ticketTypes[opts.ticketTypeIndex ?? 0];
+  const quantity = opts.quantity ?? 1;
+  return {
+    eventId: event.id,
+    guestEmail: opts.guestEmail,
+    tickets: [{ ticketTypeId: tt.id, quantity }],
+    attendees: Array.from({ length: quantity }, (_, i) => ({
+      ticketTypeId: tt.id,
+      name: `Attendee ${i + 1}`,
+      email: uniqueEmail("attendee"),
+    })),
+  };
 }

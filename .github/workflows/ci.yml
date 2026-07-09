@@ -229,6 +229,10 @@ jobs:
       # exist; the throwaway Postgres is unpooled, so mirror DATABASE_URL.
       DIRECT_URL: postgresql://tiqr:tiqr@localhost:5432/tiqr_e2e
       JWT_SECRET: ci-e2e-secret-at-least-32-characters-long
+      # The token-minting helper (_helpers.ts) signs seeded bearer tokens with
+      # E2E_JWT_SECRET; it MUST equal the backend's JWT_SECRET above, or
+      # authMiddleware 401s every token and the (blocking) journeys all fail.
+      E2E_JWT_SECRET: ci-e2e-secret-at-least-32-characters-long
       FRONTEND_URL: http://localhost:3000
       NEXT_PUBLIC_API_URL: http://localhost:4000
       # Enables the journey specs (they self-skip when unset).

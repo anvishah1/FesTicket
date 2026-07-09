@@ -176,8 +176,13 @@ export async function signupPrimedSession(
 // promote a signed-up user (signup only creates a VIEWER). For seeding, we sign
 // a real HS256 JWT for the freshly-created user with the local test secret
 // (must match backend/.env JWT_SECRET). authMiddleware does jwt.verify(token, JWT_SECRET).
+// Must equal the backend's JWT_SECRET or authMiddleware 401s every minted token.
+// Prefer an explicit E2E_JWT_SECRET, then fall back to the JWT_SECRET the backend
+// itself runs with (CI sets this at the job level), then the local-dev default.
 const E2E_JWT_SECRET =
-  process.env.E2E_JWT_SECRET || "e2e-local-jwt-secret-at-least-32-characters-long!!";
+  process.env.E2E_JWT_SECRET ||
+  process.env.JWT_SECRET ||
+  "e2e-local-jwt-secret-at-least-32-characters-long!!";
 
 // Optional `tokenVersion` is only embedded when provided: authMiddleware compares
 // the token's tokenVersion (defaulting to 0) against the DB user's. A fresh user

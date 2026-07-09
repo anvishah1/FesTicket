@@ -173,7 +173,7 @@ const openApiDoc = buildOpenApiDocument();
 // as a soft `degraded` warning. Per the graceful-degradation contract these NEVER
 // cause a 503; only a hard dependency (the DB) does. SMTP verify is timeout-bound
 // (see verifyMailProvider) so a slow mail host can't wedge the probe.
-async function collectDegradations() {
+async function computeDegradations() {
   const degraded = [];
   if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
     degraded.push({ service: "razorpay", status: "not_configured" });
@@ -185,6 +185,30 @@ async function collectDegradations() {
     degraded.push({ service: "smtp", status: "check_error" });
   }
   return degraded;
+}
+
+// /api/ready is public + un-rate-limited (a load balancer must reach it), so the
+// SMTP verify that ?deep=1 triggers is memoised: a short TTL + coalesced in-flight
+// promise cap outbound mail-server handshakes at ~1 per DEEP_CHECK_TTL_MS no
+// matter how fast the endpoint is polled (no amplification into the mail provider).
+const DEEP_CHECK_TTL_MS = 30 * 1000;
+let deepCache = { at: 0, degraded: null };
+let deepInflight = null;
+function collectDegradations() {
+  if (deepCache.degraded && Date.now() - deepCache.at < DEEP_CHECK_TTL_MS) {
+    return Promise.resolve(deepCache.degraded);
+  }
+  if (!deepInflight) {
+    deepInflight = computeDegradations()
+      .then((degraded) => {
+        deepCache = { at: Date.now(), degraded };
+        return degraded;
+      })
+      .finally(() => {
+        deepInflight = null;
+      });
+  }
+  return deepInflight;
 }
 
 // Readiness handler shared by both prefixes: cheap `SELECT 1`; 503 when the DB

@@ -28,7 +28,7 @@ const steps: { id: Step; label: string }[] = [
 export default function Sidebar({ current, onChange, isStepEnabled }: SidebarProps) {
   const currentIndex = steps.findIndex((s) => s.id === current);
   return (
-    <aside className="w-64 shrink-0 space-y-3">
+    <aside className="flex lg:flex-col w-full lg:w-64 lg:shrink-0 gap-2 lg:gap-3 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 -mx-4 px-4 lg:mx-0 lg:px-0">
       {steps.map((step, index) => {
         const isActive = current === step.id;
         const isCompleted = index < currentIndex;
@@ -51,7 +51,7 @@ export default function Sidebar({ current, onChange, isStepEnabled }: SidebarPro
               if (isDisabled) return;
               onChange(step.id);
             }}
-            className={`w-full rounded-xl border px-4 py-3 text-left transition-all
+            className={`w-auto lg:w-full shrink-0 whitespace-nowrap rounded-xl border px-4 py-3 text-left transition-all
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-plum)] focus-visible:ring-offset-2
               ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}
               ${

@@ -362,33 +362,34 @@ export default function EventCreatePage() {
   return (
     <div className="min-h-screen bg-[var(--surface-tint)]">
       {/* HEADER */}
-      <header className="flex items-center justify-between px-6 py-4 border-b bg-[var(--surface)]">
-        <div className="flex items-center gap-4">
+      <header className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b bg-[var(--surface)]">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
           <button
             onClick={() => router.push("/host/dashboard")}
-            className="p-2 hover:bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] rounded-lg transition-colors"
+            aria-label="Back to dashboard"
+            className="shrink-0 p-2 hover:bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] rounded-lg transition-colors"
           >
             <svg className="w-5 h-5 text-[var(--text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <div>
-            <span className="text-xl font-semibold text-[var(--text-primary)]">tiqr.events</span>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-sm text-[var(--text-muted)]">Creating event for</span>
-              <span className="text-sm font-medium text-[var(--text-secondary)] bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] px-2 py-0.5 rounded">
+          <div className="min-w-0">
+            <span className="text-lg sm:text-xl font-semibold text-[var(--text-primary)]">tiqr.events</span>
+            <div className="flex items-center gap-2 mt-0.5 min-w-0">
+              <span className="hidden sm:inline text-sm text-[var(--text-muted)] shrink-0">Creating event for</span>
+              <span className="text-sm font-medium text-[var(--text-secondary)] bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] px-2 py-0.5 rounded truncate">
                 {fest.name}
               </span>
             </div>
           </div>
         </div>
-        <button className="rounded-full bg-[var(--fill-plum)] px-4 py-2 text-white hover:bg-[var(--fill-ink)] transition-colors">
+        <button className="shrink-0 rounded-full bg-[var(--fill-plum)] px-3 sm:px-4 py-2 text-sm sm:text-base text-white hover:bg-[var(--fill-ink)] transition-colors">
           Support
         </button>
       </header>
 
       {/* BODY */}
-      <div className="mx-auto flex max-w-7xl gap-6 px-6 py-6">
+      <div className="mx-auto flex flex-col lg:flex-row max-w-7xl gap-4 lg:gap-6 px-4 sm:px-6 py-6">
         <Sidebar current={step} onChange={setStep} isStepEnabled={isStepEnabled} />
 
         <div className="flex-1">

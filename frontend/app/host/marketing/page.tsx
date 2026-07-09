@@ -669,7 +669,7 @@ export default function MarketingPage() {
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="animate-pulse space-y-6">
             <div className="h-8 bg-[var(--surface-card)] rounded w-48"></div>
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="h-24 bg-[var(--surface-card)] rounded-xl"></div>
               ))}
@@ -999,7 +999,7 @@ export default function MarketingPage() {
                   className="w-full px-4 py-2.5 border border-[var(--border-card)] rounded-lg focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:border-[var(--border-plum)] outline-none bg-[var(--surface-tint)]"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="sponsor-contact" className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Contact Person *</label>
                   <input
@@ -1032,7 +1032,7 @@ export default function MarketingPage() {
                   className="w-full px-4 py-2.5 border border-[var(--border-card)] rounded-lg focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:border-[var(--border-plum)] outline-none bg-[var(--surface-tint)]"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="sponsor-amount" className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Sponsorship Amount (₹) *</label>
                   <input
@@ -1170,7 +1170,7 @@ export default function MarketingPage() {
                   placeholder="e.g., Stage Setup & Lighting"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="expense-category" className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Category *</label>
                   <select
@@ -1199,7 +1199,7 @@ export default function MarketingPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label htmlFor="expense-amount" className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Amount (₹) *</label>
                   <input

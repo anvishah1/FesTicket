@@ -797,13 +797,13 @@ export default function ManageEventPage() {
     <main className="min-h-screen bg-[var(--surface-tint)] text-[var(--text-primary)]">
       {/* Header */}
       <header className="border-b border-[var(--border-card)] bg-gradient-to-r from-[#29104A] via-[#3D1B5C] to-[#1A4B6E] backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
             {!isAdmin && (
               <button
                 onClick={() => router.push("/host/dashboard")}
                 aria-label="Back to dashboard"
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                className="shrink-0 p-2 hover:bg-white/10 rounded-lg transition-colors"
               >
                 <svg
                   aria-hidden="true"
@@ -821,17 +821,17 @@ export default function ManageEventPage() {
                 </svg>
               </button>
             )}
-            <div>
-              <h1 className="font-bold text-lg text-white">Manage Event</h1>
-              <p className="text-xs text-white/70">{event.name}</p>
+            <div className="min-w-0">
+              <h1 className="font-bold text-base sm:text-lg text-white truncate">Manage Event</h1>
+              <p className="text-xs text-white/70 truncate">{event.name}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             {/* TIX-03: door scanner for this event. */}
             <button
               type="button"
               onClick={() => router.push(`/host/events/${eventId}/checkin`)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/15 text-white hover:bg-white/25 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/15 text-white hover:bg-white/25 transition-colors whitespace-nowrap"
             >
               Scan tickets
             </button>
@@ -1084,10 +1084,10 @@ export default function ManageEventPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
           <button
             onClick={() => setActiveTab("overview")}
-            className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 sm:px-5 py-2.5 rounded-lg font-medium transition-colors ${
               activeTab === "overview"
                 ? "bg-[var(--fill-plum)] text-white"
                 : "bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] text-[var(--text-muted)] hover:bg-[var(--surface-card)]"
@@ -1097,7 +1097,7 @@ export default function ManageEventPage() {
           </button>
           <button
             onClick={() => setActiveTab("buyers")}
-            className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 sm:px-5 py-2.5 rounded-lg font-medium transition-colors ${
               activeTab === "buyers"
                 ? "bg-[var(--fill-plum)] text-white"
                 : "bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] text-[var(--text-muted)] hover:bg-[var(--surface-card)]"
@@ -1107,7 +1107,7 @@ export default function ManageEventPage() {
           </button>
           <button
             onClick={() => setActiveTab("promos")}
-            className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 sm:px-5 py-2.5 rounded-lg font-medium transition-colors ${
               activeTab === "promos"
                 ? "bg-[var(--fill-plum)] text-white"
                 : "bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] text-[var(--text-muted)] hover:bg-[var(--surface-card)]"
@@ -1117,7 +1117,7 @@ export default function ManageEventPage() {
           </button>
           <button
             onClick={() => setActiveTab("checkin")}
-            className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 sm:px-5 py-2.5 rounded-lg font-medium transition-colors ${
               activeTab === "checkin"
                 ? "bg-[var(--fill-plum)] text-white"
                 : "bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] text-[var(--text-muted)] hover:bg-[var(--surface-card)]"

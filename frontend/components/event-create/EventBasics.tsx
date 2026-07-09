@@ -358,7 +358,7 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
           {showDefaultImages && (
             <div className="mt-4 p-4 bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] rounded-xl">
               <p className="text-sm text-[var(--text-muted)] mb-3">Select a default image (all sized for event cards):</p>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                 {defaultImages.map((img) => (
                   <button
                     key={img.id}
@@ -425,7 +425,7 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
         </div>
 
         {/* Dates */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
           <div>
             <label htmlFor="event-start-date" className="block text-sm font-medium text-[var(--text-primary)]">

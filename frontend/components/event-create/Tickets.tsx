@@ -151,7 +151,7 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
                 )}
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label htmlFor={`ticket-name-${ticket.id}`} className="sr-only">
                     Ticket {index + 1} name

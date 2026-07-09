@@ -81,7 +81,7 @@ export default function RegistrationForm({ onSubmit, onChange, isSubmitting, ini
             Default Attendee Fields
           </h3>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <LockedField label="First Name" />
             <LockedField label="Last Name" />
             <LockedField label="Email" />

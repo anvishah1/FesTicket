@@ -205,7 +205,7 @@ export default function HostDashboard() {
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="animate-pulse space-y-6">
             <div className="h-8 bg-[var(--surface-card)] rounded w-48"></div>
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="h-24 bg-[var(--surface-card)] rounded-xl"></div>
               ))}
@@ -222,45 +222,48 @@ export default function HostDashboard() {
       <Header />
       {/* Host action bar */}
       <header className="border-b border-[var(--border-card)] bg-[var(--fill-mauve)] backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[var(--fill-ink)] flex items-center justify-center font-bold text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-[var(--fill-ink)] flex items-center justify-center font-bold text-white">
               T
             </div>
-            <div>
-              <h1 className="font-bold text-lg text-white">Host Dashboard</h1>
-              <p className="text-xs text-[#C5BAC4]">{fests[0]?.college ?? fests[0]?.name ?? "Your fest"}</p>
+            <div className="min-w-0">
+              <h1 className="font-bold text-base sm:text-lg text-white truncate">Host Dashboard</h1>
+              <p className="text-xs text-[#C5BAC4] truncate">{fests[0]?.college ?? fests[0]?.name ?? "Your fest"}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
               onClick={() => router.push("/host/marketing")}
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 border border-white/20"
+              aria-label="Marketing"
+              className="px-2.5 sm:px-4 py-2 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 border border-white/20"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
               </svg>
-              Marketing
+              <span className="hidden sm:inline">Marketing</span>
             </button>
             <button
               onClick={() => createEventFestId != null && router.push(`/host/fests/${createEventFestId}/events/create`)}
               disabled={createEventFestId == null}
-              className="px-4 py-2 bg-[var(--fill-ink)] hover:bg-[var(--fill-plum)] text-white font-semibold rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Create Event"
+              className="px-2.5 sm:px-4 py-2 bg-[var(--fill-ink)] hover:bg-[var(--fill-plum)] text-white font-semibold rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Create Event
+              <span className="hidden sm:inline">Create Event</span>
             </button>
             <button
               onClick={handleSignOut}
               title="Sign out"
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 border border-white/20"
+              aria-label="Sign out"
+              className="px-2.5 sm:px-4 py-2 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 border border-white/20"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
-              Sign Out
+              <span className="hidden sm:inline">Sign Out</span>
             </button>
           </div>
         </div>

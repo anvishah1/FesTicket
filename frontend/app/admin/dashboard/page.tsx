@@ -342,10 +342,11 @@ export default function AdminDashboardPage() {
     <div className="min-h-screen bg-[var(--surface-tint)] flex flex-col">
       <Header />
 
-      <div className="flex-1 flex">
-        {/* Sidebar - fest oriented */}
-        <aside className="w-64 bg-[var(--surface)] border-r border-[var(--border-card)] px-6 py-8">
-          <div className="flex items-center gap-3 mb-8">
+      <div className="flex-1 flex flex-col lg:flex-row">
+        {/* Sidebar - fest oriented. On mobile it collapses to a horizontal
+            scrollable section-nav strip above the content; a vertical rail on lg. */}
+        <aside className="w-full lg:w-64 shrink-0 bg-[var(--surface)] border-b lg:border-b-0 lg:border-r border-[var(--border-card)] px-4 py-3 lg:px-6 lg:py-8">
+          <div className="hidden lg:flex items-center gap-3 mb-8">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#29104A] to-[#522C5D] flex items-center justify-center">
               <svg aria-hidden="true" className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -359,7 +360,7 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          <nav className="space-y-2">
+          <nav className="flex flex-row lg:flex-col gap-2 lg:gap-0 lg:space-y-2 overflow-x-auto lg:overflow-visible -mx-4 px-4 lg:mx-0 lg:px-0">
             <SidebarItem
               label="Role Approvals"
               icon={
@@ -427,7 +428,7 @@ export default function AdminDashboardPage() {
             />
           </nav>
 
-          <div className="mt-10 pt-6 border-t border-[var(--border-card)]">
+          <div className="hidden lg:block mt-10 pt-6 border-t border-[var(--border-card)]">
             <p className="text-xs font-medium text-[var(--text-muted)] mb-3">This fest only</p>
             <p className="text-sm text-[var(--text-primary)]">
               {managedFestId != null
@@ -437,8 +438,8 @@ export default function AdminDashboardPage() {
           </div>
         </aside>
 
-        <div className="flex-1 flex flex-col">
-          <div className="px-8 py-6 border-b border-[var(--border-card)] bg-[var(--surface)]">
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="px-4 py-4 lg:px-8 lg:py-6 border-b border-[var(--border-card)] bg-[var(--surface)]">
             <h1 className="text-2xl font-bold text-[var(--text-primary)]">
               {activeSection === "events" && "Manage Events"}
               {activeSection === "approvals" && "Role Approval Requests"}
@@ -455,7 +456,7 @@ export default function AdminDashboardPage() {
             </p>
           </div>
 
-          <main className="flex-1 px-8 py-8 overflow-auto">
+          <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8 overflow-auto">
             {managedFestId == null ? (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 max-w-lg">
                 <p className="font-semibold text-amber-800">No fest assigned</p>
@@ -701,7 +702,7 @@ function SidebarItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+      className={`w-auto lg:w-full shrink-0 whitespace-nowrap flex items-center gap-2 lg:gap-3 px-3 lg:px-4 py-2.5 lg:py-3 rounded-xl text-sm font-medium transition-all
         ${
           active
             ? "bg-gradient-to-r from-[#29104A] to-[#522C5D] text-white shadow-lg"

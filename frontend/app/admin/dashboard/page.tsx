@@ -10,6 +10,7 @@ import { formatPaise } from "@/lib/format";
 
 import SalesTrendChart, { type TrendPoint } from "@/components/analytics/SalesTrendChart";
 import BookingFunnel, { type FunnelData } from "@/components/admin/BookingFunnel";
+import EventComparisonTable, { type EventRow } from "@/components/admin/EventComparisonTable";
 import RoleRequests from "@/components/admin/RoleRequests";
 import FestEvents from "@/components/admin/FestEvents";
 import Companies from "@/components/admin/Companies";
@@ -48,6 +49,7 @@ export default function AdminDashboardPage() {
   const [sponsorIncome, setSponsorIncome] = useState<number | null>(null);
   const [trend, setTrend] = useState<TrendPoint[] | null>(null); // ANL-01
   const [funnel, setFunnel] = useState<FunnelData | null>(null); // ANL-03
+  const [eventRows, setEventRows] = useState<EventRow[] | null>(null); // ANL-04
   // ANL-02: date-range filter for the range-scoped cards + trend chart.
   const [festDates, setFestDates] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
   const [preset, setPreset] = useState<"all" | "today" | "7d" | "fest" | "custom">("all");
@@ -148,6 +150,14 @@ export default function AdminDashboardPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.success && data.data) setFunnel(data.data);
+      })
+      .catch(() => {});
+
+    // ANL-04: per-event comparison rows.
+    apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}/events`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.success && Array.isArray(data.data)) setEventRows(data.data);
       })
       .catch(() => {});
 
@@ -483,6 +493,16 @@ export default function AdminDashboardPage() {
                         <BookingFunnel data={funnel} />
                       )}
                     </div>
+                  </div>
+
+                  {/* ANL-04: per-event comparison */}
+                  <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-5 shadow-sm">
+                    <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Event comparison</h2>
+                    {eventRows == null ? (
+                      <div className="h-32 rounded-lg bg-[var(--surface-slate-100)] animate-pulse" aria-hidden="true" />
+                    ) : (
+                      <EventComparisonTable rows={eventRows} />
+                    )}
                   </div>
                 </div>
 

@@ -2167,6 +2167,60 @@ describe("GET /api/events/analytics/fest/:festId/funnel", () => {
   });
 });
 
+// ============ GET /api/events/analytics/fest/:festId/events (ANL-04) ============
+describe("GET /api/events/analytics/fest/:festId/events", () => {
+  const auth = ["Authorization", `Bearer ${signToken({ userId: 42, role: "HOST" })}`];
+
+  it("returns 403 when the fest is not the caller's", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 999, editorFestId: null });
+    const res = await request(app).get("/api/events/analytics/fest/7/events").set(...auth);
+    expect(res.status).toBe(403);
+  });
+
+  it("composes per-event revenue/sell-through/conversion from 2 queries with zero-fill", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.event.findMany.mockResolvedValue([
+      { id: 1, name: "Alpha", ticketTypes: [{ quantity: 100, sold: 40, price: 500 }] },
+      { id: 2, name: "Beta", ticketTypes: [] }, // no ticket types -> capacity 0, sellThrough 0
+    ]);
+    prismaMock.booking.groupBy.mockResolvedValue([
+      { eventId: 1, status: "COMPLETED", _count: 8, _sum: { subtotal: 40000, discount: 5000, total: 47000 } },
+      { eventId: 1, status: "PENDING", _count: 2, _sum: { subtotal: 10000, discount: 0, total: 12000 } },
+      // event 2 has no bookings -> must be zero-filled
+    ]);
+
+    const res = await request(app).get("/api/events/analytics/fest/7/events").set(...auth);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([
+      {
+        eventId: 1,
+        name: "Alpha",
+        revenue: 35000, // 40000 - 5000 (COMPLETED only)
+        ticketsSold: 40,
+        capacity: 100,
+        sellThrough: 0.4,
+        bookings: 8,
+        started: 10, // 8 completed + 2 pending
+        conversion: 0.8,
+      },
+      {
+        eventId: 2,
+        name: "Beta",
+        revenue: 0,
+        ticketsSold: 0,
+        capacity: 0,
+        sellThrough: 0, // no divide-by-zero
+        bookings: 0,
+        started: 0,
+        conversion: 0,
+      },
+    ]);
+    // efficiency: exactly one event query + one groupBy (no per-event N+1).
+    expect(prismaMock.booking.groupBy).toHaveBeenCalledTimes(1);
+  });
+});
+
 // ==================== FILE STORAGE: inline base64 -> /uploads URL ====================
 describe("inline base64 uploads are stored and their /uploads URL persisted", () => {
   const mktAuth2 = ["Authorization", `Bearer ${signToken({ userId: 42, role: "HOST" })}`];

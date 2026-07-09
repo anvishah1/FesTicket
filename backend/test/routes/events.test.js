@@ -2054,6 +2054,19 @@ describe("GET /api/events/analytics/fest/:festId", () => {
     expect(res.body.data.ticketsSold).toBe(12);
     expect(prismaMock.bookingItem.aggregate).not.toHaveBeenCalled();
   });
+
+  it("Phase-8 review fix: revenue subtracts BOTH the event discount and promoDiscount", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.event.findMany.mockResolvedValue([{ id: 1, ticketTypes: [{ sold: 5 }] }]);
+    // subtotal 10000, event discount 0, promo 2000 -> true revenue 8000 (not 10000)
+    prismaMock.booking.aggregate.mockResolvedValue({
+      _sum: { subtotal: 10000, discount: 0, promoDiscount: 2000 },
+      _count: 1,
+    });
+    const res = await request(app).get("/api/events/analytics/fest/7").set(...auth);
+    expect(res.status).toBe(200);
+    expect(res.body.data.revenue).toBe(8000);
+  });
 });
 
 // ============ GET /api/events/analytics/fest/:festId/timeseries (ANL-01) ============
@@ -2116,6 +2129,26 @@ describe("GET /api/events/analytics/fest/:festId/timeseries", () => {
     expect(res.status).toBe(200);
     expect(res.body.data.points).toEqual([]);
     expect(prismaMock.booking.findMany).not.toHaveBeenCalled();
+  });
+
+  it("Phase-8 review fix: from/to are IST day boundaries, so an early-IST-morning sale is included", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.event.findMany.mockResolvedValue([{ id: 1 }]);
+    // 2026-05-31T19:00:00Z == 2026-06-01 00:30 IST — belongs to the 06-01 IST day.
+    prismaMock.booking.findMany.mockResolvedValue([
+      { purchaseDate: new Date("2026-05-31T19:00:00Z"), subtotal: 5000, discount: 0, promoDiscount: 0, items: [{ quantity: 1 }] },
+    ]);
+    const res = await request(app)
+      .get("/api/events/analytics/fest/7/timeseries?from=2026-06-01&to=2026-06-01")
+      .set(...auth);
+    expect(res.status).toBe(200);
+    expect(res.body.data.points).toEqual([
+      { date: "2026-06-01", revenue: 5000, ticketsSold: 1, bookings: 1 },
+    ]);
+    // The DB lower bound is the IST day start (05-31T18:30Z), BEFORE the sale, so
+    // it isn't wrongly excluded (the old UTC-midnight parsing would have dropped it).
+    const call = prismaMock.booking.findMany.mock.calls[0][0];
+    expect(call.where.purchaseDate.gte.toISOString()).toBe("2026-05-31T18:30:00.000Z");
   });
 });
 
@@ -2319,6 +2352,20 @@ describe("GET /api/events/analytics/fest/:festId/settlement", () => {
       grossCollected: 0, platformFees: 0, gst: 0, discounts: 0,
       netToOrganizer: 0, refundedTotal: 0, cancelledTotal: 0,
     });
+  });
+
+  it("Phase-8 review fix: promoDiscount is folded into discounts + net, keeping gross−fee−gst == net", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.event.findMany.mockResolvedValue([{ id: 1 }]);
+    // subtotal 10000, event discount 0, promo 2000 -> discountedBase 8000; fee 160, tax 1469, total 9629
+    prismaMock.booking.groupBy.mockResolvedValue([
+      { status: "COMPLETED", _sum: { subtotal: 10000, discount: 0, promoDiscount: 2000, platformFee: 160, tax: 1469, total: 9629 } },
+    ]);
+    const res = await request(app).get("/api/events/analytics/fest/7/settlement").set(...auth);
+    const d = res.body.data;
+    expect(d.netToOrganizer).toBe(8000); // 10000 - (0 + 2000), NOT 10000
+    expect(d.discounts).toBe(2000); // event discount + promo
+    expect(d.grossCollected - d.platformFees - d.gst).toBe(d.netToOrganizer); // 9629-160-1469=8000
   });
 });
 

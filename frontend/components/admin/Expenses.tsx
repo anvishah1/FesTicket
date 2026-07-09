@@ -313,6 +313,21 @@ export default function Expenses({ festId }: ExpensesProps) {
   const overallBudget = budgets.find((b) => b.category == null)?.amount ?? null;
   const overallActual = allExpenses.reduce((sum, e) => sum + e.amount, 0);
 
+  // Budget-vs-actual must use the TRUE (unfiltered) category spend, not the
+  // search/host-filtered totals (which would misreport over-budget when a filter
+  // is active). Also surface categories that have a budget but no spend yet, so
+  // their budget is visible/editable.
+  const spendByLabel = new Map<string, number>();
+  for (const e of allExpenses) spendByLabel.set(e.category, (spendByLabel.get(e.category) ?? 0) + e.amount);
+  const budgetedLabels = new Set(
+    budgets.filter((b) => b.category != null).map((b) => categoryLabel(b.category as string))
+  );
+  const budgetCards = expenseCategories
+    // Show a card when it has spend or a budget; admins (who can set budgets) see
+    // every category so a budget can be created even before any spend.
+    .filter((label) => (spendByLabel.get(label) ?? 0) > 0 || budgetedLabels.has(label) || canEditBudgets)
+    .map((label) => ({ category: label, actual: spendByLabel.get(label) ?? 0 }));
+
   const getCategoryColor = (category: string) => {
     switch (category) {
       case "Infrastructure": return "bg-blue-100 text-blue-700";
@@ -721,8 +736,9 @@ export default function Expenses({ festId }: ExpensesProps) {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {expensesByCategory.map((cat) => {
-            const percentage = totalExpenses > 0 ? (cat.total / totalExpenses) * 100 : 0;
+          {budgetCards.map((cat) => {
+            // % of total and budget-vs-actual both use the UNFILTERED category spend.
+            const percentage = overallActual > 0 ? (cat.actual / overallActual) * 100 : 0;
             const enumKey = LABEL_TO_ENUM[cat.category];
             const catBudget = enumKey != null ? budgetByEnum.get(enumKey) ?? null : null;
             return (
@@ -730,7 +746,7 @@ export default function Expenses({ festId }: ExpensesProps) {
                 <span className={`px-2 py-1 rounded text-xs font-medium ${getCategoryColor(cat.category)}`}>
                   {cat.category}
                 </span>
-                <p className="text-lg font-bold text-[var(--text-primary)] mt-2">{formatPaise(cat.total)}</p>
+                <p className="text-lg font-bold text-[var(--text-primary)] mt-2">{formatPaise(cat.actual)}</p>
                 <div className="w-full h-1.5 bg-[var(--surface-card)] rounded-full mt-2 overflow-hidden">
                   <div
                     className="h-full bg-[var(--fill-plum)] rounded-full"
@@ -740,7 +756,7 @@ export default function Expenses({ festId }: ExpensesProps) {
                 <p className="text-xs text-[var(--text-muted)] mt-1">{percentage.toFixed(1)}% of total</p>
                 {enumKey != null && (
                   <BudgetBar
-                    actual={cat.total}
+                    actual={cat.actual}
                     budget={catBudget}
                     canEdit={canEditBudgets}
                     isEditing={editingCat === enumKey}

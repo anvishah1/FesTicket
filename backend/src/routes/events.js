@@ -470,13 +470,12 @@ router.get("/analytics/fest/:festId", authenticateUser, async (req, res) => {
     if (!canAccessFest(festId, await callerFests(req))) return forbid(res);
 
     // ANL-02: optional date range. When present, revenue/bookings/tickets are
-    // scoped to COMPLETED bookings whose purchaseDate falls in [from, to].
-    const fromParsed = req.query.from ? new Date(req.query.from) : null;
-    const toParsed = req.query.to ? new Date(req.query.to) : null;
-    const from = fromParsed && !Number.isNaN(fromParsed.getTime()) ? fromParsed : null;
-    const toEnd = toParsed && !Number.isNaN(toParsed.getTime())
-      ? new Date(new Date(toParsed).setUTCHours(23, 59, 59, 999))
-      : null;
+    // scoped to COMPLETED bookings whose purchaseDate falls in [from, to]. from/to
+    // are resolved at the correct IST (tz) day boundaries — a bare YYYY-MM-DD is
+    // that IST day, not UTC midnight (see parseRangeBoundary).
+    const tz = typeof req.query.tz === "string" && req.query.tz ? req.query.tz : "Asia/Kolkata";
+    const from = parseRangeBoundary(req.query.from, tz, false);
+    const toEnd = parseRangeBoundary(req.query.to, tz, true);
     const hasRange = !!(from || toEnd);
     const rangeFilter = hasRange
       ? { purchaseDate: { not: null, ...(from ? { gte: from } : {}), ...(toEnd ? { lte: toEnd } : {}) } }
@@ -493,7 +492,7 @@ router.get("/analytics/fest/:festId", authenticateUser, async (req, res) => {
 
     const agg = await prisma.booking.aggregate({
       where: bookingWhere,
-      _sum: { subtotal: true, discount: true },
+      _sum: { subtotal: true, discount: true, promoDiscount: true },
       _count: true,
     });
 
@@ -517,11 +516,12 @@ router.get("/analytics/fest/:festId", authenticateUser, async (req, res) => {
     res.json({
       success: true,
       data: {
-        // Net ticket revenue the fest actually earns = sale value after the event
-        // discount. The 2% platform fee and 18% GST are collected ON TOP and are
-        // NOT the organiser's income, so they are excluded (previously this summed
-        // booking.total and overstated income by ~20%).
-        revenue: Math.round(((agg._sum.subtotal || 0) - (agg._sum.discount || 0)) * 100) / 100,
+        // Net ticket revenue the fest actually earns = sale value after BOTH the
+        // event discount and any promo-code discount (discountedBase). The 2%
+        // platform fee and 18% GST are collected ON TOP and are NOT the organiser's
+        // income, so they are excluded.
+        revenue:
+          (agg._sum.subtotal || 0) - (agg._sum.discount || 0) - (agg._sum.promoDiscount || 0),
         ticketsSold,
         eventsCount,
         bookingsCount: agg._count || 0,
@@ -579,6 +579,47 @@ function eachDayKey(startKey, endKey, cap) {
   return out;
 }
 
+// How many ms `tz` is ahead of UTC at the given instant (deterministic; uses
+// Intl.formatToParts, NOT local-time parsing, so it doesn't depend on the host tz).
+function tzOffsetMs(atUtc, tz) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(atUtc);
+  const g = (t) => parts.find((p) => p.type === t)?.value;
+  let hh = Number(g("hour"));
+  if (hh === 24) hh = 0; // some engines render midnight as 24
+  const asIfUtc = Date.UTC(Number(g("year")), Number(g("month")) - 1, Number(g("day")), hh, Number(g("minute")), Number(g("second")));
+  return asIfUtc - atUtc.getTime();
+}
+
+// UTC instant for the start (or end) of a yyyy-mm-dd calendar day IN `tz`. The
+// date-range presets/bucketing are IST, but `new Date('YYYY-MM-DD')` anchors at
+// UTC midnight — 5.5h off for IST — so a naive filter drops early-IST sales and
+// includes next-day ones.
+function zonedDayBoundaryUtc(dayStr, tz, endOfDay) {
+  // Offset measured at noon of that day (avoids any DST-transition edge at midnight).
+  const offset = tzOffsetMs(new Date(`${dayStr}T12:00:00Z`), tz);
+  const wallMs = new Date(`${dayStr}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`).getTime();
+  return new Date(wallMs - offset);
+}
+
+// Parse a from/to query value into a UTC instant: a bare YYYY-MM-DD is that day's
+// boundary in `tz`; a full ISO instant (e.g. ANL-10's now-1h) is used verbatim.
+function parseRangeBoundary(val, tz, endOfDay) {
+  if (val == null || val === "") return null;
+  const str = String(val);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return zonedDayBoundaryUtc(str, tz, endOfDay);
+  const d = new Date(str);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 // GET /api/events/analytics/fest/:festId/timeseries (ANL-01) - COMPLETED bookings
 // bucketed by calendar day (or ISO week) in `tz`, zero-filled so the trend line is
 // continuous. revenue is INTEGER PAISE (subtotal-discount), matching the headline
@@ -596,13 +637,15 @@ router.get("/analytics/fest/:festId/timeseries", authenticateUser, async (req, r
 
     const interval = req.query.interval === "week" ? "week" : "day";
     const tz = typeof req.query.tz === "string" && req.query.tz ? req.query.tz : "Asia/Kolkata";
-    const fromParsed = req.query.from ? new Date(req.query.from) : null;
-    const toParsed = req.query.to ? new Date(req.query.to) : null;
-    const from = fromParsed && !Number.isNaN(fromParsed.getTime()) ? fromParsed : null;
-    const toRaw = toParsed && !Number.isNaN(toParsed.getTime()) ? toParsed : null;
-    // DB upper bound includes the whole `to` day; the zero-fill window is derived
-    // from `toRaw` (below) so a tz shift doesn't push the last bucket a day out.
-    const toEnd = toRaw ? new Date(new Date(toRaw).setUTCHours(23, 59, 59, 999)) : null;
+    // from/to resolved at the correct tz day boundaries (see parseRangeBoundary).
+    let from = parseRangeBoundary(req.query.from, tz, false);
+    const toEnd = parseRangeBoundary(req.query.to, tz, true);
+    // No explicit start => cap the window (and the query) to the last N days so an
+    // old first sale can't make us fetch/zero-fill an unbounded history.
+    if (!from) {
+      const backDay = dayKeyInTz(new Date(Date.now() - (ANL_DEFAULT_WINDOW_DAYS - 1) * 86400000), tz);
+      from = zonedDayBoundaryUtc(backDay, tz, false);
+    }
 
     const events = await prisma.event.findMany({ where: { festId }, select: { id: true } });
     const eventIds = events.map((e) => e.id);
@@ -613,47 +656,38 @@ router.get("/analytics/fest/:festId/timeseries", authenticateUser, async (req, r
         where: {
           eventId: { in: eventIds },
           status: "COMPLETED",
-          purchaseDate: { not: null, ...(from ? { gte: from } : {}), ...(toEnd ? { lte: toEnd } : {}) },
+          purchaseDate: { not: null, gte: from, ...(toEnd ? { lte: toEnd } : {}) },
         },
         select: {
           purchaseDate: true,
           subtotal: true,
           discount: true,
+          promoDiscount: true,
           items: { select: { quantity: true } },
         },
       });
 
-      // Aggregate into per-bucket totals; track the observed day span for zero-fill.
+      // Aggregate into per-bucket totals; track the first observed day for zero-fill.
       const buckets = new Map(); // key -> { revenue, ticketsSold, bookings }
       let minKey = null;
-      let maxKey = null;
       for (const b of bookings) {
         const dk = dayKeyInTz(b.purchaseDate, tz);
         if (!minKey || dk < minKey) minKey = dk;
-        if (!maxKey || dk > maxKey) maxKey = dk;
         const key = interval === "week" ? weekKeyForDay(dk) : dk;
         const cur = buckets.get(key) || { revenue: 0, ticketsSold: 0, bookings: 0 };
-        cur.revenue += (b.subtotal || 0) - (b.discount || 0); // integer paise
+        cur.revenue += (b.subtotal || 0) - (b.discount || 0) - (b.promoDiscount || 0); // paise
         cur.ticketsSold += b.items.reduce((a, i) => a + (i.quantity || 0), 0);
         cur.bookings += 1;
         buckets.set(key, cur);
       }
 
+      // Window: [max(window-start, first-sale) .. to-or-today]. Because from/toEnd
+      // are tz-aligned, every fetched booking's tz day already falls inside, so no
+      // boundary widening is needed.
       const todayKey = dayKeyInTz(new Date(), tz);
-      let startKey;
-      if (from) {
-        startKey = dayKeyInTz(from, tz);
-      } else {
-        // Default window: the last N days, but never earlier than the first sale.
-        const back = new Date();
-        back.setUTCDate(back.getUTCDate() - (ANL_DEFAULT_WINDOW_DAYS - 1));
-        const backKey = dayKeyInTz(back, tz);
-        startKey = minKey && minKey > backKey ? minKey : backKey;
-      }
-      let endKey = toRaw ? dayKeyInTz(toRaw, tz) : todayKey;
-      // Never drop a bucket that actually has data at the tz boundary.
-      if (minKey && minKey < startKey) startKey = minKey;
-      if (maxKey && maxKey > endKey) endKey = maxKey;
+      const fromKey = dayKeyInTz(from, tz);
+      let startKey = minKey && minKey > fromKey ? minKey : fromKey;
+      let endKey = toEnd ? dayKeyInTz(toEnd, tz) : todayKey;
       if (endKey < startKey) endKey = startKey;
 
       // Zero-fill: build the ordered unique interval keys across [startKey,endKey].
@@ -666,7 +700,11 @@ router.get("/analytics/fest/:festId/timeseries", authenticateUser, async (req, r
           orderedKeys.push(key);
         }
       }
-      points = orderedKeys.slice(0, ANL_MAX_POINTS).map((key) => {
+      // If a very wide range exceeds the cap, keep the MOST RECENT points (the
+      // dashboard cares about recent sales) rather than the oldest.
+      const capped =
+        orderedKeys.length > ANL_MAX_POINTS ? orderedKeys.slice(-ANL_MAX_POINTS) : orderedKeys;
+      points = capped.map((key) => {
         const v = buckets.get(key) || { revenue: 0, ticketsSold: 0, bookings: 0 };
         return { date: key, revenue: v.revenue, ticketsSold: v.ticketsSold, bookings: v.bookings };
       });
@@ -764,7 +802,7 @@ router.get("/analytics/fest/:festId/events", authenticateUser, async (req, res) 
           by: ["eventId", "status"],
           where: { eventId: { in: eventIds } },
           _count: true,
-          _sum: { subtotal: true, discount: true, total: true },
+          _sum: { subtotal: true, discount: true, promoDiscount: true, total: true },
         })
       : [];
 
@@ -775,7 +813,7 @@ router.get("/analytics/fest/:festId/events", authenticateUser, async (req, res) 
       cur.started += g._count || 0;
       if (g.status === "COMPLETED") {
         cur.completed += g._count || 0;
-        cur.revenue += (g._sum.subtotal || 0) - (g._sum.discount || 0); // paise
+        cur.revenue += (g._sum.subtotal || 0) - (g._sum.discount || 0) - (g._sum.promoDiscount || 0); // paise
       }
       byEvent.set(g.eventId, cur);
     }
@@ -901,7 +939,7 @@ router.get("/analytics/fest/:festId/settlement", authenticateUser, async (req, r
       ? await prisma.booking.groupBy({
           by: ["status"],
           where: { eventId: { in: eventIds } },
-          _sum: { subtotal: true, discount: true, platformFee: true, tax: true, total: true },
+          _sum: { subtotal: true, discount: true, promoDiscount: true, platformFee: true, tax: true, total: true },
         })
       : [];
     const sums = new Map(grouped.map((g) => [g.status, g._sum]));
@@ -910,9 +948,11 @@ router.get("/analytics/fest/:festId/settlement", authenticateUser, async (req, r
     const grossCollected = s("COMPLETED", "total");
     const platformFees = s("COMPLETED", "platformFee");
     const gst = s("COMPLETED", "tax");
-    const discounts = s("COMPLETED", "discount");
-    // Net payout = ticket value after discount; fee + GST are collected on top and
-    // are NOT the organiser's money. Equals grossCollected - fees - gst (± rounding).
+    // Total discount given = event discount + promo-code discount.
+    const discounts = s("COMPLETED", "discount") + s("COMPLETED", "promoDiscount");
+    // Net payout = ticket value after ALL discounts; fee + GST are collected on top
+    // and are NOT the organiser's money. Equals grossCollected - fees - gst since
+    // total = (subtotal - discount - promoDiscount) + fee + tax.
     const netToOrganizer = s("COMPLETED", "subtotal") - discounts;
 
     res.json({
@@ -2450,12 +2490,30 @@ router.post("/marketing/fest/:festId/budgets", async (req, res) => {
 
     // Manual upsert: the @@unique([festId, category]) does NOT enforce uniqueness
     // for a NULL category (Postgres treats NULLs as distinct), so match explicitly.
+    // A partial unique index (Budget_festId_overall_key) backs the NULL case; if a
+    // concurrent request wins the create race we catch the P2002 and update instead.
     const existing = await prisma.budget.findFirst({ where: { festId, category } });
-    const budget = existing
-      ? await prisma.budget.update({ where: { id: existing.id }, data: { amount } })
-      : await prisma.budget.create({ data: { festId, category, amount } });
+    let budget;
+    let created = false;
+    if (existing) {
+      budget = await prisma.budget.update({ where: { id: existing.id }, data: { amount } });
+    } else {
+      try {
+        budget = await prisma.budget.create({ data: { festId, category, amount } });
+        created = true;
+      } catch (e) {
+        if (e && e.code === "P2002") {
+          const now = await prisma.budget.findFirst({ where: { festId, category } });
+          budget = now
+            ? await prisma.budget.update({ where: { id: now.id }, data: { amount } })
+            : (() => { throw e; })();
+        } else {
+          throw e;
+        }
+      }
+    }
 
-    res.status(existing ? 200 : 201).json({ success: true, data: budget });
+    res.status(created ? 201 : 200).json({ success: true, data: budget });
   } catch (error) {
     req.log.error({ err: error }, "Error saving budget");
     res.status(500).json({ success: false, error: { code: "SAVE_ERROR", message: "Failed to save budget" } });

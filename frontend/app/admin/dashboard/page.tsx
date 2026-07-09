@@ -56,6 +56,9 @@ export default function AdminDashboardPage() {
   } | null>(null);
   const [totalSpend, setTotalSpend] = useState<number | null>(null);
   const [sponsorIncome, setSponsorIncome] = useState<number | null>(null);
+  // Lifetime (un-ranged) ticket revenue — Net Balance mixes it with lifetime
+  // spend/sponsor income, so it must NOT use the range-scoped Income figure.
+  const [lifetimeRevenue, setLifetimeRevenue] = useState<number | null>(null);
   const [trend, setTrend] = useState<TrendPoint[] | null>(null); // ANL-01
   const [funnel, setFunnel] = useState<FunnelData | null>(null); // ANL-03
   const [eventRows, setEventRows] = useState<EventRow[] | null>(null); // ANL-04
@@ -203,6 +206,15 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (!managedFestId) return;
+    // Lifetime ticket revenue (no date range) for the Net Balance row, which is
+    // labeled "lifetime" and combined with lifetime spend + sponsor income.
+    apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.success && typeof data.data?.revenue === "number") setLifetimeRevenue(data.data.revenue);
+      })
+      .catch(() => {});
+
     // ANL-03: all-time booking funnel (per-status counts + paise sums).
     apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}/funnel`)
       .then((r) => (r.ok ? r.json() : null))
@@ -287,11 +299,13 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // Net Balance = net ticket revenue (already excludes platform fee + GST) +
-  // sponsorship received − total spend.
+  // Net Balance = LIFETIME net ticket revenue (excludes platform fee + GST) +
+  // sponsorship received − total spend. Uses the un-ranged revenue so it stays
+  // consistent with the lifetime spend/sponsor figures regardless of the date
+  // preset (the range-scoped `analytics.revenue` only drives the Income card).
   const netBalance =
-    analytics != null || totalSpend != null || sponsorIncome != null
-      ? (analytics?.revenue ?? 0) + (sponsorIncome ?? 0) - (totalSpend ?? 0)
+    lifetimeRevenue != null || totalSpend != null || sponsorIncome != null
+      ? (lifetimeRevenue ?? 0) + (sponsorIncome ?? 0) - (totalSpend ?? 0)
       : null;
 
   function applyPreset(p: typeof preset) {

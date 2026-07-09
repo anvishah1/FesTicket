@@ -35,7 +35,70 @@ export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false); // mobile nav sheet
 
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const mobileButtonRef = useRef<HTMLButtonElement | null>(null);
+  const mobileNavRef = useRef<HTMLElement | null>(null);
+
+  // FE-14: roving-tabindex arrow navigation + focus management for the account
+  // menu. Reads the live menuitem set so it doesn't matter which items render.
+  const menuItems = () =>
+    Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+
+  const onMenuKeyDown = (e: React.KeyboardEvent) => {
+    const items = menuItems();
+    if (!items.length) return;
+    const idx = items.indexOf(document.activeElement as HTMLElement);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      items[(idx + 1) % items.length]?.focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      items[(idx - 1 + items.length) % items.length]?.focus();
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      items[0]?.focus();
+    } else if (e.key === "End") {
+      e.preventDefault();
+      items[items.length - 1]?.focus();
+    } else if (e.key === "Tab") {
+      // Tabbing out closes the menu and returns focus to the trigger.
+      setMenuOpen(false);
+      menuButtonRef.current?.focus();
+    }
+  };
+
+  // FE-14: focus the first menu item when the account dropdown opens.
+  useEffect(() => {
+    if (!menuOpen) return;
+    menuItems()[0]?.focus();
+  }, [menuOpen]);
+
+  // FE-14: lock body scroll + focus the first control when the mobile sheet opens.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    mobileNavRef.current?.querySelector<HTMLElement>("a, button")?.focus();
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [mobileOpen]);
+
+  // FE-14: focus trap for the mobile sheet (Tab cycles within it).
+  const onMobileKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "Tab") return;
+    const focusables = Array.from(mobileNavRef.current?.querySelectorAll<HTMLElement>("a, button") ?? []);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
 
   const syncAuth = useCallback(() => {
     setLoggedIn(isAuthenticated());
@@ -50,14 +113,15 @@ export default function Header() {
     return () => window.removeEventListener("storage", syncAuth);
   }, [syncAuth]);
 
-  // Close menus on Escape.
+  // Close menus on Escape, restoring focus to whichever trigger opened them.
   useEffect(() => {
     if (!menuOpen && !mobileOpen) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
+        if (menuOpen) menuButtonRef.current?.focus();
+        else if (mobileOpen) mobileButtonRef.current?.focus();
         setMenuOpen(false);
         setMobileOpen(false);
-        mobileButtonRef.current?.focus();
       }
     }
     window.addEventListener("keydown", onKey);
@@ -134,6 +198,7 @@ export default function Header() {
             <div className="relative hidden sm:block" ref={menuRef}>
               <button
                 type="button"
+                ref={menuButtonRef}
                 onClick={() => setMenuOpen((o) => !o)}
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
@@ -150,6 +215,8 @@ export default function Header() {
               {menuOpen && (
                 <div
                   role="menu"
+                  aria-orientation="vertical"
+                  onKeyDown={onMenuKeyDown}
                   className="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg py-1 text-sm"
                 >
                   {dash && (
@@ -223,6 +290,8 @@ export default function Header() {
       {mobileOpen && (
         <nav
           id="mobile-nav"
+          ref={mobileNavRef}
+          onKeyDown={onMobileKeyDown}
           className="md:hidden border-t border-white/10 bg-[#3D1B5C] px-4 py-4 space-y-1 text-sm font-medium"
         >
           {NAV_LINKS.map((l) => (

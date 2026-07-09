@@ -91,6 +91,45 @@ describe("Header", () => {
     expect(screen.queryByRole("menuitem", { name: "Dashboard" })).not.toBeInTheDocument();
   });
 
+  // FE-14: account-menu keyboard + focus management.
+  it("focuses the first menu item when the account menu opens", () => {
+    storeUser("VIEWER", "Ada Lovelace");
+    render(<Header />);
+    fireEvent.click(screen.getByRole("button", { name: /ada lovelace/i }));
+    expect(document.activeElement).toBe(screen.getAllByRole("menuitem")[0]);
+  });
+
+  it("ArrowDown moves focus to the next menu item (roving)", () => {
+    storeUser("VIEWER", "Ada Lovelace");
+    render(<Header />);
+    fireEvent.click(screen.getByRole("button", { name: /ada lovelace/i }));
+    const items = screen.getAllByRole("menuitem");
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "ArrowDown" });
+    expect(document.activeElement).toBe(items[1]);
+  });
+
+  it("Escape closes the account menu and restores focus to the trigger", () => {
+    storeUser("VIEWER", "Ada Lovelace");
+    render(<Header />);
+    const trigger = screen.getByRole("button", { name: /ada lovelace/i });
+    fireEvent.click(trigger);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("locks body scroll while the mobile sheet is open and unlocks on close", () => {
+    render(<Header />);
+    const toggle = screen.getByRole("button", { name: /toggle navigation menu/i });
+    fireEvent.click(toggle);
+    expect(document.body.style.overflow).toBe("hidden");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.body.style.overflow).not.toBe("hidden");
+    // Focus returns to the hamburger.
+    expect(document.activeElement).toBe(toggle);
+  });
+
   it("mobile hamburger toggles the nav and exposes aria-expanded", () => {
     render(<Header />);
     const toggle = screen.getByRole("button", { name: /toggle navigation menu/i });

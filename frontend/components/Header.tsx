@@ -29,6 +29,11 @@ const NAV_LINKS = [
   { href: "/about", key: "about" },
 ] as const;
 
+// FE-14: everything the mobile sheet's focus trap must contain — note `select`
+// (the LocaleSwitcher) and inputs, not just links/buttons.
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), select, input:not([disabled]), textarea, [tabindex]:not([tabindex="-1"])';
+
 export default function Header() {
   const t = useTranslations();
   // Auth-dependent bits render only after mount to avoid SSR/hydration mismatch.
@@ -83,7 +88,7 @@ export default function Header() {
     if (!mobileOpen) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    mobileNavRef.current?.querySelector<HTMLElement>("a, button")?.focus();
+    mobileNavRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)?.focus();
     return () => {
       document.body.style.overflow = prevOverflow;
     };
@@ -92,7 +97,7 @@ export default function Header() {
   // FE-14: focus trap for the mobile sheet (Tab cycles within it).
   const onMobileKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== "Tab") return;
-    const focusables = Array.from(mobileNavRef.current?.querySelectorAll<HTMLElement>("a, button") ?? []);
+    const focusables = Array.from(mobileNavRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? []);
     if (!focusables.length) return;
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
@@ -270,7 +275,7 @@ export default function Header() {
           ) : (
             <Link
               href="/signin"
-              className="hidden sm:inline-flex px-4 py-2 text-sm font-semibold text-[var(--text-primary)] bg-[var(--surface)] rounded-lg hover:bg-white/90 transition-all"
+              className="hidden sm:inline-flex px-4 py-2 text-sm font-semibold text-[var(--text-primary)] bg-[var(--surface)] rounded-lg hover:bg-[var(--surface-tint)] transition-all"
             >
               {t("nav.signIn")}
             </Link>

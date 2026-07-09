@@ -388,7 +388,7 @@ export default function PaymentPage() {
       {/* FE-10: mobile sticky pay bar — live total + the same Pay action as the
           desktop CTA (shared amount + handler). */}
       <div
-        className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-[var(--border-slate)] bg-white/95 backdrop-blur px-4 py-3"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-[var(--border-slate)] bg-[color-mix(in_srgb,var(--surface)_95%,transparent)] backdrop-blur px-4 py-3"
         style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
       >
         <div className="flex items-center justify-between gap-4">

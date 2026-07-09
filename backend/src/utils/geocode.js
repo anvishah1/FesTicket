@@ -15,11 +15,20 @@ const MIN_INTERVAL_MS = 1100; // >= 1 req/s per Nominatim policy
 const TIMEOUT_MS = 5000;
 
 let lastCallAt = 0;
+// Serialize slot reservation: each throttle() chains off the previous one so
+// concurrent fire-and-forget calls queue ~MIN_INTERVAL_MS apart instead of all
+// reading the same stale `lastCallAt` and firing at once.
+let throttleChain = Promise.resolve();
 
-async function throttle() {
-  const wait = Math.max(0, lastCallAt + MIN_INTERVAL_MS - Date.now());
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  lastCallAt = Date.now();
+function throttle() {
+  const run = throttleChain.then(async () => {
+    const wait = Math.max(0, lastCallAt + MIN_INTERVAL_MS - Date.now());
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    lastCallAt = Date.now();
+  });
+  // Keep the chain alive even if a downstream awaiter rejects.
+  throttleChain = run.catch(() => {});
+  return run;
 }
 
 // Resolve a free-text address to { latitude, longitude }, or null on any failure.

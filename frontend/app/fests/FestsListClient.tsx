@@ -91,8 +91,10 @@ export default function FestsListClient({
   const fests = shown.fests;
   const pagination = shown.pagination;
   const totalPages = pagination?.totalPages ?? 1;
-  const loading = !hasLoaded && data === undefined; // first load, never had data
-  const paging = hasLoaded && data === undefined; // new key loading; prior stays
+  // first load, never had data — but an error on that first load must fall
+  // through to the error branch (with its retry), not stay stuck on the skeleton.
+  const loading = !hasLoaded && data === undefined && !error;
+  const paging = hasLoaded && data === undefined && !error; // new key loading; prior stays
 
   // FE-08: once the current page has settled, warm the cache for the adjacent
   // pages so Next/Prev feels instant (a prefetched page swaps in with no flash).

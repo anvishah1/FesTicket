@@ -9,6 +9,9 @@ import Footer from "@/components/Footer";
 import CardGridSkeleton from "@/components/skeletons/CardGridSkeleton";
 import { useApi, prefetchApi } from "@/lib/api";
 
+// Must match the events API default page size (backend events route, limit=12).
+const EVENTS_PAGE_SIZE = 12;
+
 interface Event {
   id: number;
   name: string;
@@ -130,12 +133,15 @@ export default function FestEventsClient({
     ...(onInitialEventsKey && initialFest
       ? {
           fallbackData: {
-            data: initialEventsRaw,
+            // /api/fests/:id returns ALL events, but the events API pages at 12.
+            // Seed page-1's slice + real totals so the SSR render matches the
+            // revalidated page (no list "collapse", pager shows immediately).
+            data: initialEventsRaw.slice(0, EVENTS_PAGE_SIZE),
             pagination: {
               page: 1,
-              limit: initialEventsRaw.length || 1,
+              limit: EVENTS_PAGE_SIZE,
               total: initialEventsRaw.length,
-              totalPages: 1,
+              totalPages: Math.max(1, Math.ceil(initialEventsRaw.length / EVENTS_PAGE_SIZE)),
             },
           },
         }

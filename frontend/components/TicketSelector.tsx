@@ -9,14 +9,21 @@ export default function TicketSelector({
   value,
   onChange,
   onJoinWaitlist,
+  max,
 }: {
   ticket: { id: string; name: string; price: number; description?: string; available: number };
   value: number;
   onChange: (n: number) => void;
   // PAY-08: when provided and the type is sold out, buyers can join the waitlist.
   onJoinWaitlist?: (data: { ticketTypeId: string; email: string; name: string }) => Promise<{ ok: boolean; message?: string }>;
+  // FE-15/TIX-10: effective upper bound for THIS type (defaults to availability).
+  // The booking page passes the per-order cap remaining so the + button disables
+  // and the input clamps at the cap, not just at stock.
+  max?: number;
 }) {
   const soldOut = ticket.available <= 0;
+  // Never exceed either stock or the caller-supplied cap.
+  const ceiling = Math.max(0, Math.min(ticket.available, max ?? ticket.available));
 
   const [showForm, setShowForm] = useState(false);
   const [email, setEmail] = useState("");
@@ -108,12 +115,12 @@ export default function TicketSelector({
             inputMode="numeric"
             pattern="[0-9]*"
             min={0}
-            max={ticket.available}
+            max={ceiling}
             value={value}
             onChange={(e) => {
-              // FE-15: guard NaN (empty / non-numeric) and clamp to [0, available].
+              // FE-15: guard NaN (empty / non-numeric) and clamp to [0, ceiling].
               const n = parseInt(e.target.value, 10);
-              onChange(Number.isNaN(n) ? 0 : Math.min(ticket.available, Math.max(0, n)));
+              onChange(Number.isNaN(n) ? 0 : Math.min(ceiling, Math.max(0, n)));
             }}
             className="w-16 text-center border rounded-md px-2 py-1"
           />
@@ -121,8 +128,8 @@ export default function TicketSelector({
           <button
             type="button"
             aria-label={`Increase ${ticket.name}`}
-            onClick={() => onChange(Math.min(ticket.available, value + 1))}
-            disabled={value >= ticket.available}
+            onClick={() => onChange(Math.min(ceiling, value + 1))}
+            disabled={value >= ceiling}
             className="min-w-11 min-h-11 rounded-md bg-[var(--fill-plum)] text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
           >
             +

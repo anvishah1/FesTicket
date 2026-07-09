@@ -154,7 +154,9 @@ export default function Expenses({ festId }: ExpensesProps) {
     switch (category) {
       case "Infrastructure": return "bg-blue-100 text-blue-700";
       case "Marketing": return "bg-green-100 text-green-700";
-      case "Artist Fees": return "bg-purple-100 text-purple-700";
+      // `purple` is a flat brand override in tailwind.config (no numbered scale),
+      // so bg-purple-100/text-purple-700 emit nothing — use the default violet scale.
+      case "Artist Fees": return "bg-violet-100 text-violet-700";
       case "Catering": return "bg-orange-100 text-orange-700";
       case "Transportation": return "bg-yellow-100 text-yellow-700";
       case "Security": return "bg-red-100 text-red-700";

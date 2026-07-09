@@ -6,7 +6,7 @@
 "use client";
 
 import { NextIntlClientProvider } from "next-intl";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import en from "@/messages/en.json";
 
 const COOKIE = "NEXT_LOCALE";
@@ -46,10 +46,15 @@ export default function LocaleProvider({ children }: { children: React.ReactNode
   // mismatch); apply the cookie's locale immediately after mount.
   const [locale, setLocaleState] = useState<Locale>("en");
   const [messages, setMessages] = useState<Messages>(en);
+  // Guards against a fast switch resolving out of order: only the most recently
+  // requested locale is allowed to win, regardless of which import settles last.
+  const requestId = useRef(0);
 
   const apply = (target: Locale) => {
     document.documentElement.lang = target;
+    const token = ++requestId.current;
     LOADERS[target]().then((m) => {
+      if (token !== requestId.current) return;
       setMessages(m);
       setLocaleState(target);
     });

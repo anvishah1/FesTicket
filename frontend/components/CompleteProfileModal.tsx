@@ -214,8 +214,8 @@ export default function CompleteProfileModal({
             onClick={handleSubmit}
             className={`px-6 py-3 rounded-lg font-medium transition ${
               allFilled
-                ? "bg-purple-600 text-white hover:bg-purple-700"
-                : "bg-gray-300 text-[var(--text-soft)] cursor-not-allowed"
+                ? "bg-[var(--fill-plum)] text-white hover:bg-[var(--fill-ink)]"
+                : "bg-[var(--surface-slate-200)] text-[var(--text-soft)] cursor-not-allowed"
             }`}
           >
             {loading ? "Saving..." : "Update & Continue"}
@@ -254,7 +254,7 @@ function Input({
         placeholder={placeholder}
         required={required}
         aria-required={required ? true : undefined}
-        className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-200"
+        className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_30%,transparent)]"
       />
     </div>
   );

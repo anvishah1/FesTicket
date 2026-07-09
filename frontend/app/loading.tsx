@@ -2,7 +2,7 @@ export default function Loading() {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center gap-4"
-      style={{ backgroundColor: "#fbf9f6" }}
+      style={{ backgroundColor: "var(--surface-page)" }}
       role="status"
       aria-live="polite"
     >

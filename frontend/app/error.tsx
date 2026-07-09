@@ -16,7 +16,7 @@ export default function Error({
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4"
-      style={{ backgroundColor: "#fbf9f6" }}
+      style={{ backgroundColor: "var(--surface-page)" }}
     >
       <div className="w-full max-w-md text-center">
         <p

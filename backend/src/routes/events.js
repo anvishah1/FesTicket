@@ -70,7 +70,9 @@ const STATUS_TRANSITIONS = {
 async function checkEventOwnership(eventId, req) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { hostId: true, festId: true, status: true },
+    // venue/venueAddress: FE-06 re-geocode compares the incoming values against
+    // these stored ones so an unrelated save doesn't wipe + re-geocode coords.
+    select: { hostId: true, festId: true, status: true, venue: true, venueAddress: true },
   });
   if (!event) {
     return { ok: false, status: 404, body: { success: false, error: { code: "NOT_FOUND", message: "Event not found" } } };
@@ -990,8 +992,12 @@ router.put("/:id", authenticateUser, async (req, res) => {
       }
     }
 
-    // FE-06: whether this update touches the venue/address (drives re-geocoding).
-    const venueChanged = venue !== undefined || venueAddress !== undefined;
+    // FE-06: re-geocode only when the venue/address ACTUALLY changes. The manage
+    // form resubmits every field, so keying off presence alone would wipe + re-
+    // geocode coordinates on every unrelated save. Compare against stored values.
+    const venueChanged =
+      (venue !== undefined && venue !== owner.event.venue) ||
+      (venueAddress !== undefined && venueAddress !== owner.event.venueAddress);
 
     const event = await prisma.event.update({
       where: { id: parseInt(id) },

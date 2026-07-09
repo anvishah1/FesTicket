@@ -489,6 +489,13 @@ export default function BookingPage() {
                     value={quantities[t.id] ?? 0}
                     onChange={(v) => setQuantity(t.id, v)}
                     onJoinWaitlist={joinWaitlist}
+                    // TIX-10: this type can take at most the per-order cap minus
+                    // what the other types already hold (so + disables at the cap).
+                    max={
+                      maxPerOrder == null
+                        ? undefined
+                        : Math.max(0, maxPerOrder - (totalTickets - (quantities[t.id] ?? 0)))
+                    }
                   />
                 ))}
               </div>
@@ -813,7 +820,7 @@ export default function BookingPage() {
       {/* FE-10: mobile sticky checkout bar — live total + the same Proceed action
           as the desktop aside (shared total + handler, no duplicated math). */}
       <div
-        className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-[var(--border-slate)] bg-white/95 backdrop-blur px-4 py-3"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-[var(--border-slate)] bg-[color-mix(in_srgb,var(--surface)_95%,transparent)] backdrop-blur px-4 py-3"
         style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
       >
         <div className="flex items-center justify-between gap-4">

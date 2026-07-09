@@ -269,7 +269,8 @@ export default function PaymentPage() {
     <div className="min-h-screen bg-[var(--bg)]">
       <Header />
 
-      <main className="container py-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* FE-10: extra bottom padding on mobile so the sticky pay bar never hides content */}
+      <main className="container pt-10 pb-28 lg:pb-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
         <section className="lg:col-span-2 space-y-6">
           <div className="rounded-lg bg-white border p-6 shadow-sm">
             <h2 className="text-xl font-semibold">Payment Methods</h2>
@@ -383,6 +384,30 @@ export default function PaymentPage() {
           />
         </aside>
       </main>
+
+      {/* FE-10: mobile sticky pay bar — live total + the same Pay action as the
+          desktop CTA (shared amount + handler). */}
+      <div
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur px-4 py-3"
+        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-xs text-slate-500">Total to pay</div>
+            <div className="text-lg font-bold text-slate-900" data-testid="sticky-total">{formatPaise(amount)}</div>
+          </div>
+          <button
+            type="button"
+            onClick={payWithRazorpay}
+            disabled={processing || holdExpired}
+            className={`flex-1 max-w-[60%] inline-flex items-center justify-center gap-2 px-4 py-3 rounded-md text-white font-semibold ${
+              processing || holdExpired ? "bg-slate-300 cursor-not-allowed" : "bg-primary-600 hover:bg-primary-700"
+            }`}
+          >
+            {processing ? "Opening…" : holdExpired ? "Hold expired" : `Pay ${formatPaise(amount)}`}
+          </button>
+        </div>
+      </div>
 
       <Footer />
     </div>

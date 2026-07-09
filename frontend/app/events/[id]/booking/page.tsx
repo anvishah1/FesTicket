@@ -445,7 +445,8 @@ export default function BookingPage() {
     <div className="min-h-screen">
       <Header />
 
-      <main className="container py-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* FE-10: extra bottom padding on mobile so the sticky checkout bar never hides content */}
+      <main className="container pt-10 pb-28 lg:pb-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left: main booking flow */}
         <section className="lg:col-span-2 space-y-8">
           <div className="rounded-lg p-6 bg-white border shadow-sm">
@@ -808,6 +809,31 @@ export default function BookingPage() {
           </div>
         </aside>
       </main>
+
+      {/* FE-10: mobile sticky checkout bar — live total + the same Proceed action
+          as the desktop aside (shared total + handler, no duplicated math). */}
+      <div
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur px-4 py-3"
+        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-xs text-slate-500">Total</div>
+            <div className="text-lg font-bold text-slate-900" data-testid="sticky-total">{formatPaise(total)}</div>
+          </div>
+          <button
+            type="button"
+            onClick={handleProceedToPayment}
+            disabled={!isValid || submitting}
+            className={`flex-1 max-w-[60%] inline-flex items-center justify-center gap-2 px-4 py-3 rounded-md text-white font-semibold ${
+              !isValid || submitting ? "bg-slate-300 cursor-not-allowed" : "bg-primary-600 hover:bg-primary-700"
+            }`}
+          >
+            {submitting ? "Processing…" : "Proceed to Payment"}
+          </button>
+        </div>
+      </div>
+
       <Footer />
     </div>
   );

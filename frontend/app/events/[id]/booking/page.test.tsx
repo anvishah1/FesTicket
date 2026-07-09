@@ -133,7 +133,7 @@ describe("BookingPage custom questions (C4)", () => {
     await userEvent.type(screen.getByPlaceholderText("your@email.com"), "guest@example.com");
     await userEvent.click(screen.getByTestId("fill-attendees"));
 
-    const proceed = screen.getByRole("button", { name: /Proceed to Payment/i });
+    const proceed = screen.getAllByRole("button", { name: /Proceed to Payment/i })[0];
     // Required "T-shirt size" still blank -> submit blocked.
     expect(proceed).toBeDisabled();
 
@@ -162,7 +162,7 @@ describe("BookingPage custom questions (C4)", () => {
     await userEvent.type(screen.getByLabelText(/T-shirt size/), "L");
     // Leave the optional question blank; it must be filtered out of the payload.
 
-    await userEvent.click(screen.getByRole("button", { name: /Proceed to Payment/i }));
+    await userEvent.click(screen.getAllByRole("button", { name: /Proceed to Payment/i })[0]);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const body = JSON.parse((fetchMock.mock.calls[1][1] as { body: string }).body);
@@ -216,7 +216,7 @@ describe("BookingPage promo code (PAY-04)", () => {
     // Complete the remaining required fields and submit.
     await userEvent.type(screen.getByPlaceholderText("your@email.com"), "guest@example.com");
     await userEvent.click(screen.getByTestId("fill-attendees"));
-    await userEvent.click(screen.getByRole("button", { name: /Proceed to Payment/i }));
+    await userEvent.click(screen.getAllByRole("button", { name: /Proceed to Payment/i })[0]);
 
     // The booking POST body carries promoCode.
     await waitFor(() => {

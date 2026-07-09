@@ -7,6 +7,7 @@ import Footer from "@/components/Footer";
 import { getApiUrl, getStoredUser, getAccessToken, isAuthenticated, updateStoredUser, apiFetch } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
 import { formatPaise } from "@/lib/format";
+import { exportFestWorkbook } from "@/lib/export/workbook";
 
 import SalesTrendChart, { type TrendPoint } from "@/components/analytics/SalesTrendChart";
 import BookingFunnel, { type FunnelData } from "@/components/admin/BookingFunnel";
@@ -54,6 +55,7 @@ export default function AdminDashboardPage() {
   const [eventRows, setEventRows] = useState<EventRow[] | null>(null); // ANL-04
   const [ticketTypes, setTicketTypes] = useState<TicketTypeRow[] | null>(null); // ANL-09
   const [settlement, setSettlement] = useState<SettlementData | null>(null); // ANL-08
+  const [exporting, setExporting] = useState(false); // ANL-05
   // ANL-02: date-range filter for the range-scoped cards + trend chart.
   const [festDates, setFestDates] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
   const [preset, setPreset] = useState<"all" | "today" | "7d" | "fest" | "custom">("all");
@@ -207,6 +209,19 @@ export default function AdminDashboardPage() {
     // (The fest key comes from GET /api/user/me's managedFest.adminKey — there is
     // no /api/fests/:id/key endpoint, so no fallback fetch here.)
   }, [managedFestId]);
+
+  // ANL-05: fetch analytics on demand and download a multi-sheet workbook.
+  const handleExport = async () => {
+    if (!managedFestId || exporting) return;
+    setExporting(true);
+    try {
+      await exportFestWorkbook(managedFestId);
+    } catch {
+      showToast("Could not build the export.", "error");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleCopyKey = async () => {
     if (!festKey) return;
@@ -396,14 +411,26 @@ export default function AdminDashboardPage() {
                         Students enter this key at signup to join <strong>{festName || "your fest"}</strong>.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleCopyKey}
-                      disabled={!festKey}
-                      className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-[#29104A] to-[#522C5D] text-white text-sm font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {keyCopied ? "Copied!" : "Copy key"}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {/* ANL-05: export the fest analytics workbook. Guarded when
+                          there are no events to export. */}
+                      <button
+                        type="button"
+                        onClick={handleExport}
+                        disabled={exporting || !eventRows?.length}
+                        className="px-4 py-2.5 rounded-lg border border-[var(--border-plum)] text-[var(--text-secondary)] text-sm font-semibold hover:bg-[var(--surface-slate-100)] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {exporting ? "Exporting…" : "Export workbook"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCopyKey}
+                        disabled={!festKey}
+                        className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-[#29104A] to-[#522C5D] text-white text-sm font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {keyCopied ? "Copied!" : "Copy key"}
+                      </button>
+                    </div>
                   </div>
 
                   {/* ANL-02: date-range presets — rescope the income/tickets/bookings

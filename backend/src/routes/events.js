@@ -879,6 +879,63 @@ router.get("/analytics/fest/:festId/ticket-types", authenticateUser, async (req,
   }
 });
 
+// GET /api/events/analytics/fest/:festId/settlement (ANL-08) - reconciles gross,
+// the 2% platform fee, 18% GST and discounts into the organiser's net payout
+// (which EXCLUDES the pass-through fee + GST), plus separate refunded/cancelled
+// lines. All figures are integer paise. Same auth/scope.
+router.get("/analytics/fest/:festId/settlement", authenticateUser, async (req, res) => {
+  try {
+    const festId = parseInt(req.params.festId);
+    if (Number.isNaN(festId)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Invalid fest id" },
+      });
+    }
+    if (!canAccessFest(festId, await callerFests(req))) return forbid(res);
+
+    const events = await prisma.event.findMany({ where: { festId }, select: { id: true } });
+    const eventIds = events.map((e) => e.id);
+
+    const grouped = eventIds.length
+      ? await prisma.booking.groupBy({
+          by: ["status"],
+          where: { eventId: { in: eventIds } },
+          _sum: { subtotal: true, discount: true, platformFee: true, tax: true, total: true },
+        })
+      : [];
+    const sums = new Map(grouped.map((g) => [g.status, g._sum]));
+    const s = (status, field) => sums.get(status)?.[field] || 0;
+
+    const grossCollected = s("COMPLETED", "total");
+    const platformFees = s("COMPLETED", "platformFee");
+    const gst = s("COMPLETED", "tax");
+    const discounts = s("COMPLETED", "discount");
+    // Net payout = ticket value after discount; fee + GST are collected on top and
+    // are NOT the organiser's money. Equals grossCollected - fees - gst (± rounding).
+    const netToOrganizer = s("COMPLETED", "subtotal") - discounts;
+
+    res.json({
+      success: true,
+      data: {
+        grossCollected,
+        platformFees,
+        gst,
+        discounts,
+        netToOrganizer,
+        refundedTotal: s("REFUNDED", "total"),
+        cancelledTotal: s("CANCELLED", "total"),
+      },
+    });
+  } catch (error) {
+    req.log.error({ err: error }, "Error fetching fest settlement");
+    res.status(500).json({
+      success: false,
+      error: { code: "FETCH_ERROR", message: "Failed to fetch settlement" },
+    });
+  }
+});
+
 // ==================== PAY-04: PROMO CODES (host/admin scoped) ====================
 // Registered BEFORE GET /:id so "promo-codes" isn't captured as an :id param.
 const PROMO_KINDS = ["PERCENT", "FLAT"];

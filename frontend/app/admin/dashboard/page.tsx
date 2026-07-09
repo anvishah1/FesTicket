@@ -12,6 +12,7 @@ import SalesTrendChart, { type TrendPoint } from "@/components/analytics/SalesTr
 import BookingFunnel, { type FunnelData } from "@/components/admin/BookingFunnel";
 import EventComparisonTable, { type EventRow } from "@/components/admin/EventComparisonTable";
 import TicketTypePanel, { type TicketTypeRow } from "@/components/admin/TicketTypePanel";
+import SettlementCard, { type SettlementData } from "@/components/admin/SettlementCard";
 import RoleRequests from "@/components/admin/RoleRequests";
 import FestEvents from "@/components/admin/FestEvents";
 import Companies from "@/components/admin/Companies";
@@ -52,6 +53,7 @@ export default function AdminDashboardPage() {
   const [funnel, setFunnel] = useState<FunnelData | null>(null); // ANL-03
   const [eventRows, setEventRows] = useState<EventRow[] | null>(null); // ANL-04
   const [ticketTypes, setTicketTypes] = useState<TicketTypeRow[] | null>(null); // ANL-09
+  const [settlement, setSettlement] = useState<SettlementData | null>(null); // ANL-08
   // ANL-02: date-range filter for the range-scoped cards + trend chart.
   const [festDates, setFestDates] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
   const [preset, setPreset] = useState<"all" | "today" | "7d" | "fest" | "custom">("all");
@@ -168,6 +170,14 @@ export default function AdminDashboardPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.success && Array.isArray(data.data)) setTicketTypes(data.data);
+      })
+      .catch(() => {});
+
+    // ANL-08: settlement reconciliation.
+    apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}/settlement`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.success && data.data) setSettlement(data.data);
       })
       .catch(() => {});
 
@@ -496,12 +506,21 @@ export default function AdminDashboardPage() {
                         <SalesTrendChart points={trend} />
                       )}
                     </div>
-                    <div className="lg:col-span-1 bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-5 shadow-sm">
-                      {funnel == null ? (
-                        <div className="h-48 rounded-lg bg-[var(--surface-slate-100)] animate-pulse" aria-hidden="true" />
-                      ) : (
-                        <BookingFunnel data={funnel} />
-                      )}
+                    <div className="lg:col-span-1 space-y-4">
+                      <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-5 shadow-sm">
+                        {funnel == null ? (
+                          <div className="h-48 rounded-lg bg-[var(--surface-slate-100)] animate-pulse" aria-hidden="true" />
+                        ) : (
+                          <BookingFunnel data={funnel} />
+                        )}
+                      </div>
+                      <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-5 shadow-sm">
+                        {settlement == null ? (
+                          <div className="h-40 rounded-lg bg-[var(--surface-slate-100)] animate-pulse" aria-hidden="true" />
+                        ) : (
+                          <SettlementCard data={settlement} />
+                        )}
+                      </div>
                     </div>
                   </div>
 

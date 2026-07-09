@@ -2272,6 +2272,56 @@ describe("GET /api/events/analytics/fest/:festId/ticket-types", () => {
   });
 });
 
+// ========= GET /api/events/analytics/fest/:festId/settlement (ANL-08) =========
+describe("GET /api/events/analytics/fest/:festId/settlement", () => {
+  const auth = ["Authorization", `Bearer ${signToken({ userId: 42, role: "HOST" })}`];
+
+  it("returns 403 when the fest is not the caller's", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 999, editorFestId: null });
+    const res = await request(app).get("/api/events/analytics/fest/7/settlement").set(...auth);
+    expect(res.status).toBe(403);
+  });
+
+  it("reconciles gross - fee - gst into net payout and reports refunded/cancelled separately", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.event.findMany.mockResolvedValue([{ id: 1 }]);
+    // total = (subtotal - discount) + platformFee + tax for COMPLETED.
+    prismaMock.booking.groupBy.mockResolvedValue([
+      { status: "COMPLETED", _sum: { subtotal: 100000, discount: 10000, platformFee: 1800, tax: 16524, total: 108324 } },
+      { status: "REFUNDED", _sum: { subtotal: 5000, discount: 0, platformFee: 100, tax: 918, total: 6018 } },
+      { status: "CANCELLED", _sum: { subtotal: 2000, discount: 0, platformFee: 40, tax: 367, total: 2407 } },
+    ]);
+
+    const res = await request(app).get("/api/events/analytics/fest/7/settlement").set(...auth);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      grossCollected: 108324,
+      platformFees: 1800,
+      gst: 16524,
+      discounts: 10000,
+      netToOrganizer: 90000, // 100000 - 10000
+      refundedTotal: 6018,
+      cancelledTotal: 2407,
+    });
+    // Reconciliation: gross - fee - gst == net (within rounding).
+    const d = res.body.data;
+    expect(d.grossCollected - d.platformFees - d.gst).toBe(d.netToOrganizer);
+  });
+
+  it("returns all-zero figures when there are no bookings", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.event.findMany.mockResolvedValue([{ id: 1 }]);
+    prismaMock.booking.groupBy.mockResolvedValue([]);
+    const res = await request(app).get("/api/events/analytics/fest/7/settlement").set(...auth);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      grossCollected: 0, platformFees: 0, gst: 0, discounts: 0,
+      netToOrganizer: 0, refundedTotal: 0, cancelledTotal: 0,
+    });
+  });
+});
+
 // ==================== FILE STORAGE: inline base64 -> /uploads URL ====================
 describe("inline base64 uploads are stored and their /uploads URL persisted", () => {
   const mktAuth2 = ["Authorization", `Bearer ${signToken({ userId: 42, role: "HOST" })}`];

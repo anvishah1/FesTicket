@@ -2401,6 +2401,87 @@ router.get("/marketing/fest/:festId/expenses", async (req, res) => {
   }
 });
 
+// ==================== ANL-06: BUDGETS (per-fest, per-category) ====================
+const EXPENSE_CATEGORIES = [
+  "INFRASTRUCTURE", "MARKETING", "ARTIST_FEES", "CATERING", "TRANSPORTATION",
+  "SECURITY", "DECORATION", "SOUND_AV", "PRIZES", "MISCELLANEOUS",
+];
+
+// Writes are restricted to the fest's ADMIN (managedFestId), not any editor/host.
+async function callerIsFestAdmin(festId, req) {
+  const { managedFestId } = await callerFests(req);
+  return managedFestId === festId;
+}
+
+// GET /api/events/marketing/fest/:festId/budgets - any fest member may read.
+router.get("/marketing/fest/:festId/budgets", async (req, res) => {
+  try {
+    const festId = parseInt(req.params.festId);
+    if (Number.isNaN(festId)) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Invalid fest id" } });
+    }
+    if (!canAccessFest(festId, await callerFests(req))) return forbid(res);
+    const budgets = await prisma.budget.findMany({ where: { festId }, orderBy: { category: "asc" } });
+    res.json({ success: true, data: budgets });
+  } catch (error) {
+    req.log.error({ err: error }, "Error fetching budgets");
+    res.status(500).json({ success: false, error: { code: "FETCH_ERROR", message: "Failed to fetch budgets" } });
+  }
+});
+
+// POST /api/events/marketing/fest/:festId/budgets - upsert a (fest, category)
+// budget. category null => the overall fest budget. Fest ADMIN only.
+router.post("/marketing/fest/:festId/budgets", async (req, res) => {
+  try {
+    const festId = parseInt(req.params.festId);
+    if (Number.isNaN(festId)) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Invalid fest id" } });
+    }
+    if (!(await callerIsFestAdmin(festId, req))) return forbid(res, "Only the fest admin can set budgets");
+
+    const category = req.body.category == null || req.body.category === "" ? null : String(req.body.category);
+    if (category != null && !EXPENSE_CATEGORIES.includes(category)) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Invalid category" } });
+    }
+    const amount = Math.round(Number(req.body.amount));
+    if (!Number.isFinite(amount) || amount < 0) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "amount must be a non-negative integer (paise)" } });
+    }
+
+    // Manual upsert: the @@unique([festId, category]) does NOT enforce uniqueness
+    // for a NULL category (Postgres treats NULLs as distinct), so match explicitly.
+    const existing = await prisma.budget.findFirst({ where: { festId, category } });
+    const budget = existing
+      ? await prisma.budget.update({ where: { id: existing.id }, data: { amount } })
+      : await prisma.budget.create({ data: { festId, category, amount } });
+
+    res.status(existing ? 200 : 201).json({ success: true, data: budget });
+  } catch (error) {
+    req.log.error({ err: error }, "Error saving budget");
+    res.status(500).json({ success: false, error: { code: "SAVE_ERROR", message: "Failed to save budget" } });
+  }
+});
+
+// DELETE /api/events/marketing/budgets/:id - remove a budget. Fest ADMIN only.
+router.delete("/marketing/budgets/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Invalid budget id" } });
+    }
+    const budget = await prisma.budget.findUnique({ where: { id }, select: { festId: true } });
+    if (!budget) {
+      return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Budget not found" } });
+    }
+    if (!(await callerIsFestAdmin(budget.festId, req))) return forbid(res, "Only the fest admin can delete budgets");
+    await prisma.budget.delete({ where: { id } });
+    res.json({ success: true, data: { id } });
+  } catch (error) {
+    req.log.error({ err: error }, "Error deleting budget");
+    res.status(500).json({ success: false, error: { code: "DELETE_ERROR", message: "Failed to delete budget" } });
+  }
+});
+
 // POST /api/events/marketing/host/:hostId/expenses
 router.post("/marketing/host/:hostId/expenses", validate(createExpenseSchema), async (req, res) => {
   try {

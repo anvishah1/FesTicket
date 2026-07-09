@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getApiUrl, apiFetch } from "@/lib/auth";
+import { getApiUrl, apiFetch, getStoredUser } from "@/lib/auth";
 import { downloadMarketingFile } from "@/lib/files";
 import { formatPaise, paiseToRupeeString } from "@/lib/format";
+import { showToast } from "@/lib/toast";
 
 interface UploadedFile {
   name: string;
@@ -60,6 +61,115 @@ function categoryLabel(raw: string): string {
 
 const expenseCategories = Object.values(CATEGORY_LABELS);
 
+// ANL-06: reverse map (display label -> Prisma enum) so a category card can POST
+// its budget keyed by the enum the backend stores.
+const LABEL_TO_ENUM: Record<string, string> = Object.fromEntries(
+  Object.entries(CATEGORY_LABELS).map(([enumVal, label]) => [label, enumVal])
+);
+
+interface Budget {
+  id: number;
+  category: string | null; // enum, or null for the overall fest budget
+  amount: number; // paise
+}
+
+// ANL-06: budget-vs-actual bar with an over-budget badge and an inline editor.
+function BudgetBar({
+  actual,
+  budget,
+  canEdit,
+  isEditing,
+  editVal,
+  saving,
+  onStartEdit,
+  onCancel,
+  onChangeVal,
+  onSave,
+}: {
+  actual: number;
+  budget: number | null;
+  canEdit: boolean;
+  isEditing: boolean;
+  editVal: string;
+  saving: boolean;
+  onStartEdit: () => void;
+  onCancel: () => void;
+  onChangeVal: (v: string) => void;
+  onSave: (paise: number) => void;
+}) {
+  const over = budget != null && actual > budget;
+  const frac = budget && budget > 0 ? Math.min(1, actual / budget) : 0;
+
+  if (isEditing) {
+    return (
+      <div className="mt-2 flex items-center gap-1.5">
+        <span className="text-xs text-[var(--text-muted)]">₹</span>
+        <input
+          type="number"
+          min={0}
+          inputMode="numeric"
+          value={editVal}
+          onChange={(e) => onChangeVal(e.target.value)}
+          placeholder="Budget"
+          aria-label="Budget amount in rupees"
+          className="w-24 rounded border border-[var(--border-card)] bg-[var(--surface)] px-2 py-1 text-xs text-[var(--text-primary)]"
+          autoFocus
+        />
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => {
+            const r = parseFloat(editVal);
+            if (Number.isFinite(r) && r >= 0) onSave(Math.round(r * 100));
+          }}
+          className="text-xs px-2 py-1 rounded bg-[var(--fill-plum)] text-white disabled:opacity-50"
+        >
+          Save
+        </button>
+        <button type="button" onClick={onCancel} aria-label="Cancel" className="text-xs px-1 text-[var(--text-muted)]">
+          ✕
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      {budget != null ? (
+        <>
+          <div className="w-full h-1.5 bg-[var(--surface-card)] rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full ${over ? "bg-[#B42318]" : "bg-[var(--fill-plum)]"}`}
+              style={{ width: `${frac * 100}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-2 mt-1">
+            <span className="text-[11px] text-[var(--text-muted)]">
+              {formatPaise(actual)} / {formatPaise(budget)}
+            </span>
+            <div className="flex items-center gap-2">
+              {over && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">
+                  Over budget
+                </span>
+              )}
+              {canEdit && (
+                <button type="button" onClick={onStartEdit} className="text-[11px] text-[var(--text-secondary)] hover:underline">
+                  Edit
+                </button>
+              )}
+            </div>
+          </div>
+        </>
+      ) : canEdit ? (
+        <button type="button" onClick={onStartEdit} className="text-[11px] text-[var(--text-secondary)] hover:underline">
+          + Set budget
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 interface ExpensesProps {
   festId: number;
 }
@@ -70,6 +180,46 @@ export default function Expenses({ festId }: ExpensesProps) {
   const [filterHost, setFilterHost] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  // ANL-06: budgets (keyed by enum) + inline editor state.
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [editingCat, setEditingCat] = useState<string | null>(null); // enum, "__overall__", or null
+  const [editVal, setEditVal] = useState("");
+  const [savingBudget, setSavingBudget] = useState(false);
+  const canEditBudgets = getStoredUser()?.role === "ADMIN";
+
+  const fetchBudgets = async () => {
+    try {
+      const res = await apiFetch(`${getApiUrl()}/api/events/marketing/fest/${festId}/budgets`);
+      const json = await res.json();
+      if (res.ok && json.success && Array.isArray(json.data)) setBudgets(json.data);
+    } catch {
+      /* budgets are optional; ignore */
+    }
+  };
+
+  // Save (upsert) a budget for a category enum (or null = overall), in paise.
+  const saveBudget = async (category: string | null, amountPaise: number) => {
+    setSavingBudget(true);
+    try {
+      const res = await apiFetch(`${getApiUrl()}/api/events/marketing/fest/${festId}/budgets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, amount: amountPaise }),
+      });
+      if (!res.ok) {
+        showToast(res.status === 403 ? "Only the fest admin can set budgets." : "Could not save the budget.", "error");
+        return;
+      }
+      await fetchBudgets();
+      setEditingCat(null);
+      setEditVal("");
+      showToast("Budget saved", "success");
+    } catch {
+      showToast("Could not save the budget.", "error");
+    } finally {
+      setSavingBudget(false);
+    }
+  };
 
   useEffect(() => {
     const fetchExpenses = async () => {
@@ -129,6 +279,13 @@ export default function Expenses({ festId }: ExpensesProps) {
     fetchExpenses();
   }, [festId]);
 
+  // ANL-06: budgets are secondary — fetched after expenses so the primary list
+  // isn't delayed (and so a shared fetch mock resolves expenses first).
+  useEffect(() => {
+    fetchBudgets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [festId]);
+
   const uniqueHosts = Array.from(new Set(allExpenses.map((e) => e.hostName)));
 
   const searchTerm = search.toLowerCase();
@@ -149,6 +306,12 @@ export default function Expenses({ festId }: ExpensesProps) {
       .filter((e) => e.category === cat)
       .reduce((sum, e) => sum + e.amount, 0),
   })).filter((c) => c.total > 0);
+
+  // ANL-06: budgets keyed by enum, plus the overall (category=null) budget and the
+  // true (unfiltered) total spend for the overall budget bar.
+  const budgetByEnum = new Map(budgets.filter((b) => b.category != null).map((b) => [b.category, b.amount]));
+  const overallBudget = budgets.find((b) => b.category == null)?.amount ?? null;
+  const overallActual = allExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   const getCategoryColor = (category: string) => {
     switch (category) {
@@ -533,9 +696,35 @@ export default function Expenses({ festId }: ExpensesProps) {
       {/* Category Breakdown */}
       <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-6 shadow-sm">
         <h3 className="text-lg font-bold text-[var(--text-primary)] mb-4">Expenses by Category</h3>
+
+        {/* ANL-06: overall fest budget (category = null) vs total spend. */}
+        <div className="mb-5 p-4 rounded-xl bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)]">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-[var(--text-primary)]">Overall budget</span>
+            <span className="text-sm font-bold text-[var(--text-primary)]">{formatPaise(overallActual)} spent</span>
+          </div>
+          <BudgetBar
+            actual={overallActual}
+            budget={overallBudget}
+            canEdit={canEditBudgets}
+            isEditing={editingCat === "__overall__"}
+            editVal={editVal}
+            saving={savingBudget}
+            onStartEdit={() => {
+              setEditingCat("__overall__");
+              setEditVal(overallBudget != null ? String(overallBudget / 100) : "");
+            }}
+            onCancel={() => setEditingCat(null)}
+            onChangeVal={setEditVal}
+            onSave={(paise) => saveBudget(null, paise)}
+          />
+        </div>
+
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {expensesByCategory.map((cat) => {
             const percentage = totalExpenses > 0 ? (cat.total / totalExpenses) * 100 : 0;
+            const enumKey = LABEL_TO_ENUM[cat.category];
+            const catBudget = enumKey != null ? budgetByEnum.get(enumKey) ?? null : null;
             return (
               <div key={cat.category} className="p-4 rounded-xl bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)]">
                 <span className={`px-2 py-1 rounded text-xs font-medium ${getCategoryColor(cat.category)}`}>
@@ -549,6 +738,23 @@ export default function Expenses({ festId }: ExpensesProps) {
                   ></div>
                 </div>
                 <p className="text-xs text-[var(--text-muted)] mt-1">{percentage.toFixed(1)}% of total</p>
+                {enumKey != null && (
+                  <BudgetBar
+                    actual={cat.total}
+                    budget={catBudget}
+                    canEdit={canEditBudgets}
+                    isEditing={editingCat === enumKey}
+                    editVal={editVal}
+                    saving={savingBudget}
+                    onStartEdit={() => {
+                      setEditingCat(enumKey);
+                      setEditVal(catBudget != null ? String(catBudget / 100) : "");
+                    }}
+                    onCancel={() => setEditingCat(null)}
+                    onChangeVal={setEditVal}
+                    onSave={(paise) => saveBudget(enumKey, paise)}
+                  />
+                )}
               </div>
             );
           })}

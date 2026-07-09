@@ -41,6 +41,7 @@ const MODEL_KEYS = [
   "sponsor",
   "expense",
   "expenseFile",
+  "budget",
   "roleRequest",
   "refreshToken",
   "adminRequest",

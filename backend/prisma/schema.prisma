@@ -139,10 +139,27 @@ model Fest {
   events         Event[]
   sponsors       Sponsor[]
   expenses       Expense[]
+  budgets        Budget[]
   roleRequests   RoleRequest[]
   admin          User?           @relation("festAdmin")
   editors        User[]          @relation("festEditors")
   adminRequests  AdminRequest[]
+}
+
+// ANL-06: per-fest, per-category expense budget. A null category is the overall
+// fest budget. amount is integer paise (PAY-03), consistent with Expense.amount.
+model Budget {
+  id        Int              @id @default(autoincrement())
+  festId    Int
+  category  ExpenseCategory? // null => overall fest budget
+  amount    Int              // paise
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  fest Fest @relation(fields: [festId], references: [id])
+
+  @@unique([festId, category])
+  @@index([festId])
 }
 
 model Event {

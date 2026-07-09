@@ -2322,6 +2322,87 @@ describe("GET /api/events/analytics/fest/:festId/settlement", () => {
   });
 });
 
+// ==================== ANL-06: BUDGETS ====================
+describe("ANL-06 budgets", () => {
+  const adminAuth = ["Authorization", `Bearer ${signToken({ userId: 42, role: "ADMIN" })}`];
+  const editorAuth = ["Authorization", `Bearer ${signToken({ userId: 43, role: "EDITOR" })}`];
+
+  it("GET returns budgets for a fest member", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: null, editorFestId: 7 });
+    prismaMock.budget.findMany.mockResolvedValue([{ id: 1, festId: 7, category: "MARKETING", amount: 50000 }]);
+    const res = await request(app).get("/api/events/marketing/fest/7/budgets").set(...editorAuth);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+  });
+
+  it("GET 403 for a non-member", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 999, editorFestId: null });
+    const res = await request(app).get("/api/events/marketing/fest/7/budgets").set(...adminAuth);
+    expect(res.status).toBe(403);
+  });
+
+  it("POST creates a new (fest, category) budget for the fest admin", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.budget.findFirst.mockResolvedValue(null);
+    prismaMock.budget.create.mockResolvedValue({ id: 5, festId: 7, category: "MARKETING", amount: 100000 });
+    const res = await request(app)
+      .post("/api/events/marketing/fest/7/budgets")
+      .set(...adminAuth)
+      .send({ category: "MARKETING", amount: 100000 });
+    expect(res.status).toBe(201);
+    expect(prismaMock.budget.create).toHaveBeenCalled();
+  });
+
+  it("POST updates in place when a budget for (fest, category=null) already exists (idempotent)", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.budget.findFirst.mockResolvedValue({ id: 5, festId: 7, category: null, amount: 1 });
+    prismaMock.budget.update.mockResolvedValue({ id: 5, festId: 7, category: null, amount: 200000 });
+    const res = await request(app)
+      .post("/api/events/marketing/fest/7/budgets")
+      .set(...adminAuth)
+      .send({ category: null, amount: 200000 });
+    expect(res.status).toBe(200);
+    expect(prismaMock.budget.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 5 } }));
+    expect(prismaMock.budget.create).not.toHaveBeenCalled();
+  });
+
+  it("POST 403 for a non-admin editor of the fest", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: null, editorFestId: 7 });
+    const res = await request(app)
+      .post("/api/events/marketing/fest/7/budgets")
+      .set(...editorAuth)
+      .send({ category: "MARKETING", amount: 100 });
+    expect(res.status).toBe(403);
+  });
+
+  it("POST 400 on invalid category or negative amount", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    const bad1 = await request(app)
+      .post("/api/events/marketing/fest/7/budgets")
+      .set(...adminAuth)
+      .send({ category: "NOPE", amount: 100 });
+    expect(bad1.status).toBe(400);
+    const bad2 = await request(app)
+      .post("/api/events/marketing/fest/7/budgets")
+      .set(...adminAuth)
+      .send({ category: "MARKETING", amount: -5 });
+    expect(bad2.status).toBe(400);
+  });
+
+  it("DELETE removes a budget for the fest admin, 403 for a non-admin", async () => {
+    prismaMock.budget.findUnique.mockResolvedValue({ festId: 7 });
+    prismaMock.budget.delete.mockResolvedValue({ id: 5 });
+
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    const ok = await request(app).delete("/api/events/marketing/budgets/5").set(...adminAuth);
+    expect(ok.status).toBe(200);
+
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 999, editorFestId: null });
+    const forbidden = await request(app).delete("/api/events/marketing/budgets/5").set(...adminAuth);
+    expect(forbidden.status).toBe(403);
+  });
+});
+
 // ==================== FILE STORAGE: inline base64 -> /uploads URL ====================
 describe("inline base64 uploads are stored and their /uploads URL persisted", () => {
   const mktAuth2 = ["Authorization", `Bearer ${signToken({ userId: 42, role: "HOST" })}`];

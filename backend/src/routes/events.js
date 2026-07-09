@@ -469,22 +469,50 @@ router.get("/analytics/fest/:festId", authenticateUser, async (req, res) => {
 
     if (!canAccessFest(festId, await callerFests(req))) return forbid(res);
 
+    // ANL-02: optional date range. When present, revenue/bookings/tickets are
+    // scoped to COMPLETED bookings whose purchaseDate falls in [from, to].
+    const fromParsed = req.query.from ? new Date(req.query.from) : null;
+    const toParsed = req.query.to ? new Date(req.query.to) : null;
+    const from = fromParsed && !Number.isNaN(fromParsed.getTime()) ? fromParsed : null;
+    const toEnd = toParsed && !Number.isNaN(toParsed.getTime())
+      ? new Date(new Date(toParsed).setUTCHours(23, 59, 59, 999))
+      : null;
+    const hasRange = !!(from || toEnd);
+    const rangeFilter = hasRange
+      ? { purchaseDate: { not: null, ...(from ? { gte: from } : {}), ...(toEnd ? { lte: toEnd } : {}) } }
+      : {};
+
     const events = await prisma.event.findMany({
       where: { festId },
       select: { id: true, ticketTypes: { select: { sold: true } } },
     });
     const eventsCount = events.length;
     const eventIds = events.map((e) => e.id);
-    const ticketsSold = events.reduce(
-      (sum, e) => sum + e.ticketTypes.reduce((a, t) => a + (t.sold || 0), 0),
-      0
-    );
+
+    const bookingWhere = { eventId: { in: eventIds }, status: "COMPLETED", ...rangeFilter };
 
     const agg = await prisma.booking.aggregate({
-      where: { eventId: { in: eventIds }, status: "COMPLETED" },
+      where: bookingWhere,
       _sum: { subtotal: true, discount: true },
       _count: true,
     });
+
+    // ticketsSold: without a range this is the cumulative TicketType.sold (which
+    // also reflects holds); WITH a range it must count only COMPLETED tickets in
+    // the window, since TicketType.sold is not date-scoped.
+    let ticketsSold;
+    if (hasRange) {
+      const itemAgg = await prisma.bookingItem.aggregate({
+        where: { booking: bookingWhere },
+        _sum: { quantity: true },
+      });
+      ticketsSold = itemAgg._sum.quantity || 0;
+    } else {
+      ticketsSold = events.reduce(
+        (sum, e) => sum + e.ticketTypes.reduce((a, t) => a + (t.sold || 0), 0),
+        0
+      );
+    }
 
     res.json({
       success: true,

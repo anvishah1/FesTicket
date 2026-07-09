@@ -17,6 +17,17 @@ import CreateFest from "@/components/admin/CreateFest";
 
 type AdminSection = "events" | "approvals" | "companies" | "expenses" | "createFest";
 
+// ANL-02: yyyy-mm-dd in IST (matches the backend's bucketing tz), offset by days.
+// Module-scope so the impure Date.now() isn't called from render scope.
+function istDay(offsetDays = 0) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(Date.now() + offsetDays * 86400000));
+}
+
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeSection, setActiveSection] =
@@ -35,6 +46,10 @@ export default function AdminDashboardPage() {
   const [totalSpend, setTotalSpend] = useState<number | null>(null);
   const [sponsorIncome, setSponsorIncome] = useState<number | null>(null);
   const [trend, setTrend] = useState<TrendPoint[] | null>(null); // ANL-01
+  // ANL-02: date-range filter for the range-scoped cards + trend chart.
+  const [festDates, setFestDates] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
+  const [preset, setPreset] = useState<"all" | "today" | "7d" | "fest" | "custom">("all");
+  const [range, setRange] = useState<{ from: string; to: string } | null>(null);
 
   const managedFestId = user?.managedFestId ?? null;
 
@@ -84,6 +99,11 @@ export default function AdminDashboardPage() {
       .then((r) => r.json())
       .then((data) => {
         if (data?.success && data?.data?.name) setFestName(data.data.name);
+        // ANL-02: keep the fest window for the "Fest dates" preset.
+        if (data?.success && data?.data) {
+          const toDay = (d: string | null) => (d ? String(d).slice(0, 10) : null);
+          setFestDates({ start: toDay(data.data.startDate), end: toDay(data.data.endDate) });
+        }
       })
       .catch(() => {});
   }, [managedFestId]);
@@ -91,9 +111,12 @@ export default function AdminDashboardPage() {
   // Fest-scoped financials: income/tickets/events/bookings from analytics, and
   // total spend from the fest-wide expenses (both fest-scoped, so the net is
   // correct even on multi-editor fests).
+  // ANL-01/02: range-scoped income/tickets/bookings + trend. Re-runs when the
+  // date-range preset changes; expenses/sponsors below stay lifetime.
   useEffect(() => {
     if (!managedFestId) return;
-    apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}`)
+    const qs = range ? `?from=${range.from}&to=${range.to}` : "";
+    apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}${qs}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.success && data.data) {
@@ -108,13 +131,16 @@ export default function AdminDashboardPage() {
       .catch(() => {});
 
     // ANL-01: day-bucketed sales trend for the chart under the stat grid.
-    apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}/timeseries`)
+    apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}/timeseries${qs}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.success && Array.isArray(data.data?.points)) setTrend(data.data.points);
       })
       .catch(() => {});
+  }, [managedFestId, range]);
 
+  useEffect(() => {
+    if (!managedFestId) return;
     apiFetch(`${getApiUrl()}/api/events/marketing/fest/${managedFestId}/expenses`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -160,6 +186,24 @@ export default function AdminDashboardPage() {
     analytics != null || totalSpend != null || sponsorIncome != null
       ? (analytics?.revenue ?? 0) + (sponsorIncome ?? 0) - (totalSpend ?? 0)
       : null;
+
+  function applyPreset(p: typeof preset) {
+    setPreset(p);
+    if (p === "all") setRange(null);
+    else if (p === "today") setRange({ from: istDay(0), to: istDay(0) });
+    else if (p === "7d") setRange({ from: istDay(-6), to: istDay(0) });
+    else if (p === "fest")
+      setRange(festDates.start && festDates.end ? { from: festDates.start, to: festDates.end } : null);
+    else if (p === "custom") setRange((r) => r ?? { from: istDay(-29), to: istDay(0) });
+  }
+
+  const PRESETS: { key: typeof preset; label: string }[] = [
+    { key: "all", label: "All time" },
+    { key: "today", label: "Today" },
+    { key: "7d", label: "Last 7 days" },
+    { key: "fest", label: "Fest dates" },
+    { key: "custom", label: "Custom" },
+  ];
 
   if (!mounted || !isAuthenticated()) {
     return (
@@ -322,27 +366,75 @@ export default function AdminDashboardPage() {
                     </button>
                   </div>
 
+                  {/* ANL-02: date-range presets — rescope the income/tickets/bookings
+                      cards and the trend chart. Spend/Net stay fest-lifetime. */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="inline-flex flex-wrap rounded-lg border border-[var(--border-card)] bg-[var(--surface)] p-1">
+                      {PRESETS.map((p) => (
+                        <button
+                          key={p.key}
+                          type="button"
+                          onClick={() => applyPreset(p.key)}
+                          aria-pressed={preset === p.key}
+                          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                            preset === p.key
+                              ? "bg-[var(--fill-plum)] text-white"
+                              : "text-[var(--text-muted)] hover:bg-[var(--surface-slate-100)]"
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                    {preset === "custom" && range && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="date"
+                          aria-label="From date"
+                          value={range.from}
+                          max={range.to}
+                          onChange={(e) => setRange((r) => ({ from: e.target.value, to: r?.to ?? e.target.value }))}
+                          className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-2 py-1.5 text-sm text-[var(--text-primary)]"
+                        />
+                        <span className="text-[var(--text-muted)] text-sm">→</span>
+                        <input
+                          type="date"
+                          aria-label="To date"
+                          value={range.to}
+                          min={range.from}
+                          onChange={(e) => setRange((r) => ({ from: r?.from ?? e.target.value, to: e.target.value }))}
+                          className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-2 py-1.5 text-sm text-[var(--text-primary)]"
+                        />
+                      </div>
+                    )}
+                    {preset === "fest" && !(festDates.start && festDates.end) && (
+                      <span className="text-xs text-amber-600">Fest has no dates set — showing all time.</span>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
                       <p className="text-sm text-[var(--text-muted)]">Income</p>
                       <p className="text-2xl font-bold text-green-600">
                         {formatPaise(analytics?.revenue ?? 0)}
                       </p>
-                      <p className="text-xs text-[var(--text-muted)] mt-1">from completed bookings</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">
+                        completed bookings{range ? " · in range" : ""}
+                      </p>
                     </div>
                     <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
                       <p className="text-sm text-[var(--text-muted)]">Spend</p>
                       <p className="text-2xl font-bold text-red-600">
                         {formatPaise(totalSpend ?? 0)}
                       </p>
-                      <p className="text-xs text-[var(--text-muted)] mt-1">fest-wide expenses</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">fest-wide expenses · lifetime</p>
                     </div>
                     <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
                       <p className="text-sm text-[var(--text-muted)]">Net Balance</p>
                       <p className={`text-2xl font-bold ${(netBalance ?? 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
                         {netBalance == null ? "—" : `${netBalance >= 0 ? "+" : ""}${formatPaise(netBalance)}`}
                       </p>
-                      <p className="text-xs text-[var(--text-muted)] mt-1">income − spend</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">income − spend · lifetime</p>
                     </div>
                     <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
                       <p className="text-sm text-[var(--text-muted)]">Tickets / Events / Bookings</p>

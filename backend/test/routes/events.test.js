@@ -2016,6 +2016,44 @@ describe("GET /api/events/analytics/fest/:festId", () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ revenue: 0, ticketsSold: 0, eventsCount: 0, bookingsCount: 0 });
   });
+
+  it("ANL-02: with from/to, scopes revenue/bookings to the range and counts tickets from COMPLETED items", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.event.findMany.mockResolvedValue([
+      { id: 1, ticketTypes: [{ sold: 999 }] }, // cumulative sold must be IGNORED under a range
+    ]);
+    prismaMock.booking.aggregate.mockResolvedValue({ _sum: { subtotal: 8000, discount: 1000 }, _count: 3 });
+    prismaMock.bookingItem.aggregate.mockResolvedValue({ _sum: { quantity: 5 } });
+
+    const res = await request(app)
+      .get("/api/events/analytics/fest/7?from=2026-06-01&to=2026-06-07")
+      .set(...auth);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ revenue: 7000, ticketsSold: 5, eventsCount: 1, bookingsCount: 3 });
+    // booking aggregate is date-scoped...
+    expect(prismaMock.booking.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          eventId: { in: [1] },
+          status: "COMPLETED",
+          purchaseDate: expect.objectContaining({ not: null }),
+        }),
+      })
+    );
+    // ...and tickets come from COMPLETED booking items, not TicketType.sold.
+    expect(prismaMock.bookingItem.aggregate).toHaveBeenCalled();
+  });
+
+  it("ANL-02: without a range, ticketsSold is the cumulative TicketType.sold (no item aggregate)", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.event.findMany.mockResolvedValue([{ id: 1, ticketTypes: [{ sold: 12 }] }]);
+    prismaMock.booking.aggregate.mockResolvedValue({ _sum: { subtotal: 5000, discount: 0 }, _count: 4 });
+    const res = await request(app).get("/api/events/analytics/fest/7").set(...auth);
+    expect(res.status).toBe(200);
+    expect(res.body.data.ticketsSold).toBe(12);
+    expect(prismaMock.bookingItem.aggregate).not.toHaveBeenCalled();
+  });
 });
 
 // ============ GET /api/events/analytics/fest/:festId/timeseries (ANL-01) ============

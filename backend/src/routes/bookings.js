@@ -23,6 +23,7 @@ import { createBookingSchema } from "../validators/bookingValidator.js";
 import { bookingError } from "../utils/AppError.js";
 import { parsePagination, buildPagination } from "../utils/pagination.js";
 import { streamInvoicePdf } from "../utils/invoice.js";
+import { bookingsCreated, paymentSuccess, paymentFailed, staleExpired } from "../utils/metrics.js";
 import {
   getAppleWalletConfig,
   getGoogleWalletConfig,
@@ -162,6 +163,10 @@ async function settleBookingAsPaid(bookingId, { transactionId, method }) {
     return true;
   });
   if (!won) return null;
+  // OPS-03: count actual settlements only (the guarded flip won). Covers
+  // verify-payment, the webhook and the reconciler; idempotent re-calls (won ===
+  // false) don't double-count.
+  paymentSuccess.inc();
   return prisma.booking.findUnique({
     where: { id: bookingId },
     include: {
@@ -716,6 +721,8 @@ router.post("/", bookingLimiter, optionalAuthenticate, validate(createBookingSch
       return { full, isFree };
     });
 
+    bookingsCreated.inc(); // OPS-03: one per created booking (paid + free paths)
+
     // A free booking is already COMPLETED on creation — fire the confirmation
     // email the same way the paid completion paths do (non-blocking).
     if (booking.isFree) {
@@ -905,6 +912,7 @@ router.post("/:id/verify-payment", writeLimiter, optionalAuthenticate, async (re
 
     const paymentEntity = await razorpay.payments.fetch(razorpay_payment_id);
     if (!paymentEntity || paymentEntity.order_id !== razorpay_order_id) {
+      paymentFailed.inc(); // OPS-03
       return res.status(400).json({
         success: false,
         error: { code: "VERIFY_FAILED", message: "Invalid or mismatched payment" },
@@ -937,6 +945,7 @@ router.post("/:id/verify-payment", writeLimiter, optionalAuthenticate, async (re
     // must equal the booking total. Without this, one captured ₹1 payment could be
     // replayed to complete any (expensive) booking.
     if (!booking.payment || booking.payment.orderId !== razorpay_order_id) {
+      paymentFailed.inc(); // OPS-03
       return res.status(400).json({
         success: false,
         error: { code: "VERIFY_FAILED", message: "Order does not belong to this booking" },
@@ -948,12 +957,14 @@ router.post("/:id/verify-payment", writeLimiter, optionalAuthenticate, async (re
       // order-bound booking — mark it FAILED once and email the buyer a retry
       // link (non-blocking; guarded against repeat spam).
       markPaymentFailedAndNotify(bookingId, req.log);
+      paymentFailed.inc(); // OPS-03
       return res.status(400).json({
         success: false,
         error: { code: "VERIFY_FAILED", message: "Payment not captured" },
       });
     }
     if (paymentEntity.amount !== booking.total) { // both integer paise (PAY-03)
+      paymentFailed.inc(); // OPS-03
       return res.status(400).json({
         success: false,
         error: { code: "VERIFY_FAILED", message: "Paid amount does not match the booking total" },
@@ -1092,6 +1103,8 @@ router.put("/:id/complete", writeLimiter, optionalAuthenticate, async (req, res)
       }
       return updatedBooking;
     });
+
+    paymentSuccess.inc(); // OPS-03: demo/fallback completion is a settlement too
 
     sendBookingConfirmation(booking).catch((e) => req.log.error({ err: e }, "[email] Booking confirmation failed"));
     notifyNewSale(booking, req.log); // NOTIF-05
@@ -2497,6 +2510,10 @@ export async function expireStalePendingBookings(olderThanMs = BOOKING_HOLD_MS) 
     }
   }
 
+  // OPS-03: count released holds. Incremented here (not at the interval) so it's
+  // observable even under NODE_ENV=test, where the sweep interval is skipped but
+  // this function is called directly.
+  if (expired) staleExpired.inc(expired);
   return { expired, durationMs: Date.now() - started };
 }
 

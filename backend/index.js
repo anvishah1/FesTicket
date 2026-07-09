@@ -10,6 +10,7 @@ import fs from "node:fs";
 import prisma from "./src/prisma.js";
 import logger from "./src/utils/logger.js";
 import { initSentry, captureException as sentryCapture } from "./src/utils/sentry.js";
+import { metricsMiddleware, metricsHandler } from "./src/utils/metrics.js";
 import requestLogger from "./src/middleware/requestLogger.js";
 import respond from "./src/middleware/respond.js";
 import AppError from "./src/utils/AppError.js";
@@ -108,6 +109,11 @@ app.use(cors({
 // routes so every handler and the error handler can read `req.id`.
 app.use(requestLogger);
 
+// OPS-03: observe HTTP request duration (histogram labelled by method + matched
+// route template + status). Mounted right after requestLogger so it wraps every
+// request; it records on response 'finish', by which time req.route is set.
+app.use(metricsMiddleware);
+
 // ARCH-04: every API path is served under BOTH /api/v1 (preferred) and /api
 // (the unversioned deprecation alias), so define the prefixes once and reuse
 // them for the webhook, routers, docs and health routes below.
@@ -189,6 +195,10 @@ for (const prefix of API_PREFIXES) {
     res.json({ status: "ok", uptime: process.uptime(), requestId: req.id })
   );
   app.get(`${prefix}/ready`, readyHandler);
+
+  // OPS-03: Prometheus scrape endpoint. Open in dev; in production requires a
+  // Bearer METRICS_TOKEN (fails closed when unset).
+  app.get(`${prefix}/metrics`, metricsHandler);
 }
 
 // Try connecting at startup (non-blocking)

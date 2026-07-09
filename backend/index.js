@@ -11,6 +11,7 @@ import prisma from "./src/prisma.js";
 import logger from "./src/utils/logger.js";
 import { initSentry, captureException as sentryCapture } from "./src/utils/sentry.js";
 import { metricsMiddleware, metricsHandler } from "./src/utils/metrics.js";
+import { verifyMailProvider } from "./src/utils/email.js";
 import requestLogger from "./src/middleware/requestLogger.js";
 import respond from "./src/middleware/respond.js";
 import AppError from "./src/utils/AppError.js";
@@ -168,16 +169,40 @@ const ROUTERS = [
 // raw JSON and behind Swagger UI. Both are public and un-rate-limited.
 const openApiDoc = buildOpenApiDocument();
 
+// OPS-04: optional deep probe — report OPTIONAL-service (Razorpay/SMTP) problems
+// as a soft `degraded` warning. Per the graceful-degradation contract these NEVER
+// cause a 503; only a hard dependency (the DB) does. SMTP verify is timeout-bound
+// (see verifyMailProvider) so a slow mail host can't wedge the probe.
+async function collectDegradations() {
+  const degraded = [];
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    degraded.push({ service: "razorpay", status: "not_configured" });
+  }
+  try {
+    const mail = await verifyMailProvider({ timeoutMs: 3000 });
+    if (!mail.ok) degraded.push({ service: "smtp", status: mail.reason });
+  } catch (err) {
+    degraded.push({ service: "smtp", status: "check_error" });
+  }
+  return degraded;
+}
+
 // Readiness handler shared by both prefixes: cheap `SELECT 1`; 503 when the DB
-// is down so load balancers stop routing to this instance.
+// is down so load balancers stop routing to this instance. `?deep=1` additionally
+// reports optional-service degradation as a soft warning (still 200 while the DB
+// is up), so a monitor can flag Razorpay/SMTP trouble without a hard page.
 const readyHandler = async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: "ready", requestId: req.id });
   } catch (err) {
     req.log.error({ err }, "readiness check failed");
-    res.status(503).json({ status: "not-ready", requestId: req.id });
+    return res.status(503).json({ status: "not-ready", requestId: req.id });
   }
+  if (req.query.deep === "1" || req.query.deep === "true") {
+    const degraded = await collectDegradations();
+    return res.json({ status: "ready", degraded, requestId: req.id });
+  }
+  res.json({ status: "ready", requestId: req.id });
 };
 
 for (const prefix of API_PREFIXES) {

@@ -1,0 +1,51 @@
+name: Uptime
+
+# OPS-04: an external readiness/liveness monitor as a scheduled GitHub Actions
+# fallback (use UptimeRobot / Better Stack for sub-minute paging in production —
+# this guarantees a floor even without a third-party monitor). Liveness and
+# readiness are probed as SEPARATE checks so a transient DB blip pages ops
+# (readiness 503) without implying the process itself is dead (liveness).
+#
+# The probe URLs live in repo/environment VARIABLES so nothing is committed:
+#   Settings -> Secrets and variables -> Actions -> Variables
+#     HEALTH_URL = https://<api-host>/api/health
+#     READY_URL  = https://<api-host>/api/ready
+# A failing job notifies via GitHub's default run-failure notifications; wire a
+# Slack/PagerDuty step (using a secret webhook) for real paging — see ops/README.md.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # every 10 minutes
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Probe ${{ matrix.check.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        check:
+          - { name: liveness, url_var: HEALTH_URL }
+          - { name: readiness, url_var: READY_URL }
+    steps:
+      - name: curl ${{ matrix.check.name }}
+        env:
+          URL: ${{ vars[matrix.check.url_var] }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "::notice::${{ matrix.check.url_var }} repo variable is not set — skipping ${{ matrix.check.name }} probe. Configure it to enable monitoring."
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/body.txt -w "%{http_code}" --max-time 25 "$URL" || echo "000")
+          echo "GET $URL -> HTTP $code"
+          head -c 500 /tmp/body.txt || true
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::${{ matrix.check.name }} probe FAILED (HTTP $code) for $URL"
+            exit 1
+          fi
+          echo "${{ matrix.check.name }} OK"

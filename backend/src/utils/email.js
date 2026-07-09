@@ -211,6 +211,48 @@ export function isMailConfigured() {
   return !!getMailProvider();
 }
 
+// OPS-04: soft health probe for the deep readiness check. Returns
+// { ok, reason? } WITHOUT throwing. SMTP is verified server-side (transport
+// verify) but raced against a hard timeout so a black-holed mail host can never
+// wedge /api/ready; HTTP providers (resend/postmark) are treated as OK on config
+// presence since a real check would require sending. NEVER used to 503 — the
+// caller reports the result as a soft `degraded` warning only.
+export async function verifyMailProvider({ timeoutMs = 3000 } = {}) {
+  const provider = getMailProvider();
+  if (!provider) return { ok: false, reason: "not_configured" };
+  if (provider.name !== "smtp") return { ok: true };
+
+  const host = process.env.SMTP_HOST;
+  const port = parseInt(process.env.SMTP_PORT || "587", 10);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const transport = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    requireTLS: port !== 465,
+    auth: { user, pass },
+    connectionTimeout: timeoutMs,
+    greetingTimeout: timeoutMs,
+    socketTimeout: timeoutMs,
+  });
+  try {
+    await Promise.race([
+      transport.verify(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("verify_timeout")), timeoutMs)),
+    ]);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: err?.message || "verify_failed" };
+  } finally {
+    try {
+      transport.close?.();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 // Defensive EmailLog helpers — a logging failure must never break a send.
 async function createEmailLog(data) {
   try {

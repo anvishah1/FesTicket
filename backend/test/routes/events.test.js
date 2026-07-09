@@ -2221,6 +2221,57 @@ describe("GET /api/events/analytics/fest/:festId/events", () => {
   });
 });
 
+// ========= GET /api/events/analytics/fest/:festId/ticket-types (ANL-09) =========
+describe("GET /api/events/analytics/fest/:festId/ticket-types", () => {
+  const auth = ["Authorization", `Bearer ${signToken({ userId: 42, role: "HOST" })}`];
+
+  it("returns 403 when the fest is not the caller's", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 999, editorFestId: null });
+    const res = await request(app).get("/api/events/analytics/fest/7/ticket-types").set(...auth);
+    expect(res.status).toBe(403);
+  });
+
+  it("emits per-type sell-through, revenue and near-sold-out / low-selling flags", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    const soon = new Date(Date.now() + 5 * 86400000).toISOString(); // event in 5 days
+    const farOff = new Date(Date.now() + 120 * 86400000).toISOString(); // event in 120 days
+    prismaMock.event.findMany.mockResolvedValue([
+      {
+        id: 1,
+        name: "Alpha",
+        startDate: soon,
+        ticketTypes: [
+          { id: 10, name: "VIP", quantity: 100, sold: 95, price: 50000 }, // >=90% -> nearSoldOut
+          { id: 11, name: "GA", quantity: 100, sold: 5, price: 20000 }, // <20% + soon -> lowSelling
+        ],
+      },
+      {
+        id: 2,
+        name: "Beta",
+        startDate: farOff,
+        ticketTypes: [
+          { id: 12, name: "Early", quantity: 100, sold: 5, price: 10000 }, // <20% but far off -> NOT lowSelling
+          { id: 13, name: "Zero", quantity: 0, sold: 0, price: 10000 }, // capacity 0 -> sellThrough 0, no flags
+        ],
+      },
+    ]);
+
+    const res = await request(app).get("/api/events/analytics/fest/7/ticket-types").set(...auth);
+
+    expect(res.status).toBe(200);
+    const byId = Object.fromEntries(res.body.data.map((r) => [r.ticketTypeId, r]));
+
+    expect(byId[10]).toMatchObject({
+      eventId: 1, eventName: "Alpha", name: "VIP",
+      quantity: 100, sold: 95, available: 5, sellThrough: 0.95,
+      revenue: 95 * 50000, nearSoldOut: true, lowSelling: false,
+    });
+    expect(byId[11]).toMatchObject({ sellThrough: 0.05, nearSoldOut: false, lowSelling: true });
+    expect(byId[12]).toMatchObject({ lowSelling: false }); // far-off event isn't flagged
+    expect(byId[13]).toMatchObject({ sellThrough: 0, nearSoldOut: false, lowSelling: false, available: 0 });
+  });
+});
+
 // ==================== FILE STORAGE: inline base64 -> /uploads URL ====================
 describe("inline base64 uploads are stored and their /uploads URL persisted", () => {
   const mktAuth2 = ["Authorization", `Bearer ${signToken({ userId: 42, role: "HOST" })}`];

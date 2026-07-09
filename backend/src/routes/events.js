@@ -808,6 +808,77 @@ router.get("/analytics/fest/:festId/events", authenticateUser, async (req, res) 
   }
 });
 
+// Events starting within this many days are eligible for the "low selling" flag.
+const ANL_LOW_SELLING_WINDOW_DAYS = 14;
+
+// GET /api/events/analytics/fest/:festId/ticket-types (ANL-09) - every ticket type
+// across the fest with sell-through + revenue and near-sold-out / low-selling flags.
+// Same auth/scope.
+router.get("/analytics/fest/:festId/ticket-types", authenticateUser, async (req, res) => {
+  try {
+    const festId = parseInt(req.params.festId);
+    if (Number.isNaN(festId)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Invalid fest id" },
+      });
+    }
+    if (!canAccessFest(festId, await callerFests(req))) return forbid(res);
+
+    const events = await prisma.event.findMany({
+      where: { festId },
+      select: {
+        id: true,
+        name: true,
+        startDate: true,
+        ticketTypes: { select: { id: true, name: true, quantity: true, sold: true, price: true } },
+      },
+    });
+
+    const now = Date.now();
+    const data = [];
+    for (const e of events) {
+      const daysToEvent = e.startDate
+        ? Math.ceil((new Date(e.startDate).getTime() - now) / 86400000)
+        : null;
+      for (const t of e.ticketTypes) {
+        const quantity = t.quantity || 0;
+        const sold = t.sold || 0;
+        const sellThrough = quantity > 0 ? Math.round((sold / quantity) * 10000) / 10000 : 0;
+        data.push({
+          ticketTypeId: t.id,
+          eventId: e.id,
+          eventName: e.name,
+          name: t.name,
+          price: t.price || 0, // paise
+          quantity,
+          sold,
+          available: Math.max(0, quantity - sold),
+          sellThrough,
+          revenue: sold * (t.price || 0), // paise
+          nearSoldOut: quantity > 0 && sellThrough >= 0.9,
+          // Low selling only makes sense for an event that's actually approaching:
+          // upcoming and within the window (not brand-new / far-off).
+          lowSelling:
+            quantity > 0 &&
+            sellThrough < 0.2 &&
+            daysToEvent != null &&
+            daysToEvent >= 0 &&
+            daysToEvent <= ANL_LOW_SELLING_WINDOW_DAYS,
+        });
+      }
+    }
+
+    res.json({ success: true, data });
+  } catch (error) {
+    req.log.error({ err: error }, "Error fetching fest ticket-type analytics");
+    res.status(500).json({
+      success: false,
+      error: { code: "FETCH_ERROR", message: "Failed to fetch ticket-type analytics" },
+    });
+  }
+});
+
 // ==================== PAY-04: PROMO CODES (host/admin scoped) ====================
 // Registered BEFORE GET /:id so "promo-codes" isn't captured as an :id param.
 const PROMO_KINDS = ["PERCENT", "FLAT"];

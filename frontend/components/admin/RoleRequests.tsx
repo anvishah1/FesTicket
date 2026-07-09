@@ -98,15 +98,15 @@ export default function RoleRequests() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl border border-[#C5BAC4] p-12 text-center shadow-sm">
-        <p className="text-[#6B597F]">Loading role requests...</p>
+      <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-12 text-center shadow-sm">
+        <p className="text-[var(--text-muted)]">Loading role requests...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-white rounded-2xl border border-[#C5BAC4] p-12 text-center shadow-sm">
+      <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-12 text-center shadow-sm">
         <p className="text-red-600">{error}</p>
       </div>
     );
@@ -115,44 +115,44 @@ export default function RoleRequests() {
   return (
     <div className="space-y-4">
       {requests.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-[#C5BAC4] p-12 text-center shadow-sm">
+        <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-12 text-center shadow-sm">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
             <svg aria-hidden="true" className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <p className="text-lg font-medium text-[#29104A]">All caught up!</p>
-          <p className="text-sm text-[#6B597F] mt-1">No pending approval requests</p>
+          <p className="text-lg font-medium text-[var(--text-primary)]">All caught up!</p>
+          <p className="text-sm text-[var(--text-muted)] mt-1">No pending approval requests</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-[#C5BAC4] overflow-hidden shadow-sm">
-          <div className="px-6 py-4 border-b border-[#C5BAC4] bg-[#C5BAC4]/10">
-            <p className="font-semibold text-[#29104A]">{requests.length} Pending Request{requests.length > 1 ? 's' : ''}</p>
+        <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] overflow-hidden shadow-sm">
+          <div className="px-6 py-4 border-b border-[var(--border-card)] bg-[color-mix(in_srgb,var(--surface-card)_10%,transparent)]">
+            <p className="font-semibold text-[var(--text-primary)]">{requests.length} Pending Request{requests.length > 1 ? 's' : ''}</p>
           </div>
           
           <div className="divide-y divide-[#C5BAC4]">
             {requests.map((req) => (
               <div
                 key={req.id}
-                className="flex items-center justify-between px-6 py-5 hover:bg-[#C5BAC4]/5 transition-colors"
+                className="flex items-center justify-between px-6 py-5 hover:bg-[color-mix(in_srgb,var(--surface-card)_5%,transparent)] transition-colors"
               >
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#29104A] to-[#522C5D] flex items-center justify-center text-white font-bold">
                     {(req.studentName || req.email || "?").charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <p className="font-semibold text-[#29104A]">
+                    <p className="font-semibold text-[var(--text-primary)]">
                       {req.studentName}
                     </p>
-                    <p className="text-sm text-[#6B597F]">
+                    <p className="text-sm text-[var(--text-muted)]">
                       {req.email}
                     </p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="px-2 py-0.5 bg-[#522C5D]/10 text-[#522C5D] rounded text-xs font-medium">
+                      <span className="px-2 py-0.5 bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] text-[var(--text-secondary)] rounded text-xs font-medium">
                         {req.requestedRole}
                       </span>
                       <span className="text-xs text-[#C5BAC4]">•</span>
-                      <span className="text-xs text-[#6B597F]">{req.festName || req.organization || "—"}</span>
+                      <span className="text-xs text-[var(--text-muted)]">{req.festName || req.organization || "—"}</span>
                     </div>
                     <div className="mt-2">
                       <span
@@ -171,7 +171,7 @@ export default function RoleRequests() {
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <span className="text-xs text-[#6B597F]">
+                  <span className="text-xs text-[var(--text-muted)]">
                     {new Date(req.requestDate).toLocaleDateString("en-IN", {
                       day: "numeric",
                       month: "short",

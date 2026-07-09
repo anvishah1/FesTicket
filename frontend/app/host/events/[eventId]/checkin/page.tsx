@@ -154,15 +154,15 @@ export default function CheckinPage() {
 
   React.useEffect(() => () => void stopCamera(), [stopCamera]);
 
-  if (!ready) return <Shell><p className="text-center text-slate-500 py-16">Loading…</p></Shell>;
+  if (!ready) return <Shell><p className="text-center text-[var(--text-soft)] py-16">Loading…</p></Shell>;
   if (accessDenied)
-    return <Shell><p className="text-center text-slate-500 py-16">You do not have access to check-in for this event.</p></Shell>;
+    return <Shell><p className="text-center text-[var(--text-soft)] py-16">You do not have access to check-in for this event.</p></Shell>;
 
   return (
     <Shell>
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-extrabold">Check-in{eventName ? ` · ${eventName}` : ""}</h1>
-        <Link href={`/host/events/${eventId}/manage`} className="text-sm text-primary-600 hover:underline">
+        <Link href={`/host/events/${eventId}/manage`} className="text-sm text-[var(--text-primary)] hover:underline">
           ← Manage
         </Link>
       </div>
@@ -198,10 +198,10 @@ export default function CheckinPage() {
         </div>
       )}
 
-      <div className="rounded-lg bg-white border p-4 shadow-sm">
+      <div className="rounded-lg bg-[var(--surface)] border p-4 shadow-sm">
         <div id="qr-reader" className="w-full max-w-sm mx-auto" />
         {!scanning ? (
-          <button type="button" onClick={startCamera} className="mt-3 w-full px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 text-white font-semibold">
+          <button type="button" onClick={startCamera} className="mt-3 w-full px-4 py-2 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white font-semibold">
             Start camera
           </button>
         ) : (
@@ -217,7 +217,7 @@ export default function CheckinPage() {
           checkIn(manualCode);
           setManualCode("");
         }}
-        className="rounded-lg bg-white border p-4 shadow-sm flex flex-col sm:flex-row gap-3"
+        className="rounded-lg bg-[var(--surface)] border p-4 shadow-sm flex flex-col sm:flex-row gap-3"
       >
         <input
           value={manualCode}
@@ -226,7 +226,7 @@ export default function CheckinPage() {
           aria-label="Ticket code"
           className="flex-1 px-3 py-2 border rounded-md"
         />
-        <button type="submit" disabled={busy || !manualCode.trim()} className="px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold">
+        <button type="submit" disabled={busy || !manualCode.trim()} className="px-4 py-2 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] disabled:opacity-50 text-white font-semibold">
           {busy ? "Checking…" : "Admit"}
         </button>
       </form>

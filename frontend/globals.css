@@ -3,37 +3,145 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 
-  TEMPORARY COLOR THEME - Purple to Cream Palette
-  #190019 - Darkest (text, strong accents)
-  #2B124C - Dark purple (primary dark)
-  #522B5B - Medium purple (primary)
-  #854F6C - Dusty rose (secondary)
-  #DFB6B2 - Blush pink (soft accents)
-  #FBE4D8 - Cream (background)
-*/
+/* ===========================================================================
+   FE-11 — Theme tokens (light + dark)
+   ---------------------------------------------------------------------------
+   The whole palette is now driven by these semantic CSS variables, applied
+   through Tailwind arbitrary utilities like `text-[var(--text-primary)]` and
+   `bg-[var(--surface)]`. Flipping the tokens under a dark scheme themes the
+   entire app. Light values are the original brand hexes (unchanged), except
+   --text-muted, which is darkened from #6B597F to #5A4F6B to meet WCAG AA.
 
+   Scheme resolution:
+   - no explicit choice  -> follows prefers-color-scheme (media block below)
+   - [data-theme="dark"] -> forced dark (the Header toggle sets this)
+   - [data-theme="light"]-> forced light (default :root values)
+=========================================================================== */
 :root {
-  --bg: #DEDCDC;
-  --bg-card: #C5BAC4;
-  --bg-input: #C5BAC4;
+  /* Surfaces (backgrounds) — go dark under the dark scheme */
+  --surface-page: #DEDCDC;      /* page background (lightest) */
+  --surface: #FFFFFF;           /* elevated white cards */
+  --surface-tint: #F9F7FA;      /* faint tinted surfaces */
+  --surface-card: #C5BAC4;      /* form / card fills */
+  --surface-slate: #F8FAFC;     /* neutral slate-50 panels */
+  --surface-slate-100: #F1F5F9;
+  --surface-slate-200: #E2E8F0;
+  --surface-slate-800: #1E293B;
+
+  /* Foreground text — goes light under the dark scheme */
   --text-primary: #29104A;
   --text-secondary: #522C5D;
-  /* Darkened from #6B597F (~3.3:1) to meet WCAG AA 4.5:1 for normal text
-     on the cream/light background while staying on-brand purple. */
-  --text-muted: #5A4F6B;
-  --accent-dark: #29104A;
-  --accent: #522C5D;
-  --accent-medium: #6B597F;
-  --accent-light: #C5BAC4;
-  --border: #6B597F;
-  --glass: rgba(197, 186, 196, 0.9);
+  --text-muted: #5A4F6B;        /* AA-compliant muted (was #6B597F) */
+  --text-strong: #334155;       /* slate-700 */
+  --text-slate: #475569;        /* slate-600 */
+  --text-soft: #64748B;         /* slate-500 */
+  --text-faint: #94A3B8;        /* slate-400 */
+  --text-slate-800: #1E293B;
+  --text-slate-900: #0F172A;
+
+  /* Coloured fills — stay saturated (tuned brighter for dark) */
+  --fill-plum: #522C5D;
+  --fill-ink: #29104A;
+  --fill-mauve: #6B597F;
+
+  /* Borders */
+  --border-card: #C5BAC4;
+  --border-plum: #522C5D;
+  --border-ink: #29104A;
+  --border-mauve: #6B597F;
+  --border-slate: #CBD5E1;
+
+  /* Focus rings */
+  --ring-plum: #522C5D;
+  --ring-mauve: #6B597F;
+
+  /* Legacy aliases still referenced directly */
+  --bg: var(--surface-page);
+  --accent: var(--fill-plum);
 }
+
+/* The dark palette, shared by the media (system) and forced selectors below.
+   Kept as one block applied to both to avoid drift. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface-page: #16131C;
+    --surface: #201B2B;
+    --surface-tint: #262031;
+    --surface-card: #2E2739;
+    --surface-slate: #1E1926;
+    --surface-slate-100: #231D2D;
+    --surface-slate-200: #2C2638;
+    --surface-slate-800: #3A4150;
+
+    --text-primary: #ECE8F5;
+    --text-secondary: #CBB9DE;
+    --text-muted: #A99CBE;
+    --text-strong: #D6DCE4;
+    --text-slate: #B8C1CD;
+    --text-soft: #9BA7B5;
+    --text-faint: #7F8B99;
+    --text-slate-800: #DEE4EB;
+    --text-slate-900: #EBEEF3;
+
+    --fill-plum: #7E4E97;
+    --fill-ink: #2C2140;
+    --fill-mauve: #5F5473;
+
+    --border-card: #38314A;
+    --border-plum: #7E4E97;
+    --border-ink: #4A4064;
+    --border-mauve: #4C4459;
+    --border-slate: #3A3348;
+
+    --ring-plum: #9166AD;
+    --ring-mauve: #6A5F7E;
+  }
+}
+
+:root[data-theme="dark"] {
+  --surface-page: #16131C;
+  --surface: #201B2B;
+  --surface-tint: #262031;
+  --surface-card: #2E2739;
+  --surface-slate: #1E1926;
+  --surface-slate-100: #231D2D;
+  --surface-slate-200: #2C2638;
+  --surface-slate-800: #3A4150;
+
+  --text-primary: #ECE8F5;
+  --text-secondary: #CBB9DE;
+  --text-muted: #A99CBE;
+  --text-strong: #D6DCE4;
+  --text-slate: #B8C1CD;
+  --text-soft: #9BA7B5;
+  --text-faint: #7F8B99;
+  --text-slate-800: #DEE4EB;
+  --text-slate-900: #EBEEF3;
+
+  --fill-plum: #7E4E97;
+  --fill-ink: #2C2140;
+  --fill-mauve: #5F5473;
+
+  --border-card: #38314A;
+  --border-plum: #7E4E97;
+  --border-ink: #4A4064;
+  --border-mauve: #4C4459;
+  --border-slate: #3A3348;
+
+  --ring-plum: #9166AD;
+  --ring-mauve: #6A5F7E;
+}
+
+/* color-scheme hints the UA to theme form controls, scrollbars & the canvas. */
+:root { color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; } }
+:root[data-theme="dark"] { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
 
 html, body, #__next { height: 100%; }
 
 body {
-  background: #DEDCDC;
+  background: var(--surface-page);
   background-attachment: fixed;
   color: var(--text-primary);
   font-family: 'DM Sans', Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
@@ -49,42 +157,43 @@ body {
 
 /* Custom button styles for the new palette */
 .btn-primary {
-  background: linear-gradient(135deg, #2B124C 0%, #522B5B 100%);
+  background: linear-gradient(135deg, var(--fill-ink) 0%, var(--fill-plum) 100%);
   color: #FBE4D8;
   transition: all 0.3s ease;
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #190019 0%, #2B124C 100%);
+  filter: brightness(0.92);
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(43, 18, 76, 0.3);
 }
 
 /* Card styling */
 .card-elegant {
-  background: #C5BAC4;
+  background: var(--surface-card);
   backdrop-filter: blur(10px);
-  border: 1px solid #6B597F;
+  border: 1px solid var(--border-mauve);
   box-shadow: 0 4px 20px rgba(41, 16, 74, 0.1);
 }
 
-/* Input/Form styling - use second lightest color */
+/* Input/Form styling — token-driven (FE-11: no more `!important`, so utilities
+   on individual fields can override these defaults, and dark mode works). */
 input, select, textarea {
-  background: #C5BAC4 !important;
-  border-color: #6B597F !important;
-  color: #29104A !important;
+  background: var(--surface-card);
+  border-color: var(--border-mauve);
+  color: var(--text-primary);
 }
 
 input::placeholder, textarea::placeholder {
-  color: #522C5D !important;
+  color: var(--text-secondary);
   opacity: 0.7;
 }
 
 /* Input focus states */
 input:focus, select:focus, textarea:focus {
-  border-color: #522C5D !important;
-  box-shadow: 0 0 0 3px rgba(82, 44, 93, 0.2) !important;
-  background: #C5BAC4 !important;
+  border-color: var(--border-plum);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring-plum) 25%, transparent);
+  background: var(--surface-card);
 }
 
 /* ---------------------------------------------------------------------------
@@ -96,7 +205,7 @@ input:focus, select:focus, textarea:focus {
    the mouse-driven visual design. Placed after other rules so it isn't
    overridden by any `outline: none`. */
 :focus-visible {
-  outline: 2px solid var(--accent, #522C5D);
+  outline: 2px solid var(--ring-plum);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -160,14 +269,14 @@ header :focus-visible {
 }
 
 ::-webkit-scrollbar-track {
-  background: #DEDCDC;
+  background: var(--surface-page);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #6B597F;
+  background: var(--border-mauve);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #522C5D;
+  background: var(--fill-plum);
 }

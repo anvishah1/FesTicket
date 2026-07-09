@@ -48,10 +48,10 @@ function EventRail({ title, subtitle, events }: { title: string; subtitle: strin
     <section className="mt-16">
       <div className="flex items-end justify-between gap-4 mb-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#29104A]">{title}</h2>
-          <p className="text-[#6B597F] mt-1">{subtitle}</p>
+          <h2 className="text-2xl font-bold text-[var(--text-primary)]">{title}</h2>
+          <p className="text-[var(--text-muted)] mt-1">{subtitle}</p>
         </div>
-        <Link href="/events" className="shrink-0 text-sm font-medium text-[#522C5D] hover:underline">
+        <Link href="/events" className="shrink-0 text-sm font-medium text-[var(--text-secondary)] hover:underline">
           See all →
         </Link>
       </div>
@@ -72,10 +72,10 @@ function EventRail({ title, subtitle, events }: { title: string; subtitle: strin
           ))}
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-[#C5BAC4] p-8 text-center">
-          <p className="text-[#6B597F]">
+        <div className="rounded-xl border border-dashed border-[var(--border-card)] p-8 text-center">
+          <p className="text-[var(--text-muted)]">
             No events yet —{" "}
-            <Link href="/events" className="font-medium text-[#522C5D] hover:underline">
+            <Link href="/events" className="font-medium text-[var(--text-secondary)] hover:underline">
               explore all events
             </Link>
             .

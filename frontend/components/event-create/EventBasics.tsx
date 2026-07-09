@@ -272,24 +272,24 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
   };
 
   return (
-    <div className="flex-1 rounded-xl border border-[#C5BAC4] bg-white p-6 shadow-sm">
-      <h2 className="mb-6 text-xl font-semibold text-[#29104A]">
+    <div className="flex-1 rounded-xl border border-[var(--border-card)] bg-[var(--surface)] p-6 shadow-sm">
+      <h2 className="mb-6 text-xl font-semibold text-[var(--text-primary)]">
         Event Basics
       </h2>
 
       <div className="space-y-6">
         {/* Event Image */}
         <div>
-          <label className="block text-sm font-medium text-[#29104A] mb-2">
-            Event Image <span className="text-[#522C5D]">*</span>
+          <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
+            Event Image <span className="text-[var(--text-secondary)]">*</span>
           </label>
-          <p className="text-xs text-[#6B597F] mb-3">
+          <p className="text-xs text-[var(--text-muted)] mb-3">
             Recommended: Square image (1:1) or landscape. Will be displayed at 320px height.
           </p>
           
           {formData.image && (
             <div className="mb-4 relative group">
-              <div className="w-full h-80 bg-[#C5BAC4]/20 rounded-xl overflow-hidden border border-[#C5BAC4]">
+              <div className="w-full h-80 bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] rounded-xl overflow-hidden border border-[var(--border-card)]">
                 <img 
                   src={formData.image} 
                   alt="Event" 
@@ -299,13 +299,13 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, image: null })}
-                className="absolute top-3 right-3 p-2 bg-[#29104A]/80 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#29104A]"
+                className="absolute top-3 right-3 p-2 bg-[color-mix(in_srgb,var(--fill-ink)_80%,transparent)] text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--fill-ink)]"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-              <div className="absolute bottom-3 left-3 px-2 py-1 bg-[#29104A]/80 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute bottom-3 left-3 px-2 py-1 bg-[color-mix(in_srgb,var(--fill-ink)_80%,transparent)] text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
                 This is how it will appear in event cards
               </div>
             </div>
@@ -315,7 +315,7 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[#C5BAC4] rounded-xl text-[#6B597F] hover:border-[#522C5D] hover:text-[#522C5D] transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[var(--border-card)] rounded-xl text-[var(--text-muted)] hover:border-[var(--border-plum)] hover:text-[var(--text-secondary)] transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -327,8 +327,8 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
               onClick={() => setShowDefaultImages(!showDefaultImages)}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 rounded-xl transition-colors ${
                 showDefaultImages 
-                  ? "border-[#522C5D] bg-[#522C5D]/10 text-[#522C5D]" 
-                  : "border-[#C5BAC4] text-[#6B597F] hover:border-[#522C5D] hover:text-[#522C5D]"
+                  ? "border-[var(--border-plum)] bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] text-[var(--text-secondary)]" 
+                  : "border-[var(--border-card)] text-[var(--text-muted)] hover:border-[var(--border-plum)] hover:text-[var(--text-secondary)]"
               }`}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -347,7 +347,7 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
           />
 
           {imageBusy && (
-            <p className="mt-2 text-xs text-[#6B597F]">Optimizing image…</p>
+            <p className="mt-2 text-xs text-[var(--text-muted)]">Optimizing image…</p>
           )}
           {imageError && (
             <p className="mt-2 text-xs text-red-600" role="alert">
@@ -356,8 +356,8 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
           )}
 
           {showDefaultImages && (
-            <div className="mt-4 p-4 bg-[#C5BAC4]/20 rounded-xl">
-              <p className="text-sm text-[#6B597F] mb-3">Select a default image (all sized for event cards):</p>
+            <div className="mt-4 p-4 bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] rounded-xl">
+              <p className="text-sm text-[var(--text-muted)] mb-3">Select a default image (all sized for event cards):</p>
               <div className="grid grid-cols-4 gap-3">
                 {defaultImages.map((img) => (
                   <button
@@ -366,22 +366,22 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
                     onClick={() => handleSelectDefaultImage(img.url)}
                     className={`relative group rounded-lg overflow-hidden border-2 transition-all ${
                       formData.image === img.url 
-                        ? "border-[#522C5D] ring-2 ring-[#522C5D]/30" 
-                        : "border-transparent hover:border-[#522C5D]/50"
+                        ? "border-[var(--border-plum)] ring-2 ring-[color-mix(in_srgb,var(--ring-plum)_30%,transparent)]" 
+                        : "border-transparent hover:border-[color-mix(in_srgb,var(--border-plum)_50%,transparent)]"
                     }`}
                   >
-                    <div className="w-full h-24 bg-[#C5BAC4]/20">
+                    <div className="w-full h-24 bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)]">
                       <img 
                         src={img.url} 
                         alt={img.label} 
                         className="w-full h-full object-cover"
                       />
                     </div>
-                    <div className="absolute inset-0 bg-[#29104A]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div className="absolute inset-0 bg-[color-mix(in_srgb,var(--fill-ink)_60%,transparent)] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <span className="text-white text-xs font-medium">{img.label}</span>
                     </div>
                     {formData.image === img.url && (
-                      <div className="absolute top-1 right-1 w-5 h-5 bg-[#522C5D] rounded-full flex items-center justify-center">
+                      <div className="absolute top-1 right-1 w-5 h-5 bg-[var(--fill-plum)] rounded-full flex items-center justify-center">
                         <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
@@ -396,8 +396,8 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
 
         {/* Event Name */}
         <div>
-          <label htmlFor="event-name" className="block text-sm font-medium text-[#29104A]">
-            Event Name <span className="text-[#522C5D]">*</span>
+          <label htmlFor="event-name" className="block text-sm font-medium text-[var(--text-primary)]">
+            Event Name <span className="text-[var(--text-secondary)]">*</span>
           </label>
           <input
             id="event-name"
@@ -405,13 +405,13 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="eg: KSUM Investor's Meet"
-            className="mt-2 w-full rounded-lg border border-[#C5BAC4] px-4 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
+            className="mt-2 w-full rounded-lg border border-[var(--border-card)] px-4 py-2 focus:border-[var(--border-plum)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:outline-none text-[var(--text-primary)]"
           />
         </div>
 
         {/* Short Description */}
         <div>
-          <label htmlFor="event-short-description" className="block text-sm font-medium text-[#29104A]">
+          <label htmlFor="event-short-description" className="block text-sm font-medium text-[var(--text-primary)]">
             Short Description
           </label>
           <textarea
@@ -420,7 +420,7 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
             value={formData.shortDescription}
             onChange={(e) => setFormData({ ...formData, shortDescription: e.target.value })}
             placeholder="Describe your event in one or two lines"
-            className="mt-2 w-full rounded-lg border border-[#C5BAC4] px-4 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
+            className="mt-2 w-full rounded-lg border border-[var(--border-card)] px-4 py-2 focus:border-[var(--border-plum)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:outline-none text-[var(--text-primary)]"
           />
         </div>
 
@@ -428,7 +428,7 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
         <div className="grid grid-cols-2 gap-4">
 
           <div>
-            <label htmlFor="event-start-date" className="block text-sm font-medium text-[#29104A]">
+            <label htmlFor="event-start-date" className="block text-sm font-medium text-[var(--text-primary)]">
               Event Starts From
             </label>
 
@@ -441,18 +441,18 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
               pointer-events:none and only a click handler on the div worked).
             */}
             <div
-              className="relative mt-2 flex items-center justify-between w-full rounded-lg border border-[#C5BAC4] px-4 py-3
-                        focus-within:border-[#522C5D] focus-within:ring-2 focus-within:ring-[#522C5D]/20
-                        hover:border-[#522C5D] transition"
+              className="relative mt-2 flex items-center justify-between w-full rounded-lg border border-[var(--border-card)] px-4 py-3
+                        focus-within:border-[var(--border-plum)] focus-within:ring-2 focus-within:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)]
+                        hover:border-[var(--border-plum)] transition"
             >
-              <span className="text-[#29104A]" aria-hidden="true">
+              <span className="text-[var(--text-primary)]" aria-hidden="true">
                 {formData.startDate
                   ? new Date(formData.startDate).toLocaleString()
                   : "Select date & time"}
               </span>
 
               <svg
-                className="w-5 h-5 text-[#6B597F]"
+                className="w-5 h-5 text-[var(--text-muted)]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -477,23 +477,23 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
           </div>
 
           <div>
-            <label htmlFor="event-end-date" className="block text-sm font-medium text-[#29104A]">
+            <label htmlFor="event-end-date" className="block text-sm font-medium text-[var(--text-primary)]">
               Event Ends On
             </label>
 
             <div
-              className="relative mt-2 flex items-center justify-between w-full rounded-lg border border-[#C5BAC4] px-4 py-3
-                        focus-within:border-[#522C5D] focus-within:ring-2 focus-within:ring-[#522C5D]/20
-                        hover:border-[#522C5D] transition"
+              className="relative mt-2 flex items-center justify-between w-full rounded-lg border border-[var(--border-card)] px-4 py-3
+                        focus-within:border-[var(--border-plum)] focus-within:ring-2 focus-within:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)]
+                        hover:border-[var(--border-plum)] transition"
             >
-              <span className="text-[#29104A]" aria-hidden="true">
+              <span className="text-[var(--text-primary)]" aria-hidden="true">
                 {formData.endDate
                   ? new Date(formData.endDate).toLocaleString()
                   : "Select date & time"}
               </span>
 
               <svg
-                className="w-5 h-5 text-[#6B597F]"
+                className="w-5 h-5 text-[var(--text-muted)]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -521,7 +521,7 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
 
         {/* Visibility */}
         <div>
-          <span id="event-visibility-label" className="mb-2 block text-sm font-medium text-[#29104A]">
+          <span id="event-visibility-label" className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
             Event Visibility
           </span>
           <div className="flex gap-4" role="group" aria-labelledby="event-visibility-label">
@@ -540,7 +540,7 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
 
         {/* Event Type */}
         <div>
-          <span id="event-type-label" className="mb-2 block text-sm font-medium text-[#29104A]">
+          <span id="event-type-label" className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
             Event Type
           </span>
           <div className="flex gap-4" role="group" aria-labelledby="event-type-label">
@@ -560,7 +560,7 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
         {/* Save */}
         <button
           onClick={handleSubmit}
-          className="mt-6 w-full rounded-lg bg-[#522C5D] py-3 text-white font-medium hover:bg-[#29104A] transition"
+          className="mt-6 w-full rounded-lg bg-[var(--fill-plum)] py-3 text-white font-medium hover:bg-[var(--fill-ink)] transition"
         >
           Save & Continue
         </button>
@@ -586,8 +586,8 @@ function OptionButton({
       className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition
         ${
           active
-            ? "border-[#522C5D] bg-[#522C5D]/10 text-[#522C5D]"
-            : "border-[#C5BAC4] bg-white text-[#6B597F] hover:bg-[#C5BAC4]/20"
+            ? "border-[var(--border-plum)] bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] text-[var(--text-secondary)]"
+            : "border-[var(--border-card)] bg-[var(--surface)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)]"
         }`}
     >
       {label}

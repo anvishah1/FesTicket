@@ -196,8 +196,8 @@ export default function AuthForm() {
   if (challengeToken) {
     return (
       <form onSubmit={verifyTwoFactor} className="space-y-4" data-testid="twofactor-step">
-        <h2 className="text-lg font-semibold text-[#29104A]">Two-factor authentication</h2>
-        <p className="text-sm text-[#6B597F]">
+        <h2 className="text-lg font-semibold text-[var(--text-primary)]">Two-factor authentication</h2>
+        <p className="text-sm text-[var(--text-muted)]">
           {useBackup
             ? "Enter one of your backup codes."
             : "Enter the 6-digit code from your authenticator app."}
@@ -214,7 +214,7 @@ export default function AuthForm() {
           inputMode={useBackup ? "text" : "numeric"}
           placeholder={useBackup ? "XXXX-XXXX" : "123456"}
           aria-label="Authentication code"
-          className="w-full border border-[#6B597F] rounded-lg px-3 py-2 tracking-widest text-center"
+          className="w-full border border-[var(--border-mauve)] rounded-lg px-3 py-2 tracking-widest text-center"
         />
         <button
           type="submit"
@@ -230,7 +230,7 @@ export default function AuthForm() {
             setTwoFACode("");
             setError(null);
           }}
-          className="w-full text-sm text-[#29104A] hover:underline"
+          className="w-full text-sm text-[var(--text-primary)] hover:underline"
           data-testid="toggle-backup"
         >
           {useBackup ? "Use your authenticator app instead" : "Use a backup code instead"}
@@ -245,19 +245,19 @@ export default function AuthForm() {
       <GoogleSignInButton onCredential={handleGoogleCredential} />
 
       <div className="flex items-center gap-3">
-        <div className="flex-grow border-t border-[#6B597F]" />
-        <div className="text-xs text-[#6B597F]">OR</div>
-        <div className="flex-grow border-t border-[#6B597F]" />
+        <div className="flex-grow border-t border-[var(--border-mauve)]" />
+        <div className="text-xs text-[var(--text-muted)]">OR</div>
+        <div className="flex-grow border-t border-[var(--border-mauve)]" />
       </div>
 
       {error && (
         <div id="auth-form-error" role="alert" className="text-sm text-red-600">
           {error}
           {locked && (
-            <div className="mt-1 text-[#6B597F]">
+            <div className="mt-1 text-[var(--text-muted)]">
               Try again in{" "}
               <span className="font-mono font-semibold" data-testid="lock-countdown">{mmss}</span>. Or{" "}
-              <Link href="/forgot" className="text-[#29104A] underline">reset your password</Link>{" "}
+              <Link href="/forgot" className="text-[var(--text-primary)] underline">reset your password</Link>{" "}
               to regain access now.
             </div>
           )}
@@ -265,7 +265,7 @@ export default function AuthForm() {
       )}
 
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-[#522C5D]">Email</label>
+        <label htmlFor="email" className="block text-sm font-medium text-[var(--text-secondary)]">Email</label>
         <input
           id="email"
           type="email"
@@ -276,12 +276,12 @@ export default function AuthForm() {
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? "auth-form-error" : undefined}
           placeholder="you@school.edu"
-          className="mt-2 w-full border border-[#6B597F] rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#522C5D]/20"
+          className="mt-2 w-full border border-[var(--border-mauve)] rounded-lg px-3 py-2 focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)]"
         />
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-[#522C5D]">Password</label>
+        <label htmlFor="password" className="block text-sm font-medium text-[var(--text-secondary)]">Password</label>
         <input
           id="password"
           type="password"
@@ -292,12 +292,12 @@ export default function AuthForm() {
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? "auth-form-error" : undefined}
           placeholder="Password"
-          className="mt-2 w-full border border-[#6B597F] rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#522C5D]/20"
+          className="mt-2 w-full border border-[var(--border-mauve)] rounded-lg px-3 py-2 focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)]"
         />
       </div>
 
       <div className="flex items-center justify-end text-sm">
-        <Link className="text-[#29104A] hover:underline" href="/forgot">Forgot password?</Link>
+        <Link className="text-[var(--text-primary)] hover:underline" href="/forgot">Forgot password?</Link>
       </div>
 
       {captchaSiteKey && (
@@ -316,7 +316,7 @@ export default function AuthForm() {
             "w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium transition",
             canSubmit && !loading && !locked
               ? "bg-gradient-to-r from-[#29104A] to-[#522C5D] text-[#DEDCDC] hover:from-[#522C5D] hover:to-[#6B597F]"
-              : "bg-[#6B597F]/50 text-[#DEDCDC]/70 cursor-not-allowed"
+              : "bg-[color-mix(in_srgb,var(--fill-mauve)_50%,transparent)] text-[#DEDCDC]/70 cursor-not-allowed"
           )}
         >
           {loading ? "Signing in…" : locked ? `Locked · ${mmss}` : "Sign In with Email"}
@@ -334,7 +334,7 @@ export default function AuthForm() {
             type="button"
             onClick={requestMagicLink}
             disabled={!email.trim() || magicBusy}
-            className="text-sm text-[#29104A] hover:underline disabled:opacity-50"
+            className="text-sm text-[var(--text-primary)] hover:underline disabled:opacity-50"
             data-testid="magic-link-button"
           >
             {magicBusy ? "Sending…" : "Email me a sign-in link instead"}
@@ -344,16 +344,16 @@ export default function AuthForm() {
 
       {/* Divider */}
       <div className="flex items-center gap-3 mt-6">
-        <div className="flex-grow border-t border-[#6B597F]" />
-        <div className="text-xs text-[#6B597F]">OR</div>
-        <div className="flex-grow border-t border-[#6B597F]" />
+        <div className="flex-grow border-t border-[var(--border-mauve)]" />
+        <div className="text-xs text-[var(--text-muted)]">OR</div>
+        <div className="flex-grow border-t border-[var(--border-mauve)]" />
       </div>
 
       {/* Big Sign Up Button */}
       <div className="mt-4">
         <Link
           href="/signup"
-          className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium transition bg-[#6B597F] hover:bg-[#522C5D] text-[#DEDCDC]"
+          className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium transition bg-[var(--fill-mauve)] hover:bg-[var(--fill-plum)] text-[#DEDCDC]"
         >
           Create a New Account
         </Link>

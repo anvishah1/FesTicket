@@ -315,18 +315,18 @@ export default function EventCreatePage() {
   // Block render until the auth guard resolves; if denied we're redirecting.
   if (authorized === undefined) {
     return (
-      <div className="min-h-screen bg-[#fbf9f6] flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-[#522C5D] border-t-transparent rounded-full"></div>
+      <div className="min-h-screen bg-[var(--surface-tint)] flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-[var(--border-plum)] border-t-transparent rounded-full"></div>
       </div>
     );
   }
 
   if (authorized === false) {
     return (
-      <div className="min-h-screen bg-[#fbf9f6] flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--surface-tint)] flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-xl font-bold text-[#29104A] mb-2">Sign in required</h2>
-          <p className="text-[#6B597F]">
+          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Sign in required</h2>
+          <p className="text-[var(--text-muted)]">
             You need a host account to create events. Redirecting to sign in…
           </p>
         </div>
@@ -336,21 +336,21 @@ export default function EventCreatePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#fbf9f6] flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-[#522C5D] border-t-transparent rounded-full"></div>
+      <div className="min-h-screen bg-[var(--surface-tint)] flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-[var(--border-plum)] border-t-transparent rounded-full"></div>
       </div>
     );
   }
 
   if (error || !fest) {
     return (
-      <div className="min-h-screen bg-[#fbf9f6] flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--surface-tint)] flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-xl font-bold text-[#29104A] mb-2">Fest Not Found</h2>
-          <p className="text-[#6B597F] mb-4">{error || "The fest you're looking for doesn't exist."}</p>
+          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Fest Not Found</h2>
+          <p className="text-[var(--text-muted)] mb-4">{error || "The fest you're looking for doesn't exist."}</p>
           <button
             onClick={() => router.push("/host/dashboard")}
-            className="px-6 py-2 bg-[#522C5D] text-white rounded-lg hover:bg-[#29104A] transition-colors"
+            className="px-6 py-2 bg-[var(--fill-plum)] text-white rounded-lg hover:bg-[var(--fill-ink)] transition-colors"
           >
             Back to Dashboard
           </button>
@@ -360,29 +360,29 @@ export default function EventCreatePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fbf9f6]">
+    <div className="min-h-screen bg-[var(--surface-tint)]">
       {/* HEADER */}
-      <header className="flex items-center justify-between px-6 py-4 border-b bg-white">
+      <header className="flex items-center justify-between px-6 py-4 border-b bg-[var(--surface)]">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push("/host/dashboard")}
-            className="p-2 hover:bg-[#C5BAC4]/20 rounded-lg transition-colors"
+            className="p-2 hover:bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] rounded-lg transition-colors"
           >
-            <svg className="w-5 h-5 text-[#6B597F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-[var(--text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
           <div>
-            <span className="text-xl font-semibold text-[#29104A]">tiqr.events</span>
+            <span className="text-xl font-semibold text-[var(--text-primary)]">tiqr.events</span>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-sm text-[#6B597F]">Creating event for</span>
-              <span className="text-sm font-medium text-[#522C5D] bg-[#522C5D]/10 px-2 py-0.5 rounded">
+              <span className="text-sm text-[var(--text-muted)]">Creating event for</span>
+              <span className="text-sm font-medium text-[var(--text-secondary)] bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] px-2 py-0.5 rounded">
                 {fest.name}
               </span>
             </div>
           </div>
         </div>
-        <button className="rounded-full bg-[#522C5D] px-4 py-2 text-white hover:bg-[#29104A] transition-colors">
+        <button className="rounded-full bg-[var(--fill-plum)] px-4 py-2 text-white hover:bg-[var(--fill-ink)] transition-colors">
           Support
         </button>
       </header>

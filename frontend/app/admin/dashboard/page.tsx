@@ -153,8 +153,8 @@ export default function AdminDashboardPage() {
 
   if (!mounted || !isAuthenticated()) {
     return (
-      <div className="min-h-screen bg-[#fdfdff] flex items-center justify-center">
-        <p className="text-[#6B597F]">Loading...</p>
+      <div className="min-h-screen bg-[var(--surface-tint)] flex items-center justify-center">
+        <p className="text-[var(--text-muted)]">Loading...</p>
       </div>
     );
   }
@@ -164,12 +164,12 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fdfdff] flex flex-col">
+    <div className="min-h-screen bg-[var(--surface-tint)] flex flex-col">
       <Header />
 
       <div className="flex-1 flex">
         {/* Sidebar - fest oriented */}
-        <aside className="w-64 bg-white border-r border-[#C5BAC4] px-6 py-8">
+        <aside className="w-64 bg-[var(--surface)] border-r border-[var(--border-card)] px-6 py-8">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#29104A] to-[#522C5D] flex items-center justify-center">
               <svg aria-hidden="true" className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -177,8 +177,8 @@ export default function AdminDashboardPage() {
               </svg>
             </div>
             <div>
-              <h2 className="text-lg font-bold text-[#29104A]">Admin Panel</h2>
-              <p className="text-xs text-[#6B597F]">
+              <h2 className="text-lg font-bold text-[var(--text-primary)]">Admin Panel</h2>
+              <p className="text-xs text-[var(--text-muted)]">
                 {festName ? `Managing: ${festName}` : managedFestId != null ? `Fest #${managedFestId}` : "No fest assigned"}
               </p>
             </div>
@@ -252,9 +252,9 @@ export default function AdminDashboardPage() {
             />
           </nav>
 
-          <div className="mt-10 pt-6 border-t border-[#C5BAC4]">
-            <p className="text-xs font-medium text-[#6B597F] mb-3">This fest only</p>
-            <p className="text-sm text-[#29104A]">
+          <div className="mt-10 pt-6 border-t border-[var(--border-card)]">
+            <p className="text-xs font-medium text-[var(--text-muted)] mb-3">This fest only</p>
+            <p className="text-sm text-[var(--text-primary)]">
               {managedFestId != null
                 ? <>All sections show data for <strong>{festName || `Fest #${managedFestId}`}</strong> only.</>
                 : "No fest assigned. Contact support to be linked to a fest."}
@@ -263,15 +263,15 @@ export default function AdminDashboardPage() {
         </aside>
 
         <div className="flex-1 flex flex-col">
-          <div className="px-8 py-6 border-b border-[#C5BAC4] bg-white">
-            <h1 className="text-2xl font-bold text-[#29104A]">
+          <div className="px-8 py-6 border-b border-[var(--border-card)] bg-[var(--surface)]">
+            <h1 className="text-2xl font-bold text-[var(--text-primary)]">
               {activeSection === "events" && "Manage Events"}
               {activeSection === "approvals" && "Role Approval Requests"}
               {activeSection === "companies" && "Sponsor Agreements"}
               {activeSection === "expenses" && "Expense Tracking"}
               {activeSection === "createFest" && "Create New Fest"}
             </h1>
-            <p className="text-sm text-[#6B597F] mt-1">
+            <p className="text-sm text-[var(--text-muted)] mt-1">
               {activeSection === "events" && "View and manage all fest events"}
               {activeSection === "approvals" && "Review and approve editor role requests"}
               {activeSection === "companies" && "View sponsor documents and agreements"}
@@ -292,13 +292,13 @@ export default function AdminDashboardPage() {
               <>
                 {/* Fest key + financial overview (income/net alongside spend) */}
                 <div className="mb-8 space-y-4">
-                  <div className="bg-white rounded-2xl border border-[#C5BAC4] p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                      <p className="text-sm text-[#6B597F]">Fest Key (share with students)</p>
-                      <p className="text-2xl font-mono font-bold text-[#29104A] tracking-wide">
+                      <p className="text-sm text-[var(--text-muted)]">Fest Key (share with students)</p>
+                      <p className="text-2xl font-mono font-bold text-[var(--text-primary)] tracking-wide">
                         {festKey ?? "—"}
                       </p>
-                      <p className="text-xs text-[#6B597F] mt-1">
+                      <p className="text-xs text-[var(--text-muted)] mt-1">
                         Students enter this key at signup to join <strong>{festName || "your fest"}</strong>.
                       </p>
                     </div>
@@ -313,37 +313,37 @@ export default function AdminDashboardPage() {
                   </div>
 
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
-                      <p className="text-sm text-[#6B597F]">Income</p>
+                    <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
+                      <p className="text-sm text-[var(--text-muted)]">Income</p>
                       <p className="text-2xl font-bold text-green-600">
                         {formatPaise(analytics?.revenue ?? 0)}
                       </p>
-                      <p className="text-xs text-[#6B597F] mt-1">from completed bookings</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">from completed bookings</p>
                     </div>
-                    <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
-                      <p className="text-sm text-[#6B597F]">Spend</p>
+                    <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
+                      <p className="text-sm text-[var(--text-muted)]">Spend</p>
                       <p className="text-2xl font-bold text-red-600">
                         {formatPaise(totalSpend ?? 0)}
                       </p>
-                      <p className="text-xs text-[#6B597F] mt-1">fest-wide expenses</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">fest-wide expenses</p>
                     </div>
-                    <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
-                      <p className="text-sm text-[#6B597F]">Net Balance</p>
+                    <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
+                      <p className="text-sm text-[var(--text-muted)]">Net Balance</p>
                       <p className={`text-2xl font-bold ${(netBalance ?? 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
                         {netBalance == null ? "—" : `${netBalance >= 0 ? "+" : ""}${formatPaise(netBalance)}`}
                       </p>
-                      <p className="text-xs text-[#6B597F] mt-1">income − spend</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">income − spend</p>
                     </div>
-                    <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
-                      <p className="text-sm text-[#6B597F]">Tickets / Events / Bookings</p>
-                      <p className="text-2xl font-bold text-[#29104A]">
+                    <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
+                      <p className="text-sm text-[var(--text-muted)]">Tickets / Events / Bookings</p>
+                      <p className="text-2xl font-bold text-[var(--text-primary)]">
                         {(analytics?.ticketsSold ?? 0).toLocaleString()}
                         <span className="text-[#C5BAC4] text-lg"> · </span>
                         {analytics?.eventsCount ?? 0}
                         <span className="text-[#C5BAC4] text-lg"> · </span>
                         {analytics?.bookingsCount ?? 0}
                       </p>
-                      <p className="text-xs text-[#6B597F] mt-1">sold · events · bookings</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">sold · events · bookings</p>
                     </div>
                   </div>
                 </div>
@@ -382,7 +382,7 @@ function SidebarItem({
         ${
           active
             ? "bg-gradient-to-r from-[#29104A] to-[#522C5D] text-white shadow-lg"
-            : "text-[#6B597F] hover:bg-[#C5BAC4]/30 hover:text-[#29104A]"
+            : "text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] hover:text-[var(--text-primary)]"
         }`}
     >
       {icon}

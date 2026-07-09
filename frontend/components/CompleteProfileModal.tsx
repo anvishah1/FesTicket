@@ -125,14 +125,14 @@ export default function CompleteProfileModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="complete-profile-title"
-        className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden"
+        className="w-full max-w-2xl bg-[var(--surface)] rounded-2xl shadow-xl overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h2
             id="complete-profile-title"
             className="text-lg font-semibold"
-            style={{ color: "#522C5D" }}
+            style={{ color: "var(--text-secondary)" }}
           >
             Basic Profile
           </h2>
@@ -141,7 +141,7 @@ export default function CompleteProfileModal({
               type="button"
               aria-label="Close"
               onClick={requestClose}
-              className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              className="text-[var(--text-faint)] hover:text-[var(--text-slate)] text-xl leading-none"
             >
               &times;
             </button>
@@ -204,7 +204,7 @@ export default function CompleteProfileModal({
             <button
               type="button"
               onClick={requestClose}
-              className="px-6 py-3 rounded-lg font-medium text-gray-600 hover:bg-gray-100 transition"
+              className="px-6 py-3 rounded-lg font-medium text-[var(--text-slate)] hover:bg-[var(--surface-slate)] transition"
             >
               Maybe later
             </button>
@@ -215,7 +215,7 @@ export default function CompleteProfileModal({
             className={`px-6 py-3 rounded-lg font-medium transition ${
               allFilled
                 ? "bg-purple-600 text-white hover:bg-purple-700"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-gray-300 text-[var(--text-soft)] cursor-not-allowed"
             }`}
           >
             {loading ? "Saving..." : "Update & Continue"}

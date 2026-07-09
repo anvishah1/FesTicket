@@ -86,13 +86,13 @@ function MagicInner() {
 
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-[var(--bg)]">
-      <div className="max-w-md w-full rounded-xl bg-white border shadow-sm p-8 text-center">
+      <div className="max-w-md w-full rounded-xl bg-[var(--surface)] border shadow-sm p-8 text-center">
         {state === "verifying" ? (
-          <p className="text-slate-500">Signing you in…</p>
+          <p className="text-[var(--text-soft)]">Signing you in…</p>
         ) : state === "twofactor" ? (
           <form onSubmit={verify2FA} className="space-y-3 text-left" data-testid="magic-2fa">
             <h1 className="text-xl font-bold text-center">Two-factor authentication</h1>
-            <p className="text-sm text-slate-500 text-center">
+            <p className="text-sm text-[var(--text-soft)] text-center">
               {useBackup ? "Enter one of your backup codes." : "Enter the 6-digit code from your authenticator app."}
             </p>
             <input
@@ -107,7 +107,7 @@ function MagicInner() {
             <button
               type="submit"
               disabled={!code.trim() || busy}
-              className="w-full px-4 py-2.5 rounded-md bg-primary-600 hover:bg-primary-700 text-white font-semibold disabled:opacity-50"
+              className="w-full px-4 py-2.5 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white font-semibold disabled:opacity-50"
             >
               {busy ? "Verifying…" : "Verify"}
             </button>
@@ -117,7 +117,7 @@ function MagicInner() {
                 setUseBackup((b) => !b);
                 setCode("");
               }}
-              className="w-full text-sm text-primary-700 hover:underline"
+              className="w-full text-sm text-[var(--text-primary)] hover:underline"
             >
               {useBackup ? "Use your authenticator app instead" : "Use a backup code instead"}
             </button>
@@ -125,12 +125,12 @@ function MagicInner() {
         ) : (
           <>
             <h1 className="text-xl font-bold">This link didn&apos;t work</h1>
-            <p className="text-slate-600 mt-2">
+            <p className="text-[var(--text-slate)] mt-2">
               It may have expired or already been used. Request a fresh sign-in link from the sign-in page.
             </p>
             <Link
               href="/signin"
-              className="inline-block mt-5 px-5 py-2.5 rounded-md bg-primary-600 hover:bg-primary-700 text-white font-semibold"
+              className="inline-block mt-5 px-5 py-2.5 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white font-semibold"
             >
               Back to sign in
             </Link>

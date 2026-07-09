@@ -736,12 +736,12 @@ export default function ManageEventPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#fdfdff]">
+      <main className="min-h-screen bg-[var(--surface-tint)]">
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-[#C5BAC4] rounded w-48"></div>
-            <div className="h-64 bg-[#C5BAC4] rounded-xl"></div>
-            <div className="h-96 bg-[#C5BAC4] rounded-xl"></div>
+            <div className="h-8 bg-[var(--surface-card)] rounded w-48"></div>
+            <div className="h-64 bg-[var(--surface-card)] rounded-xl"></div>
+            <div className="h-96 bg-[var(--surface-card)] rounded-xl"></div>
           </div>
         </div>
       </main>
@@ -750,15 +750,15 @@ export default function ManageEventPage() {
 
   if (accessDenied) {
     return (
-      <main className="min-h-screen bg-[#fdfdff] text-[#29104A] flex items-center justify-center">
+      <main className="min-h-screen bg-[var(--surface-tint)] text-[var(--text-primary)] flex items-center justify-center">
         <div className="text-center max-w-md px-6">
-          <h2 className="text-xl font-bold text-[#29104A] mb-2">Access denied</h2>
-          <p className="text-[#6B597F]">
+          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Access denied</h2>
+          <p className="text-[var(--text-muted)]">
             You don&apos;t have permission to manage this event. Only the event&apos;s host can.
           </p>
           <button
             onClick={() => router.push(isAdmin ? "/admin/dashboard" : "/host/dashboard")}
-            className="mt-4 text-[#522C5D] hover:text-[#29104A]"
+            className="mt-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
             ← Back to Dashboard
           </button>
@@ -769,12 +769,12 @@ export default function ManageEventPage() {
 
   if (!event) {
     return (
-      <main className="min-h-screen bg-[#fdfdff] text-[#29104A] flex items-center justify-center">
+      <main className="min-h-screen bg-[var(--surface-tint)] text-[var(--text-primary)] flex items-center justify-center">
         <div className="text-center">
-          <p className="text-[#6B597F] text-lg">Event not found</p>
+          <p className="text-[var(--text-muted)] text-lg">Event not found</p>
           <button
             onClick={() => router.push("/host/dashboard")}
-            className="mt-4 text-[#522C5D] hover:text-[#29104A]"
+            className="mt-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
             ← Back to Dashboard
           </button>
@@ -794,9 +794,9 @@ export default function ManageEventPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[#fdfdff] text-[#29104A]">
+    <main className="min-h-screen bg-[var(--surface-tint)] text-[var(--text-primary)]">
       {/* Header */}
-      <header className="border-b border-[#C5BAC4] bg-gradient-to-r from-[#29104A] via-[#3D1B5C] to-[#1A4B6E] backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b border-[var(--border-card)] bg-gradient-to-r from-[#29104A] via-[#3D1B5C] to-[#1A4B6E] backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             {!isAdmin && (
@@ -849,7 +849,7 @@ export default function ManageEventPage() {
         <div className="max-w-7xl mx-auto px-6 pt-6">
           <button
             onClick={() => router.push("/admin/dashboard")}
-            className="flex items-center gap-2 rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm font-medium text-[#29104A] hover:bg-[#F5F1F8] transition"
+            className="flex items-center gap-2 rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-tint)] transition"
           >
             <svg
               className="w-4 h-4"
@@ -872,7 +872,7 @@ export default function ManageEventPage() {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Event Header Card */}
-        <div className="bg-white rounded-2xl border border-[#C5BAC4] overflow-hidden mb-8 shadow-sm">
+        <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] overflow-hidden mb-8 shadow-sm">
           <div className="flex flex-col lg:flex-row">
             {/* Event Image */}
             <div className="lg:w-80 h-48 lg:h-auto flex-shrink-0">
@@ -892,19 +892,19 @@ export default function ManageEventPage() {
                       aria-label="Event name"
                       value={editForm.name}
                       onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                      className="text-2xl font-bold bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 w-full text-[#29104A]"
+                      className="text-2xl font-bold bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] border border-[var(--border-card)] rounded-lg px-3 py-1 w-full text-[var(--text-primary)]"
                     />
                   ) : (
-                    <h2 className="text-2xl font-bold text-[#29104A]">{event.name}</h2>
+                    <h2 className="text-2xl font-bold text-[var(--text-primary)]">{event.name}</h2>
                   )}
-                  <p className="text-[#6B597F] mt-1">{event.category}</p>
+                  <p className="text-[var(--text-muted)] mt-1">{event.category}</p>
                 </div>
                 <button
                   onClick={() => isEditing ? handleSaveChanges() : setIsEditing(true)}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
                     isEditing
-                      ? "bg-[#522C5D] hover:bg-[#29104A] text-white"
-                      : "bg-[#C5BAC4]/30 hover:bg-[#C5BAC4] text-[#29104A]"
+                      ? "bg-[var(--fill-plum)] hover:bg-[var(--fill-ink)] text-white"
+                      : "bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] hover:bg-[var(--surface-card)] text-[var(--text-primary)]"
                   }`}
                 >
                   {isEditing ? (
@@ -928,8 +928,8 @@ export default function ManageEventPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[#C5BAC4]/30 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-8 h-8 rounded-lg bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] flex items-center justify-center">
+                      <svg className="w-4 h-4 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
                     </div>
@@ -939,15 +939,15 @@ export default function ManageEventPage() {
                         aria-label="Event date"
                         value={editForm.date}
                         onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
-                        className="bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 text-sm flex-1 text-[#29104A]"
+                        className="bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] border border-[var(--border-card)] rounded-lg px-3 py-1 text-sm flex-1 text-[var(--text-primary)]"
                       />
                     ) : (
-                      <span className="text-[#29104A]">{event.date}</span>
+                      <span className="text-[var(--text-primary)]">{event.date}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[#C5BAC4]/30 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-8 h-8 rounded-lg bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] flex items-center justify-center">
+                      <svg className="w-4 h-4 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
@@ -957,17 +957,17 @@ export default function ManageEventPage() {
                         aria-label="Event time"
                         value={editForm.time}
                         onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
-                        className="bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 text-sm flex-1 text-[#29104A]"
+                        className="bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] border border-[var(--border-card)] rounded-lg px-3 py-1 text-sm flex-1 text-[var(--text-primary)]"
                       />
                     ) : (
-                      <span className="text-[#29104A]">{event.time}</span>
+                      <span className="text-[var(--text-primary)]">{event.time}</span>
                     )}
                   </div>
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[#C5BAC4]/30 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-8 h-8 rounded-lg bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] flex items-center justify-center">
+                      <svg className="w-4 h-4 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
@@ -978,15 +978,15 @@ export default function ManageEventPage() {
                         aria-label="Venue"
                         value={editForm.venue}
                         onChange={(e) => setEditForm({ ...editForm, venue: e.target.value })}
-                        className="bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 text-sm flex-1 text-[#29104A]"
+                        className="bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] border border-[var(--border-card)] rounded-lg px-3 py-1 text-sm flex-1 text-[var(--text-primary)]"
                       />
                     ) : (
-                      <span className="text-[#29104A]">{event.venue}</span>
+                      <span className="text-[var(--text-primary)]">{event.venue}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[#C5BAC4]/30 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-[#522C5D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-8 h-8 rounded-lg bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] flex items-center justify-center">
+                      <svg className="w-4 h-4 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                       </svg>
                     </div>
@@ -996,10 +996,10 @@ export default function ManageEventPage() {
                         aria-label="Category"
                         value={editForm.category}
                         onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                        className="bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-1 text-sm flex-1 text-[#29104A]"
+                        className="bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] border border-[var(--border-card)] rounded-lg px-3 py-1 text-sm flex-1 text-[var(--text-primary)]"
                       />
                     ) : (
-                      <span className="text-[#29104A]">{event.category}</span>
+                      <span className="text-[var(--text-primary)]">{event.category}</span>
                     )}
                   </div>
                 </div>
@@ -1007,21 +1007,21 @@ export default function ManageEventPage() {
 
               {isEditing && (
                 <div className="mt-4">
-                  <label htmlFor="event-description" className="text-sm text-[#6B597F] mb-1 block">Description</label>
+                  <label htmlFor="event-description" className="text-sm text-[var(--text-muted)] mb-1 block">Description</label>
                   <textarea
                     id="event-description"
                     value={editForm.description}
                     onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                    className="w-full bg-[#C5BAC4]/20 border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm resize-none h-20 text-[#29104A]"
+                    className="w-full bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm resize-none h-20 text-[var(--text-primary)]"
                   />
                 </div>
               )}
 
               {/* Lifecycle actions: publish / unpublish / cancel / delete */}
-              <div className="mt-5 pt-5 border-t border-[#C5BAC4] flex flex-wrap items-center gap-3">
-                <span className="text-sm text-[#6B597F]">
+              <div className="mt-5 pt-5 border-t border-[var(--border-card)] flex flex-wrap items-center gap-3">
+                <span className="text-sm text-[var(--text-muted)]">
                   Status:{" "}
-                  <span className="font-semibold text-[#29104A]">
+                  <span className="font-semibold text-[var(--text-primary)]">
                     {statusLabel(event.storedStatus)}
                   </span>
                 </span>
@@ -1046,7 +1046,7 @@ export default function ManageEventPage() {
                   <button
                     type="button"
                     onClick={() => handleStatusChange("CANCELLED")}
-                    className="px-4 py-2 rounded-lg text-sm font-medium bg-[#C5BAC4]/40 text-[#29104A] hover:bg-[#C5BAC4] transition-colors"
+                    className="px-4 py-2 rounded-lg text-sm font-medium bg-[color-mix(in_srgb,var(--surface-card)_40%,transparent)] text-[var(--text-primary)] hover:bg-[var(--surface-card)] transition-colors"
                   >
                     Cancel Event
                   </button>
@@ -1065,21 +1065,21 @@ export default function ManageEventPage() {
 
         {/* Stats Summary */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl border border-[#C5BAC4] p-5 shadow-sm">
-            <p className="text-[#6B597F] text-sm mb-1">Total Revenue</p>
-            <p className="text-2xl font-bold text-[#29104A]">{formatPaise(event.totalRevenue)}</p>
+          <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-5 shadow-sm">
+            <p className="text-[var(--text-muted)] text-sm mb-1">Total Revenue</p>
+            <p className="text-2xl font-bold text-[var(--text-primary)]">{formatPaise(event.totalRevenue)}</p>
           </div>
-          <div className="bg-white rounded-xl border border-[#C5BAC4] p-5 shadow-sm">
-            <p className="text-[#6B597F] text-sm mb-1">Tickets Sold</p>
-            <p className="text-2xl font-bold text-[#522C5D]">{getTotalTicketsSold()} / {getTotalTickets()}</p>
+          <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-5 shadow-sm">
+            <p className="text-[var(--text-muted)] text-sm mb-1">Tickets Sold</p>
+            <p className="text-2xl font-bold text-[var(--text-secondary)]">{getTotalTicketsSold()} / {getTotalTickets()}</p>
           </div>
-          <div className="bg-white rounded-xl border border-[#C5BAC4] p-5 shadow-sm">
-            <p className="text-[#6B597F] text-sm mb-1">Discount Active</p>
-            <p className="text-2xl font-bold text-[#522C5D]">{event.discount > 0 ? `${event.discount}%` : "None"}</p>
+          <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-5 shadow-sm">
+            <p className="text-[var(--text-muted)] text-sm mb-1">Discount Active</p>
+            <p className="text-2xl font-bold text-[var(--text-secondary)]">{event.discount > 0 ? `${event.discount}%` : "None"}</p>
           </div>
-          <div className="bg-white rounded-xl border border-[#C5BAC4] p-5 shadow-sm">
-            <p className="text-[#6B597F] text-sm mb-1">Total Buyers</p>
-            <p className="text-2xl font-bold text-[#29104A]">{event.buyers.length}</p>
+          <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-5 shadow-sm">
+            <p className="text-[var(--text-muted)] text-sm mb-1">Total Buyers</p>
+            <p className="text-2xl font-bold text-[var(--text-primary)]">{event.buyers.length}</p>
           </div>
         </div>
 
@@ -1089,8 +1089,8 @@ export default function ManageEventPage() {
             onClick={() => setActiveTab("overview")}
             className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
               activeTab === "overview"
-                ? "bg-[#522C5D] text-white"
-                : "bg-[#C5BAC4]/30 text-[#6B597F] hover:bg-[#C5BAC4]"
+                ? "bg-[var(--fill-plum)] text-white"
+                : "bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] text-[var(--text-muted)] hover:bg-[var(--surface-card)]"
             }`}
           >
             Overview & Sales
@@ -1099,8 +1099,8 @@ export default function ManageEventPage() {
             onClick={() => setActiveTab("buyers")}
             className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
               activeTab === "buyers"
-                ? "bg-[#522C5D] text-white"
-                : "bg-[#C5BAC4]/30 text-[#6B597F] hover:bg-[#C5BAC4]"
+                ? "bg-[var(--fill-plum)] text-white"
+                : "bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] text-[var(--text-muted)] hover:bg-[var(--surface-card)]"
             }`}
           >
             Ticket Buyers
@@ -1109,8 +1109,8 @@ export default function ManageEventPage() {
             onClick={() => setActiveTab("promos")}
             className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
               activeTab === "promos"
-                ? "bg-[#522C5D] text-white"
-                : "bg-[#C5BAC4]/30 text-[#6B597F] hover:bg-[#C5BAC4]"
+                ? "bg-[var(--fill-plum)] text-white"
+                : "bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] text-[var(--text-muted)] hover:bg-[var(--surface-card)]"
             }`}
           >
             Promo Codes
@@ -1119,8 +1119,8 @@ export default function ManageEventPage() {
             onClick={() => setActiveTab("checkin")}
             className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
               activeTab === "checkin"
-                ? "bg-[#522C5D] text-white"
-                : "bg-[#C5BAC4]/30 text-[#6B597F] hover:bg-[#C5BAC4]"
+                ? "bg-[var(--fill-plum)] text-white"
+                : "bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] text-[var(--text-muted)] hover:bg-[var(--surface-card)]"
             }`}
           >
             Check-in
@@ -1130,17 +1130,17 @@ export default function ManageEventPage() {
         {activeTab === "overview" && (
           <>
             {/* Sales Graph */}
-            <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 mb-8 shadow-sm">
-              <h3 className="text-lg font-bold mb-6 text-[#29104A]">Tickets Sold Over Time</h3>
+            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-6 mb-8 shadow-sm">
+              <h3 className="text-lg font-bold mb-6 text-[var(--text-primary)]">Tickets Sold Over Time</h3>
 
               {event.salesData.length === 0 ? (
-                <div className="flex items-center justify-center h-64 border border-[#C5BAC4] rounded-lg bg-[#C5BAC4]/5">
-                  <p className="text-[#6B597F]">No sales yet. Completed payments will appear here.</p>
+                <div className="flex items-center justify-center h-64 border border-[var(--border-card)] rounded-lg bg-[color-mix(in_srgb,var(--surface-card)_5%,transparent)]">
+                  <p className="text-[var(--text-muted)]">No sales yet. Completed payments will appear here.</p>
                 </div>
               ) : (
                 <div className="relative h-64">
                   {/* Y-axis labels */}
-                  <div className="absolute left-0 top-0 bottom-8 w-12 flex flex-col justify-between text-xs text-[#6B597F]">
+                  <div className="absolute left-0 top-0 bottom-8 w-12 flex flex-col justify-between text-xs text-[var(--text-muted)]">
                     <span>{maxTickets}</span>
                     <span>{Math.round(maxTickets * 0.75)}</span>
                     <span>{Math.round(maxTickets * 0.5)}</span>
@@ -1149,7 +1149,7 @@ export default function ManageEventPage() {
                   </div>
 
                   {/* Chart Area */}
-                  <div className="ml-14 h-full flex items-end gap-2 pb-8 border-l border-b border-[#C5BAC4]">
+                  <div className="ml-14 h-full flex items-end gap-2 pb-8 border-l border-b border-[var(--border-card)]">
                     {event.salesData.map((data, index) => (
                       <div key={index} className="flex-1 flex flex-col items-center group">
                         <div className="relative w-full flex justify-center">
@@ -1169,7 +1169,7 @@ export default function ManageEventPage() {
                   {/* X-axis labels */}
                   <div className="ml-14 flex gap-2 mt-2">
                     {event.salesData.map((data, index) => (
-                      <div key={index} className="flex-1 text-center text-xs text-[#6B597F]">
+                      <div key={index} className="flex-1 text-center text-xs text-[var(--text-muted)]">
                         {data.date}
                       </div>
                     ))}
@@ -1179,44 +1179,44 @@ export default function ManageEventPage() {
             </div>
 
             {/* Ticket Types Breakdown */}
-            <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 shadow-sm">
-              <h3 className="text-lg font-bold mb-6 text-[#29104A]">Ticket Types Breakdown</h3>
+            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-6 shadow-sm">
+              <h3 className="text-lg font-bold mb-6 text-[var(--text-primary)]">Ticket Types Breakdown</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {event.ticketTypes.map((ticket) => (
-                  <div key={ticket.id} className="bg-[#C5BAC4]/20 rounded-xl p-5">
+                  <div key={ticket.id} className="bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] rounded-xl p-5">
                     {editingTicketId === ticket.id ? (
                       <div className="space-y-3">
                         <div>
-                          <label className="text-xs text-[#6B597F] block mb-1">Name</label>
+                          <label className="text-xs text-[var(--text-muted)] block mb-1">Name</label>
                           <input
                             type="text"
                             aria-label="Ticket name"
                             value={ticketDraft.name}
                             onChange={(e) => setTicketDraft({ ...ticketDraft, name: e.target.value })}
-                            className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-1.5 text-sm text-[#29104A]"
+                            className="w-full bg-[var(--surface)] border border-[var(--border-card)] rounded-lg px-3 py-1.5 text-sm text-[var(--text-primary)]"
                           />
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <label className="text-xs text-[#6B597F] block mb-1">Price (₹)</label>
+                            <label className="text-xs text-[var(--text-muted)] block mb-1">Price (₹)</label>
                             <input
                               type="number"
                               min="0"
                               aria-label="Ticket price"
                               value={ticketDraft.price}
                               onChange={(e) => setTicketDraft({ ...ticketDraft, price: e.target.value })}
-                              className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-1.5 text-sm text-[#29104A]"
+                              className="w-full bg-[var(--surface)] border border-[var(--border-card)] rounded-lg px-3 py-1.5 text-sm text-[var(--text-primary)]"
                             />
                           </div>
                           <div>
-                            <label className="text-xs text-[#6B597F] block mb-1">Quantity</label>
+                            <label className="text-xs text-[var(--text-muted)] block mb-1">Quantity</label>
                             <input
                               type="number"
                               min="0"
                               aria-label="Ticket quantity"
                               value={ticketDraft.total}
                               onChange={(e) => setTicketDraft({ ...ticketDraft, total: e.target.value })}
-                              className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-1.5 text-sm text-[#29104A]"
+                              className="w-full bg-[var(--surface)] border border-[var(--border-card)] rounded-lg px-3 py-1.5 text-sm text-[var(--text-primary)]"
                             />
                           </div>
                         </div>
@@ -1224,14 +1224,14 @@ export default function ManageEventPage() {
                           <button
                             type="button"
                             onClick={() => handleSaveTicket(ticket)}
-                            className="flex-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#522C5D] text-white hover:bg-[#29104A]"
+                            className="flex-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-[var(--fill-plum)] text-white hover:bg-[var(--fill-ink)]"
                           >
                             Save
                           </button>
                           <button
                             type="button"
                             onClick={() => setEditingTicketId(null)}
-                            className="flex-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-[#C5BAC4] text-[#6B597F] hover:bg-[#C5BAC4]/20"
+                            className="flex-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-[var(--surface)] border border-[var(--border-card)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)]"
                           >
                             Cancel
                           </button>
@@ -1240,15 +1240,15 @@ export default function ManageEventPage() {
                     ) : (
                       <>
                         <div className="flex items-center justify-between mb-3">
-                          <span className="font-semibold text-[#29104A]">{ticket.name}</span>
+                          <span className="font-semibold text-[var(--text-primary)]">{ticket.name}</span>
                           <div className="flex items-center gap-2">
-                            <span className="text-[#522C5D] font-bold">{formatPaise(ticket.price)}</span>
+                            <span className="text-[var(--text-secondary)] font-bold">{formatPaise(ticket.price)}</span>
                             <button
                               type="button"
                               onClick={() => startEditTicket(ticket)}
                               aria-label={`Edit ticket type ${ticket.name}`}
                               title="Edit ticket type"
-                              className="p-1 rounded hover:bg-[#C5BAC4]/40 text-[#522C5D]"
+                              className="p-1 rounded hover:bg-[color-mix(in_srgb,var(--surface-card)_40%,transparent)] text-[var(--text-secondary)]"
                             >
                               <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -1258,18 +1258,18 @@ export default function ManageEventPage() {
                         </div>
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
-                            <span className="text-[#6B597F]">Sold</span>
-                            <span className="text-[#29104A]">{ticket.sold} / {ticket.total}</span>
+                            <span className="text-[var(--text-muted)]">Sold</span>
+                            <span className="text-[var(--text-primary)]">{ticket.sold} / {ticket.total}</span>
                           </div>
-                          <div className="w-full h-2 bg-[#C5BAC4] rounded-full overflow-hidden">
+                          <div className="w-full h-2 bg-[var(--surface-card)] rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-[#522C5D] rounded-full"
+                              className="h-full bg-[var(--fill-plum)] rounded-full"
                               style={{ width: `${ticket.total ? (ticket.sold / ticket.total) * 100 : 0}%` }}
                             />
                           </div>
                           <div className="flex justify-between text-sm">
-                            <span className="text-[#6B597F]">Revenue</span>
-                            <span className="text-[#29104A] font-medium">
+                            <span className="text-[var(--text-muted)]">Revenue</span>
+                            <span className="text-[var(--text-primary)] font-medium">
                               {formatPaise(ticket.sold * ticket.price * (1 - event.discount / 100))}
                             </span>
                           </div>
@@ -1284,13 +1284,13 @@ export default function ManageEventPage() {
         )}
 
         {activeTab === "buyers" && (
-          <div className="bg-white rounded-2xl border border-[#C5BAC4] overflow-hidden shadow-sm">
-            <div className="px-6 py-5 border-b border-[#C5BAC4] flex items-center justify-between">
-              <h3 className="text-lg font-bold text-[#29104A]">Ticket Buyers ({event.buyers.length})</h3>
+          <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] overflow-hidden shadow-sm">
+            <div className="px-6 py-5 border-b border-[var(--border-card)] flex items-center justify-between">
+              <h3 className="text-lg font-bold text-[var(--text-primary)]">Ticket Buyers ({event.buyers.length})</h3>
               <button
                 type="button"
                 onClick={handleExportExcel}
-                className="px-4 py-2 bg-[#C5BAC4]/30 hover:bg-[#C5BAC4] rounded-lg text-sm font-medium transition-colors flex items-center gap-2 text-[#29104A]"
+                className="px-4 py-2 bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] hover:bg-[var(--surface-card)] rounded-lg text-sm font-medium transition-colors flex items-center gap-2 text-[var(--text-primary)]"
               >
                 <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1304,54 +1304,54 @@ export default function ManageEventPage() {
                 <svg aria-hidden="true" className="w-12 h-12 text-[#C5BAC4] mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4z" />
                 </svg>
-                <p className="text-[#6B597F]">No ticket buyers yet.</p>
-                <p className="text-sm text-[#6B597F] mt-1">Completed bookings will appear here.</p>
+                <p className="text-[var(--text-muted)]">No ticket buyers yet.</p>
+                <p className="text-sm text-[var(--text-muted)] mt-1">Completed bookings will appear here.</p>
               </div>
             ) : (
             <>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-[#C5BAC4]/20">
-                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Booking ID</th>
-                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Buyer</th>
-                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Contact</th>
-                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Ticket Type</th>
-                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Qty</th>
-                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Amount Paid</th>
-                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Date</th>
-                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Status</th>
+                  <tr className="bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)]">
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Booking ID</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Buyer</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Contact</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Ticket Type</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Qty</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Amount Paid</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Date</th>
+                    <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#C5BAC4]">
                   {pagedBuyers.map((buyer) => (
-                    <tr key={buyer.id} className="hover:bg-[#C5BAC4]/10 transition-colors">
+                    <tr key={buyer.id} className="hover:bg-[color-mix(in_srgb,var(--surface-card)_10%,transparent)] transition-colors">
                       <td className="px-6 py-4">
-                        <span className="font-mono text-sm text-[#522C5D]">{buyer.bookingId}</span>
+                        <span className="font-mono text-sm text-[var(--text-secondary)]">{buyer.bookingId}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="font-medium text-[#29104A]">{buyer.name}</p>
+                        <p className="font-medium text-[var(--text-primary)]">{buyer.name}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm text-[#29104A]">{buyer.email}</p>
-                        <p className="text-xs text-[#6B597F]">{buyer.phone}</p>
+                        <p className="text-sm text-[var(--text-primary)]">{buyer.email}</p>
+                        <p className="text-xs text-[var(--text-muted)]">{buyer.phone}</p>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           buyer.ticketType === "VVIP"
-                            ? "bg-[#29104A]/10 text-[#29104A]"
+                            ? "bg-[color-mix(in_srgb,var(--fill-ink)_10%,transparent)] text-[var(--text-primary)]"
                             : buyer.ticketType === "VIP"
-                            ? "bg-[#522C5D]/10 text-[#522C5D]"
-                            : "bg-[#C5BAC4]/30 text-[#6B597F]"
+                            ? "bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] text-[var(--text-secondary)]"
+                            : "bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] text-[var(--text-muted)]"
                         }`}>
                           {buyer.ticketType}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-[#29104A]">{buyer.quantity}</td>
+                      <td className="px-6 py-4 text-[var(--text-primary)]">{buyer.quantity}</td>
                       <td className="px-6 py-4">
-                        <span className="text-[#29104A] font-bold">{formatPaise(buyer.amountPaid)}</span>
+                        <span className="text-[var(--text-primary)] font-bold">{formatPaise(buyer.amountPaid)}</span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-[#6B597F]">{buyer.purchaseDate}</td>
+                      <td className="px-6 py-4 text-sm text-[var(--text-muted)]">{buyer.purchaseDate}</td>
                       <td className="px-6 py-4">
                         {buyer.status === "REFUNDED" ? (
                           <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700">
@@ -1366,7 +1366,7 @@ export default function ManageEventPage() {
                           <button
                             type="button"
                             onClick={() => openRefund(buyer)}
-                            className="mt-1 block px-3 py-1 rounded-lg text-xs font-medium bg-[#C5BAC4]/30 text-[#29104A] hover:bg-[#C5BAC4] transition-colors"
+                            className="mt-1 block px-3 py-1 rounded-lg text-xs font-medium bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] text-[var(--text-primary)] hover:bg-[var(--surface-card)] transition-colors"
                           >
                             Refund
                           </button>
@@ -1378,8 +1378,8 @@ export default function ManageEventPage() {
               </table>
             </div>
             {buyersTotalPages > 1 && (
-              <div className="px-6 py-4 border-t border-[#C5BAC4] flex items-center justify-between text-sm">
-                <span className="text-[#6B597F]">
+              <div className="px-6 py-4 border-t border-[var(--border-card)] flex items-center justify-between text-sm">
+                <span className="text-[var(--text-muted)]">
                   Page {safeBuyersPage} of {buyersTotalPages} · {event.buyers.length} buyers
                 </span>
                 <div className="flex gap-2">
@@ -1387,7 +1387,7 @@ export default function ManageEventPage() {
                     type="button"
                     disabled={safeBuyersPage <= 1}
                     onClick={() => setBuyersPage((p) => Math.max(1, p - 1))}
-                    className="px-3 py-1.5 rounded-lg bg-[#C5BAC4]/30 text-[#29104A] disabled:opacity-40 hover:bg-[#C5BAC4] transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] text-[var(--text-primary)] disabled:opacity-40 hover:bg-[var(--surface-card)] transition-colors"
                   >
                     Previous
                   </button>
@@ -1395,7 +1395,7 @@ export default function ManageEventPage() {
                     type="button"
                     disabled={safeBuyersPage >= buyersTotalPages}
                     onClick={() => setBuyersPage((p) => Math.min(buyersTotalPages, p + 1))}
-                    className="px-3 py-1.5 rounded-lg bg-[#C5BAC4]/30 text-[#29104A] disabled:opacity-40 hover:bg-[#C5BAC4] transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] text-[var(--text-primary)] disabled:opacity-40 hover:bg-[var(--surface-card)] transition-colors"
                   >
                     Next
                   </button>
@@ -1410,11 +1410,11 @@ export default function ManageEventPage() {
         {activeTab === "promos" && (
           <div className="space-y-8">
             {/* Create promo form */}
-            <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 shadow-sm">
-              <h3 className="text-lg font-bold mb-6 text-[#29104A]">Create Promo Code</h3>
+            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-6 shadow-sm">
+              <h3 className="text-lg font-bold mb-6 text-[var(--text-primary)]">Create Promo Code</h3>
               <form onSubmit={handleCreatePromo} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="promo-code" className="text-xs text-[#6B597F] block mb-1">Code</label>
+                  <label htmlFor="promo-code" className="text-xs text-[var(--text-muted)] block mb-1">Code</label>
                   <input
                     id="promo-code"
                     type="text"
@@ -1422,11 +1422,11 @@ export default function ManageEventPage() {
                     value={promoForm.code}
                     onChange={(e) => setPromoForm({ ...promoForm, code: e.target.value })}
                     placeholder="SAVE20"
-                    className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm text-[#29104A]"
+                    className="w-full bg-[var(--surface)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]"
                   />
                 </div>
                 <div>
-                  <label htmlFor="promo-kind" className="text-xs text-[#6B597F] block mb-1">Type</label>
+                  <label htmlFor="promo-kind" className="text-xs text-[var(--text-muted)] block mb-1">Type</label>
                   <select
                     id="promo-kind"
                     aria-label="Promo type"
@@ -1434,14 +1434,14 @@ export default function ManageEventPage() {
                     onChange={(e) =>
                       setPromoForm({ ...promoForm, kind: e.target.value as "PERCENT" | "FLAT" })
                     }
-                    className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm text-[#29104A]"
+                    className="w-full bg-[var(--surface)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]"
                   >
                     <option value="PERCENT">Percentage (%)</option>
                     <option value="FLAT">Flat amount (₹)</option>
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="promo-value" className="text-xs text-[#6B597F] block mb-1">
+                  <label htmlFor="promo-value" className="text-xs text-[var(--text-muted)] block mb-1">
                     {promoForm.kind === "PERCENT" ? "Percent off (%)" : "Amount off (₹)"}
                   </label>
                   <input
@@ -1451,11 +1451,11 @@ export default function ManageEventPage() {
                     aria-label={promoForm.kind === "PERCENT" ? "Percent off" : "Amount off in rupees"}
                     value={promoForm.value}
                     onChange={(e) => setPromoForm({ ...promoForm, value: e.target.value })}
-                    className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm text-[#29104A]"
+                    className="w-full bg-[var(--surface)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]"
                   />
                 </div>
                 <div>
-                  <label htmlFor="promo-max" className="text-xs text-[#6B597F] block mb-1">Max redemptions (optional)</label>
+                  <label htmlFor="promo-max" className="text-xs text-[var(--text-muted)] block mb-1">Max redemptions (optional)</label>
                   <input
                     id="promo-max"
                     type="number"
@@ -1463,25 +1463,25 @@ export default function ManageEventPage() {
                     aria-label="Max redemptions"
                     value={promoForm.maxRedemptions}
                     onChange={(e) => setPromoForm({ ...promoForm, maxRedemptions: e.target.value })}
-                    className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm text-[#29104A]"
+                    className="w-full bg-[var(--surface)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]"
                   />
                 </div>
                 <div>
-                  <label htmlFor="promo-expiry" className="text-xs text-[#6B597F] block mb-1">Expiry (optional)</label>
+                  <label htmlFor="promo-expiry" className="text-xs text-[var(--text-muted)] block mb-1">Expiry (optional)</label>
                   <input
                     id="promo-expiry"
                     type="date"
                     aria-label="Promo expiry date"
                     value={promoForm.expiresAt}
                     onChange={(e) => setPromoForm({ ...promoForm, expiresAt: e.target.value })}
-                    className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm text-[#29104A]"
+                    className="w-full bg-[var(--surface)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]"
                   />
                 </div>
                 <div className="flex items-end">
                   <button
                     type="submit"
                     disabled={promoSubmitting || !promoForm.code.trim()}
-                    className="px-5 py-2 rounded-lg text-sm font-medium bg-[#522C5D] text-white hover:bg-[#29104A] disabled:opacity-60"
+                    className="px-5 py-2 rounded-lg text-sm font-medium bg-[var(--fill-plum)] text-white hover:bg-[var(--fill-ink)] disabled:opacity-60"
                   >
                     {promoSubmitting ? "Creating…" : "Create Promo Code"}
                   </button>
@@ -1490,40 +1490,40 @@ export default function ManageEventPage() {
             </div>
 
             {/* Existing promo codes */}
-            <div className="bg-white rounded-2xl border border-[#C5BAC4] overflow-hidden shadow-sm">
-              <div className="px-6 py-5 border-b border-[#C5BAC4]">
-                <h3 className="text-lg font-bold text-[#29104A]">Promo Codes ({promoCodes.length})</h3>
+            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] overflow-hidden shadow-sm">
+              <div className="px-6 py-5 border-b border-[var(--border-card)]">
+                <h3 className="text-lg font-bold text-[var(--text-primary)]">Promo Codes ({promoCodes.length})</h3>
               </div>
               {promoCodes.length === 0 ? (
                 <div className="px-6 py-16 text-center">
-                  <p className="text-[#6B597F]">No promo codes yet.</p>
-                  <p className="text-sm text-[#6B597F] mt-1">Create one above to offer discounts.</p>
+                  <p className="text-[var(--text-muted)]">No promo codes yet.</p>
+                  <p className="text-sm text-[var(--text-muted)] mt-1">Create one above to offer discounts.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="bg-[#C5BAC4]/20">
-                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Code</th>
-                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Discount</th>
-                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Redemptions</th>
-                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Status</th>
-                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Expires</th>
-                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[#6B597F]">Actions</th>
+                      <tr className="bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)]">
+                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Code</th>
+                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Discount</th>
+                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Redemptions</th>
+                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Status</th>
+                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Expires</th>
+                        <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#C5BAC4]">
                       {promoCodes.map((promo) => (
-                        <tr key={promo.id} className="hover:bg-[#C5BAC4]/10 transition-colors">
+                        <tr key={promo.id} className="hover:bg-[color-mix(in_srgb,var(--surface-card)_10%,transparent)] transition-colors">
                           <td className="px-6 py-4">
-                            <span className="font-mono text-sm font-semibold text-[#522C5D]">{promo.code}</span>
+                            <span className="font-mono text-sm font-semibold text-[var(--text-secondary)]">{promo.code}</span>
                           </td>
-                          <td className="px-6 py-4 text-[#29104A]">
+                          <td className="px-6 py-4 text-[var(--text-primary)]">
                             {promo.kind === "PERCENT"
                               ? `${promo.percentOff ?? 0}%`
                               : formatPaise(promo.flatOffPaise ?? 0)}
                           </td>
-                          <td className="px-6 py-4 text-[#29104A]">
+                          <td className="px-6 py-4 text-[var(--text-primary)]">
                             {promo.redeemedCount}
                             {promo.maxRedemptions != null ? ` / ${promo.maxRedemptions}` : ""}
                           </td>
@@ -1531,12 +1531,12 @@ export default function ManageEventPage() {
                             <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
                               promo.active
                                 ? "bg-green-100 text-green-700"
-                                : "bg-[#C5BAC4]/30 text-[#6B597F]"
+                                : "bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] text-[var(--text-muted)]"
                             }`}>
                               {promo.active ? "Active" : "Inactive"}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-sm text-[#6B597F]">
+                          <td className="px-6 py-4 text-sm text-[var(--text-muted)]">
                             {promo.expiresAt
                               ? new Date(promo.expiresAt).toLocaleDateString("en-US", {
                                   month: "short",
@@ -1581,45 +1581,45 @@ export default function ManageEventPage() {
             : event.attendees;
           return (
             <div className="space-y-6">
-              <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 shadow-sm">
+              <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-6 shadow-sm">
                 <div className="flex items-baseline justify-between">
-                  <h3 className="text-lg font-bold text-[#29104A]">Admitted</h3>
-                  <p className="text-2xl font-bold text-[#29104A]" data-testid="admitted-count">{admitted} / {total}</p>
+                  <h3 className="text-lg font-bold text-[var(--text-primary)]">Admitted</h3>
+                  <p className="text-2xl font-bold text-[var(--text-primary)]" data-testid="admitted-count">{admitted} / {total}</p>
                 </div>
                 <div className="mt-4 space-y-2">
                   {Object.entries(byType).map(([name, c]) => (
                     <div key={name}>
-                      <div className="flex justify-between text-sm text-[#6B597F]">
+                      <div className="flex justify-between text-sm text-[var(--text-muted)]">
                         <span>{name}</span>
                         <span>{c.admitted} / {c.total}</span>
                       </div>
-                      <div className="h-2 bg-[#C5BAC4]/30 rounded">
-                        <div className="h-2 bg-[#522C5D] rounded" style={{ width: `${c.total ? (c.admitted / c.total) * 100 : 0}%` }} />
+                      <div className="h-2 bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] rounded">
+                        <div className="h-2 bg-[var(--fill-plum)] rounded" style={{ width: `${c.total ? (c.admitted / c.total) * 100 : 0}%` }} />
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl border border-[#C5BAC4] overflow-hidden shadow-sm">
-                <div className="p-4 border-b border-[#C5BAC4]">
+              <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] overflow-hidden shadow-sm">
+                <div className="p-4 border-b border-[var(--border-card)]">
                   <input
                     value={checkinSearch}
                     onChange={(e) => setCheckinSearch(e.target.value)}
                     placeholder="Search name, email, or code"
                     aria-label="Search attendees"
-                    className="w-full px-3 py-2 border border-[#C5BAC4] rounded-lg text-sm"
+                    className="w-full px-3 py-2 border border-[var(--border-card)] rounded-lg text-sm"
                   />
                 </div>
                 {filtered.length === 0 ? (
-                  <p className="px-6 py-10 text-center text-[#6B597F]">No attendees{q ? " match your search" : " yet"}.</p>
+                  <p className="px-6 py-10 text-center text-[var(--text-muted)]">No attendees{q ? " match your search" : " yet"}.</p>
                 ) : (
                   <ul className="divide-y divide-[#C5BAC4]" data-testid="checkin-list">
                     {filtered.map((a) => (
                       <li key={a.id} className="flex items-center justify-between gap-4 px-5 py-3">
                         <div className="min-w-0">
-                          <p className="font-medium text-[#29104A] truncate">{a.name}</p>
-                          <p className="text-xs text-[#6B597F] truncate">{a.email} · {a.ticketType}</p>
+                          <p className="font-medium text-[var(--text-primary)] truncate">{a.name}</p>
+                          <p className="text-xs text-[var(--text-muted)] truncate">{a.email} · {a.ticketType}</p>
                         </div>
                         {a.checkedInAt ? (
                           <div className="flex items-center gap-2 shrink-0">
@@ -1628,7 +1628,7 @@ export default function ManageEventPage() {
                               type="button"
                               onClick={() => undoAttendee(a)}
                               disabled={checkinBusyId === a.id}
-                              className="text-xs px-3 py-1.5 rounded-md border border-[#C5BAC4] text-[#29104A] hover:bg-[#C5BAC4]/20 disabled:opacity-50"
+                              className="text-xs px-3 py-1.5 rounded-md border border-[var(--border-card)] text-[var(--text-primary)] hover:bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] disabled:opacity-50"
                             >
                               Undo
                             </button>
@@ -1638,7 +1638,7 @@ export default function ManageEventPage() {
                             type="button"
                             onClick={() => admitAttendee(a)}
                             disabled={checkinBusyId === a.id}
-                            className="shrink-0 text-xs px-3 py-1.5 rounded-md bg-[#522C5D] text-white hover:bg-[#29104A] disabled:opacity-50"
+                            className="shrink-0 text-xs px-3 py-1.5 rounded-md bg-[var(--fill-plum)] text-white hover:bg-[var(--fill-ink)] disabled:opacity-50"
                           >
                             Admit
                           </button>
@@ -1656,9 +1656,9 @@ export default function ManageEventPage() {
       {/* PAY-02 refund modal */}
       {refundBuyer && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-[#29104A] mb-1">Issue Refund</h3>
-            <p className="text-sm text-[#6B597F] mb-4">
+          <div className="w-full max-w-md rounded-2xl bg-[var(--surface)] p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-[var(--text-primary)] mb-1">Issue Refund</h3>
+            <p className="text-sm text-[var(--text-muted)] mb-4">
               <span className="font-mono">{refundBuyer.bookingId}</span> · {refundBuyer.name} · Paid{" "}
               {formatPaise(refundBuyer.amountPaid)}
               {refundBuyer.refundedAmount > 0 && (
@@ -1667,7 +1667,7 @@ export default function ManageEventPage() {
             </p>
 
             <div className="space-y-3">
-              <label className="flex items-center gap-2 text-sm text-[#29104A]">
+              <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                 <input
                   type="radio"
                   name="refundMode"
@@ -1676,7 +1676,7 @@ export default function ManageEventPage() {
                 />
                 Full refund ({formatPaise(refundBuyer.amountPaid - refundBuyer.refundedAmount)})
               </label>
-              <label className="flex items-center gap-2 text-sm text-[#29104A]">
+              <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                 <input
                   type="radio"
                   name="refundMode"
@@ -1688,7 +1688,7 @@ export default function ManageEventPage() {
 
               {refundMode === "partial" && (
                 <div>
-                  <label htmlFor="refund-amount" className="text-xs text-[#6B597F] block mb-1">
+                  <label htmlFor="refund-amount" className="text-xs text-[var(--text-muted)] block mb-1">
                     Amount (₹)
                   </label>
                   <input
@@ -1700,13 +1700,13 @@ export default function ManageEventPage() {
                     aria-label="Refund amount"
                     value={refundRupees}
                     onChange={(e) => setRefundRupees(e.target.value)}
-                    className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm text-[#29104A]"
+                    className="w-full bg-[var(--surface)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]"
                   />
                 </div>
               )}
 
               <div>
-                <label htmlFor="refund-reason" className="text-xs text-[#6B597F] block mb-1">
+                <label htmlFor="refund-reason" className="text-xs text-[var(--text-muted)] block mb-1">
                   Reason (optional)
                 </label>
                 <input
@@ -1715,7 +1715,7 @@ export default function ManageEventPage() {
                   aria-label="Refund reason"
                   value={refundReason}
                   onChange={(e) => setRefundReason(e.target.value)}
-                  className="w-full bg-white border border-[#C5BAC4] rounded-lg px-3 py-2 text-sm text-[#29104A]"
+                  className="w-full bg-[var(--surface)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]"
                 />
               </div>
             </div>
@@ -1725,7 +1725,7 @@ export default function ManageEventPage() {
                 type="button"
                 onClick={handleRefund}
                 disabled={refundSubmitting}
-                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-[#522C5D] text-white hover:bg-[#29104A] disabled:opacity-60"
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--fill-plum)] text-white hover:bg-[var(--fill-ink)] disabled:opacity-60"
               >
                 {refundSubmitting ? "Processing…" : "Confirm Refund"}
               </button>
@@ -1733,7 +1733,7 @@ export default function ManageEventPage() {
                 type="button"
                 onClick={closeRefund}
                 disabled={refundSubmitting}
-                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-white border border-[#C5BAC4] text-[#6B597F] hover:bg-[#C5BAC4]/20"
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--surface)] border border-[var(--border-card)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)]"
               >
                 Cancel
               </button>

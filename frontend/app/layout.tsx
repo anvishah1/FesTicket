@@ -55,8 +55,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
+        {/* FE-11: apply a stored theme choice before first paint so there is no
+            light->dark flash. With no stored choice we leave data-theme unset
+            and let the prefers-color-scheme CSS in globals.css decide. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=localStorage.getItem('tiqr-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();",
+          }}
+        />
         <ClientRoot>{children}</ClientRoot>
       </body>
     </html>

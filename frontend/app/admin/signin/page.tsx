@@ -77,13 +77,13 @@ export default function AdminSignInPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fdfdff] flex flex-col">
+    <div className="min-h-screen bg-[var(--surface-tint)] flex flex-col">
       <Header />
 
       <main className="flex-1 flex items-center justify-center py-12 px-4">
         <div className="w-full max-w-md">
           {/* Card */}
-          <div className="bg-white rounded-2xl shadow-lg border border-[#C5BAC4] overflow-hidden">
+          <div className="bg-[var(--surface)] rounded-2xl shadow-lg border border-[var(--border-card)] overflow-hidden">
             {/* Header */}
             <div className="bg-gradient-to-r from-[#29104A] to-[#522C5D] px-8 py-6 text-center">
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/20 flex items-center justify-center">
@@ -104,7 +104,7 @@ export default function AdminSignInPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-[#29104A] mb-1.5">
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
                   Email
                 </label>
                 <input
@@ -112,20 +112,20 @@ export default function AdminSignInPage() {
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl bg-[#F9F7FA] text-[#29104A] focus:outline-none focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] transition"
+                  className="w-full px-4 py-3 border border-[var(--border-card)] rounded-xl bg-[var(--surface-tint)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:border-[var(--border-plum)] transition"
                   placeholder="you@example.com"
                 />
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-sm font-medium text-[#29104A]">
+                  <label className="block text-sm font-medium text-[var(--text-primary)]">
                     Password
                   </label>
                   <button
                     type="button"
                     onClick={() => setShowForgotModal(true)}
-                    className="text-xs text-[#522C5D] hover:text-[#29104A] hover:underline transition"
+                    className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline transition"
                   >
                     Forgot password?
                   </button>
@@ -136,13 +136,13 @@ export default function AdminSignInPage() {
                     required
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-4 py-3 pr-12 border border-[#C5BAC4] rounded-xl bg-[#F9F7FA] text-[#29104A] focus:outline-none focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] transition"
+                    className="w-full px-4 py-3 pr-12 border border-[var(--border-card)] rounded-xl bg-[var(--surface-tint)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:border-[var(--border-plum)] transition"
                     placeholder="Enter your password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[#6B597F] hover:text-[#29104A] transition"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition"
                   >
                     {showPassword ? (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -178,10 +178,10 @@ export default function AdminSignInPage() {
             </form>
 
             {/* Footer */}
-            <div className="px-8 pb-8 pt-2 border-t border-[#C5BAC4]/50">
-              <p className="text-center text-sm text-[#6B597F]">
+            <div className="px-8 pb-8 pt-2 border-t border-[color-mix(in_srgb,var(--border-card)_50%,transparent)]">
+              <p className="text-center text-sm text-[var(--text-muted)]">
                 Don't have admin access?{" "}
-                <Link href="/admin/signup" className="text-[#522C5D] font-medium hover:underline">
+                <Link href="/admin/signup" className="text-[var(--text-secondary)] font-medium hover:underline">
                   Request Access
                 </Link>
               </p>
@@ -190,7 +190,7 @@ export default function AdminSignInPage() {
 
           {/* Back link */}
           <div className="mt-6 text-center">
-            <Link href="/" className="text-sm text-[#6B597F] hover:text-[#29104A] transition">
+            <Link href="/" className="text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] transition">
               ← Back to Home
             </Link>
           </div>
@@ -202,7 +202,7 @@ export default function AdminSignInPage() {
       {/* Forgot Password Modal */}
       {showForgotModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl">
+          <div className="bg-[var(--surface)] rounded-2xl w-full max-w-md overflow-hidden shadow-xl">
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-[#29104A] to-[#522C5D] px-6 py-4 flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">Forgot Password</h2>
@@ -224,8 +224,8 @@ export default function AdminSignInPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-bold text-[#29104A] mb-2">Check your email</h3>
-                <p className="text-[#6B597F] text-sm mb-6">
+                <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">Check your email</h3>
+                <p className="text-[var(--text-muted)] text-sm mb-6">
                   If an account exists for that email, we sent a password reset link. Check your inbox and spam folder.
                 </p>
                 <button
@@ -238,7 +238,7 @@ export default function AdminSignInPage() {
             ) : (
               /* Form State */
               <form onSubmit={handleForgotPassword} className="p-6 space-y-4">
-                <p className="text-sm text-[#6B597F]">
+                <p className="text-sm text-[var(--text-muted)]">
                   Enter your email address and we'll send you a password reset link.
                 </p>
                 {forgotError && (
@@ -247,7 +247,7 @@ export default function AdminSignInPage() {
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-medium text-[#29104A] mb-1.5">
+                  <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
                     Email Address
                   </label>
                   <input
@@ -255,7 +255,7 @@ export default function AdminSignInPage() {
                     required
                     value={forgotEmail}
                     onChange={(e) => setForgotEmail(e.target.value)}
-                    className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl bg-[#F9F7FA] text-[#29104A] focus:outline-none focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] transition"
+                    className="w-full px-4 py-3 border border-[var(--border-card)] rounded-xl bg-[var(--surface-tint)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:border-[var(--border-plum)] transition"
                     placeholder="you@example.com"
                   />
                 </div>
@@ -275,7 +275,7 @@ export default function AdminSignInPage() {
                   <button
                     type="button"
                     onClick={closeForgotModal}
-                    className="flex-1 py-3 border border-[#C5BAC4] text-[#6B597F] font-medium rounded-xl hover:bg-[#C5BAC4]/20 transition"
+                    className="flex-1 py-3 border border-[var(--border-card)] text-[var(--text-muted)] font-medium rounded-xl hover:bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] transition"
                   >
                     Cancel
                   </button>

@@ -122,29 +122,29 @@ export default function NotificationBell() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-2 w-80 max-w-[90vw] rounded-lg bg-white shadow-lg text-sm overflow-hidden z-30"
+          className="absolute right-0 mt-2 w-80 max-w-[90vw] rounded-lg bg-[var(--surface)] shadow-lg text-sm overflow-hidden z-30"
           data-testid="notification-dropdown"
         >
           <div className="flex items-center justify-between px-4 py-2 border-b">
-            <span className="font-semibold text-[#2D1B4E]">Notifications</span>
+            <span className="font-semibold text-[var(--text-primary)]">Notifications</span>
             {unread > 0 && (
-              <button type="button" onClick={markAllRead} className="text-xs text-primary-600 hover:underline">
+              <button type="button" onClick={markAllRead} className="text-xs text-[var(--text-primary)] hover:underline">
                 Mark all read
               </button>
             )}
           </div>
           <div className="max-h-96 overflow-y-auto">
             {items.length === 0 ? (
-              <p className="px-4 py-6 text-center text-slate-400">You're all caught up.</p>
+              <p className="px-4 py-6 text-center text-[var(--text-faint)]">You're all caught up.</p>
             ) : (
               items.map((n) => {
                 const inner = (
-                  <div className={`px-4 py-3 border-b last:border-0 hover:bg-slate-50 ${n.read ? "" : "bg-primary-50/50"}`}>
+                  <div className={`px-4 py-3 border-b last:border-0 hover:bg-[var(--surface-slate)] ${n.read ? "" : "bg-[color-mix(in_srgb,var(--surface-page)_50%,transparent)]"}`}>
                     <div className="flex items-start gap-2">
-                      {!n.read && <span className="mt-1.5 w-2 h-2 rounded-full bg-primary-600 shrink-0" />}
+                      {!n.read && <span className="mt-1.5 w-2 h-2 rounded-full bg-[var(--fill-ink)] shrink-0" />}
                       <div className="min-w-0">
-                        <p className="font-medium text-[#2D1B4E] truncate">{n.title}</p>
-                        {n.body && <p className="text-slate-500 text-xs mt-0.5">{n.body}</p>}
+                        <p className="font-medium text-[var(--text-primary)] truncate">{n.title}</p>
+                        {n.body && <p className="text-[var(--text-soft)] text-xs mt-0.5">{n.body}</p>}
                       </div>
                     </div>
                   </div>

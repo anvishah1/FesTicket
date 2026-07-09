@@ -410,8 +410,8 @@ export default function BookingPage() {
         <Header />
         <main className="container py-10">
           <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-gray-200 rounded w-1/2"></div>
-            <div className="h-64 bg-gray-200 rounded"></div>
+            <div className="h-8 bg-[var(--surface-slate-200)] rounded w-1/2"></div>
+            <div className="h-64 bg-[var(--surface-slate-200)] rounded"></div>
           </div>
         </main>
       </div>
@@ -424,7 +424,7 @@ export default function BookingPage() {
         <Header />
         <main className="container py-10 text-center">
           <h1 className="text-2xl font-bold">Event not found</h1>
-          <Link href="/fests" className="text-primary-600 mt-4 inline-block">
+          <Link href="/fests" className="text-[var(--text-primary)] mt-4 inline-block">
             ← Back to events
           </Link>
         </main>
@@ -449,35 +449,35 @@ export default function BookingPage() {
       <main className="container pt-10 pb-28 lg:pb-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left: main booking flow */}
         <section className="lg:col-span-2 space-y-8">
-          <div className="rounded-lg p-6 bg-white border shadow-sm">
+          <div className="rounded-lg p-6 bg-[var(--surface)] border shadow-sm">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-extrabold">{event.name}</h1>
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="text-sm text-[var(--text-soft)] mt-1">
                   Booking · {formatDate(event.startDate)} · {event.venue || "Venue TBA"}
                 </p>
                 {event.fest && (
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-[var(--text-faint)] mt-1">
                     Part of {event.fest.name} at {event.fest.college}
                   </p>
                 )}
               </div>
-              <div className="text-sm text-slate-600">Booking step 1 of 2</div>
+              <div className="text-sm text-[var(--text-slate)]">Booking step 1 of 2</div>
             </div>
 
             <hr className="my-6" />
 
             <h2 className="text-lg font-semibold">Choose tickets</h2>
-            <p className="text-sm text-slate-500 mt-1 mb-4">Select the number of tickets you want to book.</p>
+            <p className="text-sm text-[var(--text-soft)] mt-1 mb-4">Select the number of tickets you want to book.</p>
 
             {maxPerOrder != null && (
-              <p className="text-xs text-slate-500 mb-3" data-testid="max-per-order-note">
+              <p className="text-xs text-[var(--text-soft)] mb-3" data-testid="max-per-order-note">
                 Up to {maxPerOrder} ticket{maxPerOrder === 1 ? "" : "s"} per order.
               </p>
             )}
 
             {tickets.length === 0 ? (
-              <div className="text-center py-8 text-slate-500">
+              <div className="text-center py-8 text-[var(--text-soft)]">
                 No tickets available for this event yet.
               </div>
             ) : (
@@ -496,24 +496,24 @@ export default function BookingPage() {
           </div>
 
           {/* Your Contact Info */}
-          <div className="rounded-lg p-6 bg-white border shadow-sm">
+          <div className="rounded-lg p-6 bg-[var(--surface)] border shadow-sm">
             <h2 className="text-lg font-semibold">Your Contact Information</h2>
-            <p className="text-sm text-slate-500 mt-1 mb-4">We'll send your tickets to this email</p>
+            <p className="text-sm text-[var(--text-soft)] mt-1 mb-4">We'll send your tickets to this email</p>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="guest-name" className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                <label htmlFor="guest-name" className="block text-sm font-medium text-[var(--text-strong)] mb-1">Name</label>
                 <input
                   id="guest-name"
                   type="text"
                   value={guestInfo.name}
                   onChange={(e) => setGuestInfo({ ...guestInfo, name: e.target.value })}
                   placeholder="Your full name"
-                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[var(--ring-plum)] focus:border-[var(--border-plum)]"
                 />
               </div>
               <div>
-                <label htmlFor="guest-email" className="block text-sm font-medium text-slate-700 mb-1">
+                <label htmlFor="guest-email" className="block text-sm font-medium text-[var(--text-strong)] mb-1">
                   Email <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -522,19 +522,19 @@ export default function BookingPage() {
                   value={guestInfo.email}
                   onChange={(e) => setGuestInfo({ ...guestInfo, email: e.target.value })}
                   placeholder="your@email.com"
-                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[var(--ring-plum)] focus:border-[var(--border-plum)]"
                   required
                 />
               </div>
               <div className="md:col-span-2">
-                <label htmlFor="guest-phone" className="block text-sm font-medium text-slate-700 mb-1">Phone (optional)</label>
+                <label htmlFor="guest-phone" className="block text-sm font-medium text-[var(--text-strong)] mb-1">Phone (optional)</label>
                 <input
                   id="guest-phone"
                   type="tel"
                   value={guestInfo.phone}
                   onChange={(e) => setGuestInfo({ ...guestInfo, phone: e.target.value })}
                   placeholder="+91 98765 43210"
-                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[var(--ring-plum)] focus:border-[var(--border-plum)]"
                 />
               </div>
             </div>
@@ -542,9 +542,9 @@ export default function BookingPage() {
 
           {/* Custom registration questions (only when the host configured any) */}
           {questions.length > 0 && (
-            <div className="rounded-lg p-6 bg-white border shadow-sm" data-testid="custom-questions">
+            <div className="rounded-lg p-6 bg-[var(--surface)] border shadow-sm" data-testid="custom-questions">
               <h2 className="text-lg font-semibold">Additional questions</h2>
-              <p className="text-sm text-slate-500 mt-1 mb-4">
+              <p className="text-sm text-[var(--text-soft)] mt-1 mb-4">
                 The organiser would like a few more details.
               </p>
 
@@ -556,7 +556,7 @@ export default function BookingPage() {
                     <div key={q.id}>
                       <label
                         htmlFor={inputId}
-                        className="block text-sm font-medium text-slate-700 mb-1"
+                        className="block text-sm font-medium text-[var(--text-strong)] mb-1"
                       >
                         {q.label}
                         {q.required && <span className="text-red-500"> *</span>}
@@ -568,7 +568,7 @@ export default function BookingPage() {
                           required={q.required}
                           onChange={(e) => setAnswer(q.id, e.target.value)}
                           rows={3}
-                          className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                          className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[var(--ring-plum)] focus:border-[var(--border-plum)]"
                         />
                       ) : (
                         <input
@@ -583,7 +583,7 @@ export default function BookingPage() {
                           value={value}
                           required={q.required}
                           onChange={(e) => setAnswer(q.id, e.target.value)}
-                          className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                          className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[var(--ring-plum)] focus:border-[var(--border-plum)]"
                         />
                       )}
                     </div>
@@ -595,10 +595,10 @@ export default function BookingPage() {
 
           {/* Attendees form */}
           {totalTickets > 0 && (
-            <div className="rounded-lg p-6 bg-white border shadow-sm">
+            <div className="rounded-lg p-6 bg-[var(--surface)] border shadow-sm">
               <div className="flex items-center justify-between gap-4">
                 <h2 className="text-lg font-semibold">Attendee details</h2>
-                <div className="text-sm text-slate-500">Add one attendee per ticket</div>
+                <div className="text-sm text-[var(--text-soft)]">Add one attendee per ticket</div>
               </div>
 
               <div className="mt-4">
@@ -607,7 +607,7 @@ export default function BookingPage() {
                   attendees={attendees}
                   onChange={setAttendees}
                 />
-                <p className="text-xs text-slate-500 mt-2">
+                <p className="text-xs text-[var(--text-soft)] mt-2">
                   We'll send tickets and updates to the listed attendee emails.
                 </p>
               </div>
@@ -615,9 +615,9 @@ export default function BookingPage() {
           )}
 
           {/* Notes / policies */}
-          <div className="rounded-lg p-6 bg-white border shadow-sm">
+          <div className="rounded-lg p-6 bg-[var(--surface)] border shadow-sm">
             <h3 className="font-semibold">Important</h3>
-            <ul className="list-disc pl-5 mt-3 text-sm text-slate-600 space-y-2">
+            <ul className="list-disc pl-5 mt-3 text-sm text-[var(--text-slate)] space-y-2">
               <li>Tickets can be transferred to another attendee any time before check-in.</li>
               <li>Refund policy: {refundPolicyText(event?.refundPolicy, event?.refundCutoffHours)}</li>
               <li>Attendees must carry a valid ID for check-in.</li>
@@ -630,7 +630,7 @@ export default function BookingPage() {
           {discountPct > 0 ? (
             // Itemized summary with the discount applied. The discounted total
             // here matches exactly what the backend stores/charges.
-            <div className="rounded-lg p-5 border bg-white shadow-sm" data-testid="booking-summary-discount">
+            <div className="rounded-lg p-5 border bg-[var(--surface)] shadow-sm" data-testid="booking-summary-discount">
               <h4 className="font-semibold mb-3">Summary</h4>
 
               <div className="space-y-2">
@@ -640,7 +640,7 @@ export default function BookingPage() {
                     <div className="flex items-start justify-between text-sm" key={t.id}>
                       <div>
                         <div className="font-medium">{t.name}</div>
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-[var(--text-soft)]">
                           Qty {quantities[t.id] ?? 0} × {formatPaise(t.price)}
                         </div>
                       </div>
@@ -650,7 +650,7 @@ export default function BookingPage() {
 
                 <hr className="my-3" />
                 <div className="flex justify-between text-sm">
-                  <div className="text-slate-600">Subtotal</div>
+                  <div className="text-[var(--text-slate)]">Subtotal</div>
                   <div>{formatPaise(subtotal)}</div>
                 </div>
                 <div className="flex justify-between text-sm text-green-700">
@@ -664,11 +664,11 @@ export default function BookingPage() {
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
-                  <div className="text-slate-600">Platform fee</div>
+                  <div className="text-[var(--text-slate)]">Platform fee</div>
                   <div>{formatPaise(platformFee)}</div>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <div className="text-slate-600">Tax</div>
+                  <div className="text-[var(--text-slate)]">Tax</div>
                   <div>{formatPaise(tax)}</div>
                 </div>
 
@@ -690,7 +690,7 @@ export default function BookingPage() {
 
           {/* PAY-04: apply a promo code. The applied line shows in the summary
               context here; the discounted total already flows through `total`. */}
-          <div className="rounded-lg p-5 border bg-white shadow-sm" data-testid="promo-card">
+          <div className="rounded-lg p-5 border bg-[var(--surface)] shadow-sm" data-testid="promo-card">
             <h4 className="font-semibold mb-3">Promo code</h4>
             {appliedPromo ? (
               <div
@@ -704,7 +704,7 @@ export default function BookingPage() {
                 <button
                   type="button"
                   onClick={removePromo}
-                  className="text-xs text-slate-500 hover:underline"
+                  className="text-xs text-[var(--text-soft)] hover:underline"
                 >
                   Remove
                 </button>
@@ -717,7 +717,7 @@ export default function BookingPage() {
                   value={promoInput}
                   onChange={(e) => setPromoInput(e.target.value)}
                   placeholder="Enter code"
-                  className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-[var(--ring-plum)] focus:border-[var(--border-plum)]"
                 />
                 <button
                   type="button"
@@ -725,8 +725,8 @@ export default function BookingPage() {
                   disabled={promoApplying || !promoInput.trim()}
                   className={`px-4 py-2 rounded-md text-white font-semibold ${
                     promoApplying || !promoInput.trim()
-                      ? "bg-slate-300 cursor-not-allowed"
-                      : "bg-primary-600 hover:bg-primary-700"
+                      ? "bg-[var(--surface-slate-200)] cursor-not-allowed"
+                      : "bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)]"
                   }`}
                 >
                   {promoApplying ? "…" : "Apply"}
@@ -735,12 +735,12 @@ export default function BookingPage() {
             )}
           </div>
 
-          <div className="rounded-lg p-5 border bg-white shadow-sm">
+          <div className="rounded-lg p-5 border bg-[var(--surface)] shadow-sm">
             <h4 className="font-semibold mb-3">Payment</h4>
 
             <div className="space-y-3">
-              <div className="text-sm text-slate-600">Total to pay</div>
-              <div className="text-2xl font-bold text-slate-900">{formatPaise(total)}</div>
+              <div className="text-sm text-[var(--text-slate)]">Total to pay</div>
+              <div className="text-2xl font-bold text-[var(--text-slate-900)]">{formatPaise(total)}</div>
 
               {/* Validation message */}
               {!isValid && totalTickets > 0 && (
@@ -771,8 +771,8 @@ export default function BookingPage() {
                   disabled={!isValid || submitting}
                   className={`w-full inline-flex items-center justify-center gap-3 px-4 py-2 rounded-md text-white font-semibold ${
                     !isValid || submitting
-                      ? "bg-slate-300 cursor-not-allowed"
-                      : "bg-primary-600 hover:bg-primary-700"
+                      ? "bg-[var(--surface-slate-200)] cursor-not-allowed"
+                      : "bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)]"
                   }`}
                 >
                   {submitting ? (
@@ -789,21 +789,21 @@ export default function BookingPage() {
                 </button>
               </div>
 
-              <div className="text-xs text-slate-500 mt-4">
+              <div className="text-xs text-[var(--text-soft)] mt-4">
                 You'll be redirected to our secure payment page.
               </div>
             </div>
           </div>
 
-          <div className="rounded-lg p-5 border bg-white shadow-sm">
+          <div className="rounded-lg p-5 border bg-[var(--surface)] shadow-sm">
             <h4 className="font-semibold mb-3">Need help?</h4>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-[var(--text-slate)]">
               Contact support at{" "}
-              <a className="text-primary-600 underline" href="mailto:support@tiqr.events">
+              <a className="text-[var(--text-primary)] underline" href="mailto:support@tiqr.events">
                 support@tiqr.events
               </a>
             </p>
-            <Link href="/fests" className="block mt-3 text-sm text-slate-500 hover:underline">
+            <Link href="/fests" className="block mt-3 text-sm text-[var(--text-soft)] hover:underline">
               Back to events
             </Link>
           </div>
@@ -813,20 +813,20 @@ export default function BookingPage() {
       {/* FE-10: mobile sticky checkout bar — live total + the same Proceed action
           as the desktop aside (shared total + handler, no duplicated math). */}
       <div
-        className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur px-4 py-3"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-[var(--border-slate)] bg-white/95 backdrop-blur px-4 py-3"
         style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
       >
         <div className="flex items-center justify-between gap-4">
           <div>
-            <div className="text-xs text-slate-500">Total</div>
-            <div className="text-lg font-bold text-slate-900" data-testid="sticky-total">{formatPaise(total)}</div>
+            <div className="text-xs text-[var(--text-soft)]">Total</div>
+            <div className="text-lg font-bold text-[var(--text-slate-900)]" data-testid="sticky-total">{formatPaise(total)}</div>
           </div>
           <button
             type="button"
             onClick={handleProceedToPayment}
             disabled={!isValid || submitting}
             className={`flex-1 max-w-[60%] inline-flex items-center justify-center gap-2 px-4 py-3 rounded-md text-white font-semibold ${
-              !isValid || submitting ? "bg-slate-300 cursor-not-allowed" : "bg-primary-600 hover:bg-primary-700"
+              !isValid || submitting ? "bg-[var(--surface-slate-200)] cursor-not-allowed" : "bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)]"
             }`}
           >
             {submitting ? "Processing…" : "Proceed to Payment"}

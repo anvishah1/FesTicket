@@ -33,11 +33,11 @@ export default function Card({ title, description, image, subtitle, onClick, hre
 
   const className = `
     group relative
-    bg-white border border-[#C5BAC4] rounded-xl overflow-hidden
+    bg-[var(--surface)] border border-[var(--border-card)] rounded-xl overflow-hidden
     transition-all duration-200
     hover:shadow-lg hover:-translate-y-1
     flex flex-col
-    focus:outline-none focus-visible:ring-2 focus-visible:ring-[#522C5D] focus-visible:ring-offset-2
+    focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-plum)] focus-visible:ring-offset-2
     ${href || isButton ? "cursor-pointer" : ""}
   `;
 
@@ -55,7 +55,7 @@ export default function Card({ title, description, image, subtitle, onClick, hre
 
       {/* Image */}
       {image && (
-        <div className="relative w-full h-80 bg-[#C5BAC4]/20 overflow-hidden">
+        <div className="relative w-full h-80 bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)] overflow-hidden">
           <PosterImage
             src={image}
             alt={title}
@@ -64,8 +64,8 @@ export default function Card({ title, description, image, subtitle, onClick, hre
           />
           {/* Hover Overlay */}
           {hoverText && (
-            <div className="absolute inset-0 bg-[#29104A]/70 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-              <span className="text-white text-lg font-bold tracking-wide px-6 py-3 border-2 border-white rounded-full hover:bg-white hover:text-[#29104A] transition-colors duration-200">
+            <div className="absolute inset-0 bg-[color-mix(in_srgb,var(--fill-ink)_70%,transparent)] opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+              <span className="text-white text-lg font-bold tracking-wide px-6 py-3 border-2 border-white rounded-full hover:bg-[var(--surface)] hover:text-[var(--text-primary)] transition-colors duration-200">
                 {hoverText}
               </span>
             </div>
@@ -75,17 +75,17 @@ export default function Card({ title, description, image, subtitle, onClick, hre
 
       {/* Content */}
       <div className="p-5 flex flex-col flex-grow">
-        <h2 className="text-base font-semibold text-[#29104A] mb-1 line-clamp-2">{title}</h2>
+        <h2 className="text-base font-semibold text-[var(--text-primary)] mb-1 line-clamp-2">{title}</h2>
 
-        {subtitle && <p className="text-sm text-[#522C5D] mb-2">{subtitle}</p>}
+        {subtitle && <p className="text-sm text-[var(--text-secondary)] mb-2">{subtitle}</p>}
 
-        {description && <p className="text-sm text-[#6B597F] line-clamp-2">{description}</p>}
+        {description && <p className="text-sm text-[var(--text-muted)] line-clamp-2">{description}</p>}
 
         {/* SEO-08: "N going" social proof — only when there are COMPLETED bookings */}
         {hasGoing && (
           <span
             data-testid="going-badge"
-            className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full bg-[#522C5D]/10 px-2.5 py-1 text-xs font-medium text-[#522C5D]"
+            className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)]"
           >
             <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
             {going} going

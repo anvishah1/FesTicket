@@ -189,14 +189,14 @@ export default function EventsDiscoverClient({
   };
 
   return (
-    <div className="min-h-screen bg-[#fdfdff]">
+    <div className="min-h-screen bg-[var(--surface-tint)]">
       <Header />
       <main className="py-8 px-4">
         <div className="max-w-6xl mx-auto">
-          <h1 className="text-3xl font-bold text-[#29104A]">
+          <h1 className="text-3xl font-bold text-[var(--text-primary)]">
             {lockedCategory ? `${lockedCategory} Events` : "Discover Events"}
           </h1>
-          <p className="text-[#6B597F] mt-1">
+          <p className="text-[var(--text-muted)] mt-1">
             {lockedCategory
               ? `Browse ${lockedCategory.toLowerCase()} events across every fest on tiqr.`
               : "Browse and book tickets for events across every fest on tiqr."}
@@ -206,9 +206,9 @@ export default function EventsDiscoverClient({
         <div className="max-w-6xl mx-auto mt-6 flex flex-col gap-6 lg:flex-row">
           {/* Facet sidebar */}
           <aside className="w-full lg:w-64 lg:shrink-0">
-            <div className="rounded-xl border border-[#C5BAC4] bg-white p-4 space-y-5">
+            <div className="rounded-xl border border-[var(--border-card)] bg-[var(--surface)] p-4 space-y-5">
               <div>
-                <label htmlFor="q" className="block text-xs font-semibold uppercase tracking-wide text-[#6B597F] mb-1">
+                <label htmlFor="q" className="block text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1">
                   Search
                 </label>
                 <input
@@ -217,13 +217,13 @@ export default function EventsDiscoverClient({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Event name…"
-                  className="w-full rounded-lg border border-[#C5BAC4] bg-white px-3 py-2 text-sm text-[#29104A] placeholder-[#6B597F] focus:border-[#522C5D] focus:outline-none"
+                  className="w-full rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[#6B597F] focus:border-[var(--border-plum)] focus:outline-none"
                 />
               </div>
 
               {!lockedCategory && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#6B597F] mb-2">Category</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-2">Category</p>
                   <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
                     {["All", ...CATEGORY_LABELS].map((c) => (
                       <button
@@ -231,7 +231,7 @@ export default function EventsDiscoverClient({
                         onClick={() => setCategory(c)}
                         aria-pressed={category === c}
                         className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                          category === c ? "bg-[#522C5D] text-white" : "bg-[#F3EFF6] text-[#6B597F] hover:bg-[#C5BAC4]"
+                          category === c ? "bg-[var(--fill-plum)] text-white" : "bg-[var(--surface-tint)] text-[var(--text-muted)] hover:bg-[var(--surface-card)]"
                         }`}
                       >
                         {c}
@@ -242,27 +242,27 @@ export default function EventsDiscoverClient({
               )}
 
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#6B597F] mb-2">Date range</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-2">Date range</p>
                 <div className="flex flex-col gap-2">
                   <input
                     type="date"
                     aria-label="From date"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
-                    className="w-full rounded-lg border border-[#C5BAC4] bg-white px-3 py-2 text-sm text-[#29104A] focus:border-[#522C5D] focus:outline-none"
+                    className="w-full rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-plum)] focus:outline-none"
                   />
                   <input
                     type="date"
                     aria-label="To date"
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
-                    className="w-full rounded-lg border border-[#C5BAC4] bg-white px-3 py-2 text-sm text-[#29104A] focus:border-[#522C5D] focus:outline-none"
+                    className="w-full rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-plum)] focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="college" className="block text-xs font-semibold uppercase tracking-wide text-[#6B597F] mb-1">
+                <label htmlFor="college" className="block text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1">
                   City / College
                 </label>
                 <input
@@ -271,33 +271,33 @@ export default function EventsDiscoverClient({
                   value={college}
                   onChange={(e) => setCollege(e.target.value)}
                   placeholder="e.g. IIT Bombay"
-                  className="w-full rounded-lg border border-[#C5BAC4] bg-white px-3 py-2 text-sm text-[#29104A] placeholder-[#6B597F] focus:border-[#522C5D] focus:outline-none"
+                  className="w-full rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[#6B597F] focus:border-[var(--border-plum)] focus:outline-none"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm text-[#29104A]">
+                <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                   <input
                     type="checkbox"
                     checked={onlineOnly}
                     onChange={(e) => setOnlineOnly(e.target.checked)}
-                    className="h-4 w-4 rounded border-[#C5BAC4] text-[#522C5D] focus:ring-[#522C5D]"
+                    className="h-4 w-4 rounded border-[var(--border-card)] text-[var(--text-secondary)] focus:ring-[var(--ring-plum)]"
                   />
                   Online only
                 </label>
-                <label className="flex items-center gap-2 text-sm text-[#29104A]">
+                <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                   <input
                     type="checkbox"
                     checked={freeOnly}
                     onChange={(e) => setFreeOnly(e.target.checked)}
-                    className="h-4 w-4 rounded border-[#C5BAC4] text-[#522C5D] focus:ring-[#522C5D]"
+                    className="h-4 w-4 rounded border-[var(--border-card)] text-[var(--text-secondary)] focus:ring-[var(--ring-plum)]"
                   />
                   Free only
                 </label>
               </div>
 
               {hasActiveFilters && (
-                <button onClick={clearFilters} className="text-sm text-[#522C5D] hover:underline">
+                <button onClick={clearFilters} className="text-sm text-[var(--text-secondary)] hover:underline">
                   Clear all filters
                 </button>
               )}
@@ -308,19 +308,19 @@ export default function EventsDiscoverClient({
           <section className="flex-1">
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               {!loading && typeof total === "number" ? (
-                <p className="text-sm text-[#6B597F]" role="status" aria-live="polite">
+                <p className="text-sm text-[var(--text-muted)]" role="status" aria-live="polite">
                   {total} {total === 1 ? "event" : "events"} found
                 </p>
               ) : (
                 <span />
               )}
-              <label className="flex items-center gap-2 text-sm text-[#6B597F]">
+              <label className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
                 Sort by
                 <select
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
                   aria-label="Sort events"
-                  className="rounded-lg border border-[#C5BAC4] bg-white px-3 py-2 text-sm text-[#29104A] focus:border-[#522C5D] focus:outline-none"
+                  className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-plum)] focus:outline-none"
                 >
                   {SORT_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -362,11 +362,11 @@ export default function EventsDiscoverClient({
                 ))}
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-[#C5BAC4] p-10 text-center">
-                <p className="text-[#29104A] font-medium">No events match your filters.</p>
-                <p className="text-sm text-[#6B597F] mt-1">Try widening your date range or clearing a filter.</p>
+              <div className="rounded-xl border border-dashed border-[var(--border-card)] p-10 text-center">
+                <p className="text-[var(--text-primary)] font-medium">No events match your filters.</p>
+                <p className="text-sm text-[var(--text-muted)] mt-1">Try widening your date range or clearing a filter.</p>
                 {hasActiveFilters && (
-                  <button onClick={clearFilters} className="mt-4 text-sm text-[#522C5D] hover:underline">
+                  <button onClick={clearFilters} className="mt-4 text-sm text-[var(--text-secondary)] hover:underline">
                     Clear all filters
                   </button>
                 )}
@@ -379,18 +379,18 @@ export default function EventsDiscoverClient({
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
                   aria-label="Previous page"
-                  className="rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm font-medium text-[#522C5D] transition-colors hover:bg-[#C5BAC4] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-card)] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <span aria-hidden="true">←</span> Prev
                 </button>
-                <span className="text-sm text-[#6B597F]" aria-current="page">
+                <span className="text-sm text-[var(--text-muted)]" aria-current="page">
                   Page {page} of {totalPages}
                 </span>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
                   aria-label="Next page"
-                  className="rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm font-medium text-[#522C5D] transition-colors hover:bg-[#C5BAC4] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-card)] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Next <span aria-hidden="true">→</span>
                 </button>

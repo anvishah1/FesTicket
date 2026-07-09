@@ -47,7 +47,7 @@ function Rail({
 }) {
   return (
     <div>
-      <h2 className="text-xl font-bold text-[#29104A] mb-3">{title}</h2>
+      <h2 className="text-xl font-bold text-[var(--text-primary)] mb-3">{title}</h2>
       <div className="flex gap-4 overflow-x-auto pb-2 snap-x">
         {events.map((event) => (
           <div key={event.id} className="w-56 shrink-0 snap-start">

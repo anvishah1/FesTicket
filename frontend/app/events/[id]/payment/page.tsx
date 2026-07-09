@@ -235,8 +235,8 @@ export default function PaymentPage() {
         <Header />
         <main className="container py-10">
           <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-gray-200 rounded w-1/2"></div>
-            <div className="h-64 bg-gray-200 rounded"></div>
+            <div className="h-8 bg-[var(--surface-slate-200)] rounded w-1/2"></div>
+            <div className="h-64 bg-[var(--surface-slate-200)] rounded"></div>
           </div>
         </main>
       </div>
@@ -249,10 +249,10 @@ export default function PaymentPage() {
         <Header />
         <main className="container py-10 text-center">
           <h1 className="text-2xl font-bold">Booking not found</h1>
-          <p className="text-slate-500 mt-2">Please start a new booking.</p>
+          <p className="text-[var(--text-soft)] mt-2">Please start a new booking.</p>
           <button
             onClick={() => router.push(`/events/${eventId}/booking`)}
-            className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-md"
+            className="mt-4 px-4 py-2 bg-[var(--fill-ink)] text-white rounded-md"
           >
             Start New Booking
           </button>
@@ -272,9 +272,9 @@ export default function PaymentPage() {
       {/* FE-10: extra bottom padding on mobile so the sticky pay bar never hides content */}
       <main className="container pt-10 pb-28 lg:pb-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
         <section className="lg:col-span-2 space-y-6">
-          <div className="rounded-lg bg-white border p-6 shadow-sm">
+          <div className="rounded-lg bg-[var(--surface)] border p-6 shadow-sm">
             <h2 className="text-xl font-semibold">Payment Methods</h2>
-            <p className="text-sm text-slate-500 mt-1">Pay securely via UPI, card, or netbanking.</p>
+            <p className="text-sm text-[var(--text-soft)] mt-1">Pay securely via UPI, card, or netbanking.</p>
 
             {/* PAY-05: inventory-hold countdown */}
             {remainingMs != null &&
@@ -307,16 +307,16 @@ export default function PaymentPage() {
                 type="button"
                 onClick={payWithRazorpay}
                 disabled={processing || holdExpired}
-                className="w-full py-3 px-4 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold"
+                className="w-full py-3 px-4 rounded-lg bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold"
               >
                 {processing ? "Opening…" : holdExpired ? "Hold expired" : `Pay ${formatPaise(amount)}`}
               </button>
-              <p className="text-xs text-slate-500 mt-3 text-center">You’ll be redirected to a secure payment page.</p>
+              <p className="text-xs text-[var(--text-soft)] mt-3 text-center">You’ll be redirected to a secure payment page.</p>
             </div>
           </div>
 
           {/* Order Summary */}
-          <div className="rounded-lg bg-white border p-6 shadow-sm">
+          <div className="rounded-lg bg-[var(--surface)] border p-6 shadow-sm">
             <h3 className="font-semibold mb-4">Order Summary</h3>
             <div className="space-y-2 text-sm">
               {booking.items?.map((item, idx) => (
@@ -326,7 +326,7 @@ export default function PaymentPage() {
                 </div>
               ))}
               <hr className="my-2" />
-              <div className="flex justify-between text-slate-600">
+              <div className="flex justify-between text-[var(--text-slate)]">
                 <span>Subtotal</span>
                 <span>{formatPaise(booking.subtotal)}</span>
               </div>
@@ -347,11 +347,11 @@ export default function PaymentPage() {
                   <span>-{formatPaise(booking.promoDiscount)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-slate-600">
+              <div className="flex justify-between text-[var(--text-slate)]">
                 <span>Platform Fee (2%)</span>
                 <span>{formatPaise(booking.platformFee)}</span>
               </div>
-              <div className="flex justify-between text-slate-600">
+              <div className="flex justify-between text-[var(--text-slate)]">
                 <span>Tax (18% GST)</span>
                 <span>{formatPaise(booking.tax)}</span>
               </div>
@@ -363,11 +363,11 @@ export default function PaymentPage() {
             </div>
           </div>
 
-          <div className="rounded-lg bg-white border p-6 shadow-sm">
+          <div className="rounded-lg bg-[var(--surface)] border p-6 shadow-sm">
             <h3 className="font-semibold">Need help?</h3>
-            <p className="text-sm text-slate-600 mt-2">
+            <p className="text-sm text-[var(--text-slate)] mt-2">
               If you face trouble completing payment, contact our support at{" "}
-              <a className="text-primary-600 underline" href="mailto:support@tiqr.events">
+              <a className="text-[var(--text-primary)] underline" href="mailto:support@tiqr.events">
                 support@tiqr.events
               </a>
             </p>
@@ -388,20 +388,20 @@ export default function PaymentPage() {
       {/* FE-10: mobile sticky pay bar — live total + the same Pay action as the
           desktop CTA (shared amount + handler). */}
       <div
-        className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur px-4 py-3"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-[var(--border-slate)] bg-white/95 backdrop-blur px-4 py-3"
         style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
       >
         <div className="flex items-center justify-between gap-4">
           <div>
-            <div className="text-xs text-slate-500">Total to pay</div>
-            <div className="text-lg font-bold text-slate-900" data-testid="sticky-total">{formatPaise(amount)}</div>
+            <div className="text-xs text-[var(--text-soft)]">Total to pay</div>
+            <div className="text-lg font-bold text-[var(--text-slate-900)]" data-testid="sticky-total">{formatPaise(amount)}</div>
           </div>
           <button
             type="button"
             onClick={payWithRazorpay}
             disabled={processing || holdExpired}
             className={`flex-1 max-w-[60%] inline-flex items-center justify-center gap-2 px-4 py-3 rounded-md text-white font-semibold ${
-              processing || holdExpired ? "bg-slate-300 cursor-not-allowed" : "bg-primary-600 hover:bg-primary-700"
+              processing || holdExpired ? "bg-[var(--surface-slate-200)] cursor-not-allowed" : "bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)]"
             }`}
           >
             {processing ? "Opening…" : holdExpired ? "Hold expired" : `Pay ${formatPaise(amount)}`}

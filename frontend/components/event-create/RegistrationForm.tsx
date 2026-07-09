@@ -69,15 +69,15 @@ export default function RegistrationForm({ onSubmit, onChange, isSubmitting, ini
   };
 
   return (
-    <div className="flex-1 rounded-xl border border-[#C5BAC4] bg-white p-6 shadow-sm">
-      <h2 className="mb-6 text-xl font-semibold text-[#29104A]">
+    <div className="flex-1 rounded-xl border border-[var(--border-card)] bg-[var(--surface)] p-6 shadow-sm">
+      <h2 className="mb-6 text-xl font-semibold text-[var(--text-primary)]">
         Registration Form
       </h2>
 
       <div className="space-y-8">
         {/* Default Fields */}
         <section>
-          <h3 className="mb-3 text-sm font-medium text-[#29104A]">
+          <h3 className="mb-3 text-sm font-medium text-[var(--text-primary)]">
             Default Attendee Fields
           </h3>
 
@@ -88,18 +88,18 @@ export default function RegistrationForm({ onSubmit, onChange, isSubmitting, ini
             <LockedField label="Phone Number" />
           </div>
 
-          <p className="mt-2 text-xs text-[#6B597F]">
+          <p className="mt-2 text-xs text-[var(--text-muted)]">
             These fields are mandatory and cannot be removed.
           </p>
         </section>
 
         {/* Custom Questions */}
         <section className="space-y-4">
-          <h3 className="text-sm font-medium text-[#29104A]">
+          <h3 className="text-sm font-medium text-[var(--text-primary)]">
             Additional Questions
           </h3>
 
-          <p className="text-xs text-[#6B597F]">
+          <p className="text-xs text-[var(--text-muted)]">
             Custom questions are saved with the event and shown to attendees at
             booking. The default attendee fields above are always collected.
           </p>
@@ -107,10 +107,10 @@ export default function RegistrationForm({ onSubmit, onChange, isSubmitting, ini
           {questions.map((q, index) => (
             <div
               key={q.id}
-              className="rounded-lg border border-[#C5BAC4] bg-[#C5BAC4]/10 p-4 space-y-3"
+              className="rounded-lg border border-[var(--border-card)] bg-[color-mix(in_srgb,var(--surface-card)_10%,transparent)] p-4 space-y-3"
             >
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-[#29104A]">
+                <span className="text-sm font-medium text-[var(--text-primary)]">
                   Question {index + 1}
                 </span>
 
@@ -136,10 +136,10 @@ export default function RegistrationForm({ onSubmit, onChange, isSubmitting, ini
                 onChange={(e) =>
                   updateQuestion(q.id, { label: e.target.value })
                 }
-                className="w-full rounded-lg border border-[#C5BAC4] px-3 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
+                className="w-full rounded-lg border border-[var(--border-card)] px-3 py-2 focus:border-[var(--border-plum)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:outline-none text-[var(--text-primary)]"
               />
 
-              <label className="block text-xs text-[#6B597F]">
+              <label className="block text-xs text-[var(--text-muted)]">
                 Answer type
                 <select
                   aria-label={`Answer type for question ${index + 1}`}
@@ -147,7 +147,7 @@ export default function RegistrationForm({ onSubmit, onChange, isSubmitting, ini
                   onChange={(e) =>
                     updateQuestion(q.id, { type: e.target.value })
                   }
-                  className="mt-1 w-full rounded-lg border border-[#C5BAC4] px-3 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A] bg-white"
+                  className="mt-1 w-full rounded-lg border border-[var(--border-card)] px-3 py-2 focus:border-[var(--border-plum)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:outline-none text-[var(--text-primary)] bg-[var(--surface)]"
                 >
                   {QUESTION_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>
@@ -157,14 +157,14 @@ export default function RegistrationForm({ onSubmit, onChange, isSubmitting, ini
                 </select>
               </label>
 
-              <label className="flex items-center gap-2 text-sm text-[#6B597F]">
+              <label className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
                 <input
                   type="checkbox"
                   checked={q.required}
                   onChange={(e) =>
                     updateQuestion(q.id, { required: e.target.checked })
                   }
-                  className="rounded border-[#C5BAC4] text-[#522C5D] focus:ring-[#522C5D]"
+                  className="rounded border-[var(--border-card)] text-[var(--text-secondary)] focus:ring-[var(--ring-plum)]"
                 />
                 Required
               </label>
@@ -174,7 +174,7 @@ export default function RegistrationForm({ onSubmit, onChange, isSubmitting, ini
           <button
             type="button"
             onClick={addQuestion}
-            className="w-full rounded-lg border-2 border-dashed border-[#C5BAC4] py-4 text-[#6B597F] hover:border-[#522C5D] hover:text-[#522C5D] transition"
+            className="w-full rounded-lg border-2 border-dashed border-[var(--border-card)] py-4 text-[var(--text-muted)] hover:border-[var(--border-plum)] hover:text-[var(--text-secondary)] transition"
           >
             + Add another question
           </button>
@@ -185,7 +185,7 @@ export default function RegistrationForm({ onSubmit, onChange, isSubmitting, ini
           type="button"
           onClick={handleSubmit}
           disabled={isSubmitting}
-          className="mt-6 w-full rounded-lg bg-[#522C5D] py-3 text-white font-medium hover:bg-[#29104A] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="mt-6 w-full rounded-lg bg-[var(--fill-plum)] py-3 text-white font-medium hover:bg-[var(--fill-ink)] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {isSubmitting ? (
             <>
@@ -206,7 +206,7 @@ export default function RegistrationForm({ onSubmit, onChange, isSubmitting, ini
 
 function LockedField({ label }: { label: string }) {
   return (
-    <div className="rounded-lg border border-[#C5BAC4] bg-[#C5BAC4]/30 px-4 py-2 text-sm text-[#6B597F]">
+    <div className="rounded-lg border border-[var(--border-card)] bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] px-4 py-2 text-sm text-[var(--text-muted)]">
       {label}
     </div>
   );

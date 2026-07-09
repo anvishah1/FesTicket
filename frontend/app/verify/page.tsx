@@ -65,21 +65,21 @@ export default function VerifyPage() {
     <div className="min-h-screen bg-[var(--bg)]">
       <Header />
       <main className="container py-16">
-        <div className="max-w-md mx-auto rounded-lg bg-white border p-8 shadow-sm text-center">
+        <div className="max-w-md mx-auto rounded-lg bg-[var(--surface)] border p-8 shadow-sm text-center">
           {status === "verifying" && (
             <>
               <h1 className="text-xl font-bold">Verifying your email…</h1>
-              <p className="text-sm text-slate-500 mt-2">One moment.</p>
+              <p className="text-sm text-[var(--text-soft)] mt-2">One moment.</p>
             </>
           )}
 
           {status === "success" && (
             <>
               <h1 className="text-xl font-bold text-green-700">Email verified ✓</h1>
-              <p className="text-sm text-slate-500 mt-2">Your account is ready. You can sign in now.</p>
+              <p className="text-sm text-[var(--text-soft)] mt-2">Your account is ready. You can sign in now.</p>
               <Link
                 href="/signin"
-                className="inline-block mt-5 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-md font-semibold"
+                className="inline-block mt-5 px-4 py-2 bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white rounded-md font-semibold"
               >
                 Go to sign in
               </Link>
@@ -88,10 +88,10 @@ export default function VerifyPage() {
 
           {(status === "error" || status === "no-token") && (
             <>
-              <h1 className="text-xl font-bold text-slate-800">
+              <h1 className="text-xl font-bold text-[var(--text-slate-800)]">
                 {status === "no-token" ? "Verify your email" : "Verification failed"}
               </h1>
-              <p className="text-sm text-slate-500 mt-2">
+              <p className="text-sm text-[var(--text-soft)] mt-2">
                 {status === "no-token"
                   ? "Enter your email to receive a new verification link."
                   : message}
@@ -108,12 +108,12 @@ export default function VerifyPage() {
                     onChange={(e) => setResendEmail(e.target.value)}
                     placeholder="you@example.com"
                     aria-label="Email"
-                    className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500"
+                    className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-[var(--ring-plum)]"
                   />
                   <button
                     type="submit"
                     disabled={!resendEmail.trim() || resendState === "sending"}
-                    className="px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold"
+                    className="px-4 py-2 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] disabled:opacity-50 text-white font-semibold"
                   >
                     {resendState === "sending" ? "Sending…" : "Resend link"}
                   </button>

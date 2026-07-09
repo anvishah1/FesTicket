@@ -14,25 +14,30 @@ describe("Button", () => {
     const btn = screen.getByRole("button", { name: "Solid" });
     // base classes are always present
     expect(btn).toHaveClass("inline-flex", "rounded-md");
-    // solid-specific classes
-    expect(btn).toHaveClass("bg-primary-500", "text-white");
+    // solid-specific classes (FE-11: token-driven)
+    expect(btn).toHaveClass("bg-[var(--fill-plum)]", "text-white");
     // must NOT carry the outline border
-    expect(btn.className).not.toContain("border-primary-500");
+    expect(btn.className).not.toContain("border-[var(--border-plum)]");
   });
 
   it("applies outline variant styles", () => {
     render(<Button variant="outline">Outline</Button>);
     const btn = screen.getByRole("button", { name: "Outline" });
-    expect(btn).toHaveClass("border", "border-primary-500", "text-primary-700", "bg-white");
-    expect(btn.className).not.toContain("bg-primary-500");
+    expect(btn).toHaveClass(
+      "border",
+      "border-[var(--border-plum)]",
+      "text-[var(--text-primary)]",
+      "bg-[var(--surface)]"
+    );
+    expect(btn.className).not.toContain("bg-[var(--fill-plum)]");
   });
 
   it("applies ghost variant styles", () => {
     render(<Button variant="ghost">Ghost</Button>);
     const btn = screen.getByRole("button", { name: "Ghost" });
-    expect(btn).toHaveClass("text-primary-700", "hover:bg-primary-50", "px-3");
-    expect(btn.className).not.toContain("bg-primary-500");
-    expect(btn.className).not.toContain("border-primary-500");
+    expect(btn).toHaveClass("text-[var(--text-primary)]", "hover:bg-[var(--surface-page)]", "px-3");
+    expect(btn.className).not.toContain("bg-[var(--fill-plum)]");
+    expect(btn.className).not.toContain("border-[var(--border-plum)]");
   });
 
   it("merges a custom className with the computed classes", () => {
@@ -40,7 +45,7 @@ describe("Button", () => {
     const btn = screen.getByRole("button", { name: "Custom" });
     expect(btn).toHaveClass("my-custom-class");
     // still keeps base + variant classes
-    expect(btn).toHaveClass("inline-flex", "bg-primary-500");
+    expect(btn).toHaveClass("inline-flex", "bg-[var(--fill-plum)]");
   });
 
   it("forwards native button props such as type and disabled", () => {

@@ -8,8 +8,8 @@
 // honest, disabled state instead of a broken "Create Fest" form.
 export default function CreateFest() {
   return (
-    <div className="max-w-2xl bg-white border border-[#C5BAC4] rounded-2xl p-6 shadow-sm">
-      <h2 className="text-xl font-semibold text-[#29104A] mb-4">
+    <div className="max-w-2xl bg-[var(--surface)] border border-[var(--border-card)] rounded-2xl p-6 shadow-sm">
+      <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">
         Create New Fest
       </h2>
 
@@ -52,7 +52,7 @@ export default function CreateFest() {
           disabled
           aria-disabled="true"
           title="Fest creation is handled during admin onboarding, not here"
-          className="px-5 py-2 rounded-lg bg-[#C5BAC4]/40 text-[#6B597F] cursor-not-allowed"
+          className="px-5 py-2 rounded-lg bg-[color-mix(in_srgb,var(--surface-card)_40%,transparent)] text-[var(--text-muted)] cursor-not-allowed"
         >
           Create Fest
         </button>

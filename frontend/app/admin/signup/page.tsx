@@ -48,20 +48,20 @@ export default function AdminSignUpPage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-[#fdfdff] flex flex-col">
+      <div className="min-h-screen bg-[var(--surface-tint)] flex flex-col">
         <Header />
 
         <main className="flex-1 flex items-center justify-center py-12 px-4">
           <div className="w-full max-w-md">
-            <div className="bg-white rounded-2xl shadow-lg border border-[#C5BAC4] p-8 text-center">
+            <div className="bg-[var(--surface)] rounded-2xl shadow-lg border border-[var(--border-card)] p-8 text-center">
               <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
                 <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
 
-              <h2 className="text-2xl font-bold text-[#29104A] mb-2">Request submitted</h2>
-              <p className="text-[#6B597F] mb-6">
+              <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-2">Request submitted</h2>
+              <p className="text-[var(--text-muted)] mb-6">
                 Your request for admin access has been received. We&apos;ll verify and set you up with login credentials and a fest key. You can then sign in at Admin Sign In.
               </p>
 
@@ -83,12 +83,12 @@ export default function AdminSignUpPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fdfdff] flex flex-col">
+    <div className="min-h-screen bg-[var(--surface-tint)] flex flex-col">
       <Header />
 
       <main className="flex-1 flex items-center justify-center py-12 px-4">
         <div className="w-full max-w-md">
-          <div className="bg-white rounded-2xl shadow-lg border border-[#C5BAC4] overflow-hidden">
+          <div className="bg-[var(--surface)] rounded-2xl shadow-lg border border-[var(--border-card)] overflow-hidden">
             <div className="bg-gradient-to-r from-[#29104A] to-[#522C5D] px-8 py-6 text-center">
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/20 flex items-center justify-center">
                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,48 +107,48 @@ export default function AdminSignUpPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-[#29104A] mb-1.5">Name (optional)</label>
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">Name (optional)</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl bg-[#F9F7FA] text-[#29104A] focus:outline-none focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] transition"
+                  className="w-full px-4 py-3 border border-[var(--border-card)] rounded-xl bg-[var(--surface-tint)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:border-[var(--border-plum)] transition"
                   placeholder="John Doe"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#29104A] mb-1.5">Email <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">Email <span className="text-red-500">*</span></label>
                 <input
                   type="email"
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl bg-[#F9F7FA] text-[#29104A] focus:outline-none focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] transition"
+                  className="w-full px-4 py-3 border border-[var(--border-card)] rounded-xl bg-[var(--surface-tint)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:border-[var(--border-plum)] transition"
                   placeholder="you@college.edu"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#29104A] mb-1.5">Fest name <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">Fest name <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   required
                   value={formData.festName}
                   onChange={(e) => setFormData({ ...formData, festName: e.target.value })}
-                  className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl bg-[#F9F7FA] text-[#29104A] focus:outline-none focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] transition"
+                  className="w-full px-4 py-3 border border-[var(--border-card)] rounded-xl bg-[var(--surface-tint)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:border-[var(--border-plum)] transition"
                   placeholder="e.g. ComicCon, Ragam, Tathva"
                 />
-                <p className="text-xs text-[#6B597F] mt-1">This name will appear on your admin dashboard</p>
+                <p className="text-xs text-[var(--text-muted)] mt-1">This name will appear on your admin dashboard</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#29104A] mb-1.5">College / Organization (optional)</label>
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">College / Organization (optional)</label>
                 <input
                   type="text"
                   value={formData.organization}
                   onChange={(e) => setFormData({ ...formData, organization: e.target.value })}
-                  className="w-full px-4 py-3 border border-[#C5BAC4] rounded-xl bg-[#F9F7FA] text-[#29104A] focus:outline-none focus:ring-2 focus:ring-[#522C5D]/20 focus:border-[#522C5D] transition"
+                  className="w-full px-4 py-3 border border-[var(--border-card)] rounded-xl bg-[var(--surface-tint)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:border-[var(--border-plum)] transition"
                   placeholder="e.g. NIT Calicut, NITC"
                 />
               </div>
@@ -172,10 +172,10 @@ export default function AdminSignUpPage() {
               </button>
             </form>
 
-            <div className="px-8 pb-8 pt-2 border-t border-[#C5BAC4]/50">
-              <p className="text-center text-sm text-[#6B597F]">
+            <div className="px-8 pb-8 pt-2 border-t border-[color-mix(in_srgb,var(--border-card)_50%,transparent)]">
+              <p className="text-center text-sm text-[var(--text-muted)]">
                 Already have an account?{" "}
-                <Link href="/admin/signin" className="text-[#522C5D] font-medium hover:underline">
+                <Link href="/admin/signin" className="text-[var(--text-secondary)] font-medium hover:underline">
                   Sign In
                 </Link>
               </p>
@@ -183,7 +183,7 @@ export default function AdminSignUpPage() {
           </div>
 
           <div className="mt-6 text-center">
-            <Link href="/" className="text-sm text-[#6B597F] hover:text-[#29104A] transition">
+            <Link href="/" className="text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] transition">
               ← Back to Home
             </Link>
           </div>

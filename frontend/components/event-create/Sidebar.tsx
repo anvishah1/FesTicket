@@ -52,24 +52,24 @@ export default function Sidebar({ current, onChange, isStepEnabled }: SidebarPro
               onChange(step.id);
             }}
             className={`w-full rounded-xl border px-4 py-3 text-left transition-all
-              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#522C5D] focus-visible:ring-offset-2
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-plum)] focus-visible:ring-offset-2
               ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}
               ${
                 isActive
-                  ? "border-[#522C5D] bg-[#522C5D]/10 text-[#522C5D] font-medium"
+                  ? "border-[var(--border-plum)] bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] text-[var(--text-secondary)] font-medium"
                   : isCompleted
-                  ? "border-[#C5BAC4] bg-white text-[#29104A] hover:bg-[#C5BAC4]/20"
-                  : "border-[#C5BAC4] bg-white text-[#6B597F] hover:bg-[#C5BAC4]/20"
+                  ? "border-[var(--border-card)] bg-[var(--surface)] text-[var(--text-primary)] hover:bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)]"
+                  : "border-[var(--border-card)] bg-[var(--surface)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)]"
               }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
                   isActive
-                    ? "bg-[#522C5D] text-white"
+                    ? "bg-[var(--fill-plum)] text-white"
                     : isCompleted
                     ? "bg-green-500 text-white"
-                    : "bg-[#C5BAC4]/50 text-[#6B597F]"
+                    : "bg-[color-mix(in_srgb,var(--surface-card)_50%,transparent)] text-[var(--text-muted)]"
                 }`}>
                   {isCompleted ? (
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -83,7 +83,7 @@ export default function Sidebar({ current, onChange, isStepEnabled }: SidebarPro
               </div>
 
               {isActive && (
-                <span className="text-sm text-[#522C5D]" aria-hidden="true">●</span>
+                <span className="text-sm text-[var(--text-secondary)]" aria-hidden="true">●</span>
               )}
             </div>
           </button>

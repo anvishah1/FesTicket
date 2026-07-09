@@ -115,13 +115,13 @@ export default function FestsListClient({
   const total = pagination?.total;
 
   return (
-    <div className="min-h-screen bg-[#fdfdff]">
+    <div className="min-h-screen bg-[var(--surface-tint)]">
       <Header />
       <main className="py-8 px-4">
         {/* Page Title */}
         <div className="max-w-6xl mx-auto mb-6">
-          <h1 className="text-3xl font-bold text-[#29104A]">Discover Fests</h1>
-          <p className="text-[#6B597F] mt-1">
+          <h1 className="text-3xl font-bold text-[var(--text-primary)]">Discover Fests</h1>
+          <p className="text-[var(--text-muted)] mt-1">
             Explore the most exciting college festivals across India
           </p>
         </div>
@@ -134,10 +134,10 @@ export default function FestsListClient({
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search fests by name…"
             aria-label="Search fests"
-            className="w-full sm:max-w-md rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm text-[#29104A] placeholder-[#6B597F] focus:border-[#522C5D] focus:outline-none"
+            className="w-full sm:max-w-md rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--text-primary)] placeholder-[#6B597F] focus:border-[var(--border-plum)] focus:outline-none"
           />
           {!loading && !error && typeof total === "number" && (
-            <p className="mt-2 text-sm text-[#6B597F]" role="status" aria-live="polite">
+            <p className="mt-2 text-sm text-[var(--text-muted)]" role="status" aria-live="polite">
               {total} {total === 1 ? "fest" : "fests"} found
               {debouncedSearch ? ` for “${debouncedSearch}”` : ""}
             </p>
@@ -149,17 +149,17 @@ export default function FestsListClient({
           {loading ? (
             <CardGridSkeleton />
           ) : error ? (
-            <div role="alert" className="text-[#6B597F]">
+            <div role="alert" className="text-[var(--text-muted)]">
               <p>Something went wrong while loading fests. Please check your connection and try again.</p>
               <button
                 onClick={() => mutate()}
-                className="mt-3 rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm font-medium text-[#522C5D] transition-colors hover:bg-[#C5BAC4]"
+                className="mt-3 rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-card)]"
               >
                 Try again
               </button>
             </div>
           ) : fests.length === 0 ? (
-            <p className="text-[#6B597F]">
+            <p className="text-[var(--text-muted)]">
               {debouncedSearch ? `No fests match “${debouncedSearch}”.` : "No fests found"}
             </p>
           ) : (
@@ -193,18 +193,18 @@ export default function FestsListClient({
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
               aria-label="Previous page"
-              className="rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm font-medium text-[#522C5D] transition-colors hover:bg-[#C5BAC4] disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-card)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <span aria-hidden="true">←</span> Prev
             </button>
-            <span className="text-sm text-[#6B597F]" aria-current="page">
+            <span className="text-sm text-[var(--text-muted)]" aria-current="page">
               Page {page} of {totalPages}
             </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
               aria-label="Next page"
-              className="rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm font-medium text-[#522C5D] transition-colors hover:bg-[#C5BAC4] disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-card)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               Next <span aria-hidden="true">→</span>
             </button>

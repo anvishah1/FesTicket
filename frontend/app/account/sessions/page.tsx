@@ -124,21 +124,21 @@ export default function SessionsPage() {
         <div className="max-w-2xl mx-auto space-y-6">
           <div className="flex items-center justify-between gap-4">
             <h1 className="text-2xl font-extrabold">Active sessions</h1>
-            <Link href="/account" className="text-sm text-primary-600 hover:underline">
+            <Link href="/account" className="text-sm text-[var(--text-primary)] hover:underline">
               ← Account
             </Link>
           </div>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-[var(--text-soft)]">
             Devices where you&apos;re signed in. Revoke any you don&apos;t recognise.
           </p>
 
           {loading ? (
             <div className="animate-pulse space-y-3">
-              <div className="h-16 bg-gray-200 rounded" />
-              <div className="h-16 bg-gray-200 rounded" />
+              <div className="h-16 bg-[var(--surface-slate-200)] rounded" />
+              <div className="h-16 bg-[var(--surface-slate-200)] rounded" />
             </div>
           ) : sessions.length === 0 ? (
-            <div className="rounded-lg bg-white border p-8 text-center text-slate-500 shadow-sm">
+            <div className="rounded-lg bg-[var(--surface)] border p-8 text-center text-[var(--text-soft)] shadow-sm">
               No active sessions.
             </div>
           ) : (
@@ -147,20 +147,20 @@ export default function SessionsPage() {
                 {sessions.map((s) => (
                   <li
                     key={s.id}
-                    className="rounded-lg bg-white border p-4 shadow-sm flex items-center justify-between gap-4"
+                    className="rounded-lg bg-[var(--surface)] border p-4 shadow-sm flex items-center justify-between gap-4"
                   >
                     <div className="min-w-0">
-                      <p className="font-medium text-slate-800">{deviceLabel(s.userAgent)}</p>
-                      <p className="text-xs text-slate-500 truncate">
+                      <p className="font-medium text-[var(--text-slate-800)]">{deviceLabel(s.userAgent)}</p>
+                      <p className="text-xs text-[var(--text-soft)] truncate">
                         {s.ipAddress || "Unknown IP"} · signed in {relTime(s.createdAt)}
                       </p>
-                      <p className="text-xs text-slate-400">Expires {relTime(s.expiresAt)}</p>
+                      <p className="text-xs text-[var(--text-faint)]">Expires {relTime(s.expiresAt)}</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => revoke(s.id)}
                       disabled={busy}
-                      className="shrink-0 text-sm px-3 py-1.5 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      className="shrink-0 text-sm px-3 py-1.5 rounded-md border border-[var(--border-slate)] text-[var(--text-strong)] hover:bg-[var(--surface-slate)] disabled:opacity-50"
                     >
                       Revoke
                     </button>

@@ -53,23 +53,23 @@ export default function UPIForm({ amount, onPaymentComplete, processing: externa
     <div>
       <div className="w-full">
         <div className="p-4 border rounded-lg">
-          <div className="text-sm text-slate-600 mb-3">Pay by any UPI app</div>
+          <div className="text-sm text-[var(--text-slate)] mb-3">Pay by any UPI app</div>
 
           {qrShown ? (
             <div className="flex items-center gap-4">
-              <div className="w-40 h-40 rounded-md bg-white border flex items-center justify-center">
-                <div className="w-32 h-32 bg-slate-200 flex items-center justify-center text-xs text-slate-400">
+              <div className="w-40 h-40 rounded-md bg-[var(--surface)] border flex items-center justify-center">
+                <div className="w-32 h-32 bg-[var(--surface-slate-200)] flex items-center justify-center text-xs text-[var(--text-faint)]">
                   QR Code
                 </div>
               </div>
               <div>
-                <div className="text-sm text-slate-700">Scan this QR code using your UPI app</div>
-                <div className="text-xs text-slate-500 mt-1">Amount: {formatPaise(amount)}</div>
+                <div className="text-sm text-[var(--text-strong)]">Scan this QR code using your UPI app</div>
+                <div className="text-xs text-[var(--text-soft)] mt-1">Amount: {formatPaise(amount)}</div>
                 <div className="mt-3">
                   <button
                     onClick={handleQRPaid}
                     disabled={isProcessing}
-                    className="inline-block bg-primary-600 text-white px-4 py-2 rounded-md disabled:opacity-50"
+                    className="inline-block bg-[var(--fill-ink)] text-white px-4 py-2 rounded-md disabled:opacity-50"
                   >
                     {isProcessing ? "Processing…" : "I have paid"}
                   </button>
@@ -80,18 +80,18 @@ export default function UPIForm({ amount, onPaymentComplete, processing: externa
             <>
               <button 
                 onClick={generateQRCode} 
-                className="bg-primary-600 text-white px-4 py-2 rounded-md"
+                className="bg-[var(--fill-ink)] text-white px-4 py-2 rounded-md"
               >
                 Generate QR Code
               </button>
 
               <div className="my-4 flex items-center gap-3">
                 <div className="flex-grow border-t" />
-                <div className="text-xs text-slate-400">OR</div>
+                <div className="text-xs text-[var(--text-faint)]">OR</div>
                 <div className="flex-grow border-t" />
               </div>
 
-              <label className="text-xs text-slate-500">UPI ID</label>
+              <label className="text-xs text-[var(--text-soft)]">UPI ID</label>
               <input
                 value={upiId}
                 onChange={(e) => setUpiId(e.target.value)}

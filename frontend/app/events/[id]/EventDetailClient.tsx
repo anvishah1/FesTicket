@@ -208,13 +208,13 @@ export default function EventDetailClient({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#fdfdff]">
+      <div className="min-h-screen bg-[var(--surface-tint)]">
         <Header />
         <main className="max-w-6xl mx-auto px-4 py-10">
           <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-[#C5BAC4]/40 rounded w-1/3" />
-            <div className="h-64 bg-[#C5BAC4]/40 rounded" />
-            <div className="h-32 bg-[#C5BAC4]/30 rounded" />
+            <div className="h-8 bg-[color-mix(in_srgb,var(--surface-card)_40%,transparent)] rounded w-1/3" />
+            <div className="h-64 bg-[color-mix(in_srgb,var(--surface-card)_40%,transparent)] rounded" />
+            <div className="h-32 bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] rounded" />
           </div>
         </main>
         <Footer />
@@ -224,25 +224,25 @@ export default function EventDetailClient({
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#fdfdff]">
+      <div className="min-h-screen bg-[var(--surface-tint)]">
         <Header />
         <main className="max-w-6xl mx-auto px-4 py-10 text-center" role="alert">
-          <h1 className="text-2xl font-bold text-[#29104A]">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">
             Couldn&apos;t load this event
           </h1>
-          <p className="mt-2 text-sm text-[#6B597F]">
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
             Something went wrong. Please check your connection and try again.
           </p>
           <div className="mt-4 flex items-center justify-center gap-4">
             <button
               onClick={() => setReloadKey((k) => k + 1)}
-              className="rounded-lg bg-[#522C5D] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#29104A]"
+              className="rounded-lg bg-[var(--fill-plum)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--fill-ink)]"
             >
               Try again
             </button>
             <button
               onClick={() => router.push("/fests")}
-              className="text-[#522C5D] hover:underline"
+              className="text-[var(--text-secondary)] hover:underline"
             >
               ← Back to events
             </button>
@@ -255,13 +255,13 @@ export default function EventDetailClient({
 
   if (!event) {
     return (
-      <div className="min-h-screen bg-[#fdfdff]">
+      <div className="min-h-screen bg-[var(--surface-tint)]">
         <Header />
         <main className="max-w-6xl mx-auto px-4 py-10 text-center">
-          <h1 className="text-2xl font-bold text-[#29104A]">Event not found</h1>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Event not found</h1>
           <button
             onClick={() => router.push("/fests")}
-            className="mt-4 text-[#522C5D] hover:underline"
+            className="mt-4 text-[var(--text-secondary)] hover:underline"
           >
             ← Back to events
           </button>
@@ -275,14 +275,14 @@ export default function EventDetailClient({
     event.description || event.shortDescription || event.aboutEvent || "No description provided yet.";
 
   return (
-    <div className="min-h-screen bg-[#fdfdff]">
+    <div className="min-h-screen bg-[var(--surface-tint)]">
       <Header />
 
       <main className="max-w-6xl mx-auto px-4 py-8 grid gap-8 lg:grid-cols-[2fr,1fr]">
         {/* Left: details */}
         <section className="space-y-6">
           {/* Hero */}
-          <div className="overflow-hidden rounded-2xl border border-[#C5BAC4] bg-white">
+          <div className="overflow-hidden rounded-2xl border border-[var(--border-card)] bg-[var(--surface)]">
             {event.image && (
               <div className="relative h-64 w-full overflow-hidden">
                 <PosterImage
@@ -298,9 +298,9 @@ export default function EventDetailClient({
             <div className="p-6 space-y-3">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-bold text-[#29104A]">{event.name}</h1>
+                  <h1 className="text-2xl font-bold text-[var(--text-primary)]">{event.name}</h1>
                   {event.fest && (
-                    <p className="text-sm text-[#6B597F] mt-1">
+                    <p className="text-sm text-[var(--text-muted)] mt-1">
                       Part of <span className="font-medium">{event.fest.name}</span> •{" "}
                       {event.fest.college}
                     </p>
@@ -320,12 +320,12 @@ export default function EventDetailClient({
                     (labelToSlug(event.category) ? (
                       <Link
                         href={`/events/category/${labelToSlug(event.category)}`}
-                        className="inline-flex items-center rounded-full bg-[#522C5D]/10 px-3 py-1 text-xs font-medium text-[#522C5D] transition-colors hover:bg-[#522C5D]/20"
+                        className="inline-flex items-center rounded-full bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[color-mix(in_srgb,var(--fill-plum)_20%,transparent)]"
                       >
                         {event.category}
                       </Link>
                     ) : (
-                      <span className="inline-flex items-center rounded-full bg-[#522C5D]/10 px-3 py-1 text-xs font-medium text-[#522C5D]">
+                      <span className="inline-flex items-center rounded-full bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">
                         {event.category}
                       </span>
                     ))}
@@ -333,7 +333,7 @@ export default function EventDetailClient({
                   {typeof event.goingCount === "number" && event.goingCount > 0 && (
                     <span
                       data-testid="going-badge"
-                      className="inline-flex items-center gap-1.5 rounded-full bg-[#522C5D]/10 px-3 py-1 text-xs font-medium text-[#522C5D]"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]"
                     >
                       <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                       {event.goingCount} going
@@ -342,13 +342,13 @@ export default function EventDetailClient({
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 text-sm text-[#6B597F]">
+              <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--text-muted)]">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-[#29104A]">When:</span>
+                  <span className="font-medium text-[var(--text-primary)]">When:</span>
                   <span>{formatDateRange(event.startDate, event.endDate)}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-[#29104A]">Where:</span>
+                  <span className="font-medium text-[var(--text-primary)]">Where:</span>
                   <span>{event.venue || "Venue TBA"}</span>
                 </div>
                 {/* TIX-09 */}
@@ -368,14 +368,14 @@ export default function EventDetailClient({
           </div>
 
           {/* Description */}
-          <div className="rounded-2xl border border-[#C5BAC4] bg-white p-6 space-y-3">
-            <h2 className="text-lg font-semibold text-[#29104A]">About this event</h2>
-            <p className="text-sm leading-relaxed text-[#4B3F60] whitespace-pre-line">
+          <div className="rounded-2xl border border-[var(--border-card)] bg-[var(--surface)] p-6 space-y-3">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">About this event</h2>
+            <p className="text-sm leading-relaxed text-[var(--text-muted)] whitespace-pre-line">
               {primaryDescription}
             </p>
             {event.audience && (
-              <p className="text-sm text-[#6B597F]">
-                <span className="font-medium text-[#29104A]">Who should attend:</span>{" "}
+              <p className="text-sm text-[var(--text-muted)]">
+                <span className="font-medium text-[var(--text-primary)]">Who should attend:</span>{" "}
                 {event.audience}
               </p>
             )}
@@ -383,21 +383,21 @@ export default function EventDetailClient({
 
           {/* Venue details + map */}
           {(event.venueAddress || event.venue) && (
-            <div className="rounded-2xl border border-[#C5BAC4] bg-white p-6 space-y-4">
+            <div className="rounded-2xl border border-[var(--border-card)] bg-[var(--surface)] p-6 space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-[#29104A]">Venue details</h3>
-                <p className="text-sm text-[#4B3F60]">
+                <h3 className="text-base font-semibold text-[var(--text-primary)]">Venue details</h3>
+                <p className="text-sm text-[var(--text-muted)]">
                   {event.venueAddress || event.venue}
                 </p>
               </div>
 
               <div className="space-y-2">
-                <p className="text-xs text-[#6B597F]">Location on map</p>
-                <div className="h-64 w-full overflow-hidden rounded-xl border border-[#C5BAC4]/80 bg-[#f3eef7]">
+                <p className="text-xs text-[var(--text-muted)]">Location on map</p>
+                <div className="h-64 w-full overflow-hidden rounded-xl border border-[color-mix(in_srgb,var(--border-card)_80%,transparent)] bg-[var(--surface-tint)]">
                   {coords ? (
                     <EventMap lat={coords.lat} lng={coords.lng} />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-xs text-[#6B597F] px-4 text-center">
+                    <div className="flex h-full items-center justify-center text-xs text-[var(--text-muted)] px-4 text-center">
                       {geocoding
                         ? "Loading map for this venue…"
                         : "We couldn't place this venue on the map automatically, but you can still find it using the address above."}
@@ -411,11 +411,11 @@ export default function EventDetailClient({
 
         {/* Right: tickets & CTA */}
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-[#C5BAC4] bg-white p-5">
-            <h2 className="text-lg font-semibold text-[#29104A] mb-3">Tickets</h2>
+          <div className="rounded-2xl border border-[var(--border-card)] bg-[var(--surface)] p-5">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-3">Tickets</h2>
 
             {event.ticketTypes.length === 0 ? (
-              <p className="text-sm text-[#6B597F]">Tickets are not available yet. Check back soon.</p>
+              <p className="text-sm text-[var(--text-muted)]">Tickets are not available yet. Check back soon.</p>
             ) : (
               <ul className="space-y-3">
                 {event.ticketTypes.map((t) => {
@@ -423,19 +423,19 @@ export default function EventDetailClient({
                   return (
                     <li
                       key={t.id}
-                      className="flex items-center justify-between rounded-xl border border-[#C5BAC4] px-3 py-3"
+                      className="flex items-center justify-between rounded-xl border border-[var(--border-card)] px-3 py-3"
                     >
                       <div>
-                        <p className="text-sm font-semibold text-[#29104A]">{t.name}</p>
+                        <p className="text-sm font-semibold text-[var(--text-primary)]">{t.name}</p>
                         {t.description && (
-                          <p className="text-xs text-[#6B597F] mt-0.5 line-clamp-2">{t.description}</p>
+                          <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2">{t.description}</p>
                         )}
-                        <p className="text-xs text-[#6B597F] mt-1">
+                        <p className="text-xs text-[var(--text-muted)] mt-1">
                           {available > 0 ? `${available} tickets left` : "Sold out"}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-base font-bold text-[#29104A]">
+                        <p className="text-base font-bold text-[var(--text-primary)]">
                           <span className="sr-only">Price: </span>{formatPaise(t.price)}
                         </p>
                       </div>
@@ -465,8 +465,8 @@ export default function EventDetailClient({
                   disabled={disabled}
                   className={`mt-5 w-full rounded-lg py-3 text-sm font-semibold text-white transition-colors ${
                     disabled
-                      ? "cursor-not-allowed bg-[#C5BAC4]"
-                      : "bg-[#522C5D] hover:bg-[#29104A]"
+                      ? "cursor-not-allowed bg-[var(--surface-card)]"
+                      : "bg-[var(--fill-plum)] hover:bg-[var(--fill-ink)]"
                   }`}
                 >
                   {label}

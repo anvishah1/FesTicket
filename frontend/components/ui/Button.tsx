@@ -11,10 +11,10 @@ export default function Button({ children, variant = "solid", className = "", ..
   const base = "inline-flex items-center gap-2 rounded-md font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-2";
   const styles =
   variant === "outline"
-    ? "border border-primary-500 text-primary-700 bg-white hover:bg-primary-50 px-4 py-2"
+    ? "border border-[var(--border-plum)] text-[var(--text-primary)] bg-[var(--surface)] hover:bg-[var(--surface-page)] px-4 py-2"
     : variant === "ghost"
-    ? "text-primary-700 hover:text-primary-900 hover:bg-primary-50 px-3 py-2"
-    : "bg-primary-500 text-white px-4 py-2 hover:bg-primary-600";
+    ? "text-[var(--text-primary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-page)] px-3 py-2"
+    : "bg-[var(--fill-plum)] text-white px-4 py-2 hover:bg-[var(--fill-ink)]";
 
   return (
     <button className={cx(base, styles, className)} {...props}>

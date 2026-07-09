@@ -37,15 +37,15 @@ export default function DescribeEvent({ onNext, onChange, initialData }: Describ
   };
 
   return (
-    <div className="flex-1 rounded-xl border border-[#C5BAC4] bg-white p-6 shadow-sm">
-      <h2 className="mb-6 text-xl font-semibold text-[#29104A]">
+    <div className="flex-1 rounded-xl border border-[var(--border-card)] bg-[var(--surface)] p-6 shadow-sm">
+      <h2 className="mb-6 text-xl font-semibold text-[var(--text-primary)]">
         Describe Your Event
       </h2>
 
       <div className="space-y-6">
         {/* Event Description */}
         <div>
-          <label htmlFor="describe-description" className="block text-sm font-medium text-[#29104A]">
+          <label htmlFor="describe-description" className="block text-sm font-medium text-[var(--text-primary)]">
             Event Description
           </label>
           <textarea
@@ -54,16 +54,16 @@ export default function DescribeEvent({ onNext, onChange, initialData }: Describ
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             placeholder="Tell people what your event is about, what they can expect, and why they should attend."
-            className="mt-2 w-full rounded-lg border border-[#C5BAC4] px-4 py-3 text-sm focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
+            className="mt-2 w-full rounded-lg border border-[var(--border-card)] px-4 py-3 text-sm focus:border-[var(--border-plum)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:outline-none text-[var(--text-primary)]"
           />
-          <p className="mt-1 text-xs text-[#6B597F]">
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
             This description will appear on your event page.
           </p>
         </div>
 
         {/* Tags / Categories */}
         <div>
-          <span id="describe-category-label" className="block text-sm font-medium text-[#29104A]">
+          <span id="describe-category-label" className="block text-sm font-medium text-[var(--text-primary)]">
             Event Category
           </span>
           <div className="mt-2 flex flex-wrap gap-3" role="group" aria-labelledby="describe-category-label">
@@ -76,14 +76,14 @@ export default function DescribeEvent({ onNext, onChange, initialData }: Describ
               />
             ))}
           </div>
-          <p className="mt-1 text-xs text-[#6B597F]">
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
             Choose a category that best fits your event.
           </p>
         </div>
 
         {/* Audience */}
         <div>
-          <label htmlFor="describe-audience" className="block text-sm font-medium text-[#29104A]">
+          <label htmlFor="describe-audience" className="block text-sm font-medium text-[var(--text-primary)]">
             Intended Audience
           </label>
           <textarea
@@ -92,14 +92,14 @@ export default function DescribeEvent({ onNext, onChange, initialData }: Describ
             value={formData.audience}
             onChange={(e) => setFormData({ ...formData, audience: e.target.value })}
             placeholder="Who should attend this event? (eg: students, founders, developers)"
-            className="mt-2 w-full rounded-lg border border-[#C5BAC4] px-4 py-3 text-sm focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
+            className="mt-2 w-full rounded-lg border border-[var(--border-card)] px-4 py-3 text-sm focus:border-[var(--border-plum)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:outline-none text-[var(--text-primary)]"
           />
         </div>
 
         {/* Save */}
         <button
           onClick={handleSubmit}
-          className="mt-6 w-full rounded-lg bg-[#522C5D] py-3 text-white font-medium hover:bg-[#29104A] transition"
+          className="mt-6 w-full rounded-lg bg-[var(--fill-plum)] py-3 text-white font-medium hover:bg-[var(--fill-ink)] transition"
         >
           Save & Continue
         </button>
@@ -125,8 +125,8 @@ function Tag({
       className={`rounded-full border px-4 py-1.5 text-sm transition
         ${
           active
-            ? "border-[#522C5D] bg-[#522C5D]/10 text-[#522C5D]"
-            : "border-[#C5BAC4] bg-white text-[#6B597F] hover:bg-[#C5BAC4]/20"
+            ? "border-[var(--border-plum)] bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] text-[var(--text-secondary)]"
+            : "border-[var(--border-card)] bg-[var(--surface)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)]"
         }`}
     >
       {label}

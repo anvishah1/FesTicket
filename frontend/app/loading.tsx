@@ -8,9 +8,9 @@ export default function Loading() {
     >
       <span
         className="inline-block h-10 w-10 rounded-full border-4 border-t-transparent animate-spin"
-        style={{ borderColor: "#522C5D", borderTopColor: "transparent" }}
+        style={{ borderColor: "var(--border-plum)", borderTopColor: "transparent" }}
       />
-      <p className="text-sm font-medium" style={{ color: "#522C5D" }}>
+      <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
         Loading…
       </p>
       <span className="sr-only">Loading</span>

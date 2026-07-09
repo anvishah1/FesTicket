@@ -31,17 +31,17 @@ function UnsubscribeInner() {
 
   return (
     <main className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-6">
-      <div className="max-w-md w-full rounded-xl bg-white border shadow-sm p-8 text-center">
-        {state === "loading" && <p className="text-slate-500">Updating your preferences…</p>}
+      <div className="max-w-md w-full rounded-xl bg-[var(--surface)] border shadow-sm p-8 text-center">
+        {state === "loading" && <p className="text-[var(--text-soft)]">Updating your preferences…</p>}
         {state === "done" && (
           <>
             <h1 className="text-xl font-bold">You&apos;re unsubscribed</h1>
-            <p className="text-slate-500 mt-2">
+            <p className="text-[var(--text-soft)] mt-2">
               You&apos;ll no longer receive these emails. You can re-enable them any time from your notification settings.
             </p>
             <Link
               href="/settings/notifications"
-              className="inline-block mt-5 px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 text-white font-semibold"
+              className="inline-block mt-5 px-4 py-2 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white font-semibold"
             >
               Manage preferences
             </Link>
@@ -50,13 +50,13 @@ function UnsubscribeInner() {
         {state === "error" && (
           <>
             <h1 className="text-xl font-bold">Link invalid</h1>
-            <p className="text-slate-500 mt-2">
+            <p className="text-[var(--text-soft)] mt-2">
               This unsubscribe link is invalid or has already been used. You can manage all your email preferences from
               your account.
             </p>
             <Link
               href="/settings/notifications"
-              className="inline-block mt-5 px-4 py-2 rounded-md border font-semibold hover:bg-slate-50"
+              className="inline-block mt-5 px-4 py-2 rounded-md border font-semibold hover:bg-[var(--surface-slate)]"
             >
               Manage preferences
             </Link>

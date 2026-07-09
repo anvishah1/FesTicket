@@ -106,22 +106,22 @@ export default function SecurityPage() {
       <Header />
       <main className="container py-10 max-w-lg">
         <h1 className="text-2xl font-bold">Security</h1>
-        <p className="text-sm text-slate-500 mt-1">Protect your account with two-factor authentication.</p>
+        <p className="text-sm text-[var(--text-soft)] mt-1">Protect your account with two-factor authentication.</p>
 
-        <div className="mt-6 rounded-lg bg-white border shadow-sm p-6">
-          {phase === "loading" && <div className="animate-pulse h-24 bg-gray-200 rounded" />}
+        <div className="mt-6 rounded-lg bg-[var(--surface)] border shadow-sm p-6">
+          {phase === "loading" && <div className="animate-pulse h-24 bg-[var(--surface-slate-200)] rounded" />}
 
           {phase === "off" && (
             <>
               <h2 className="font-semibold">Two-factor authentication is off</h2>
-              <p className="text-sm text-slate-500 mt-1">
+              <p className="text-sm text-[var(--text-soft)] mt-1">
                 Add a second step at sign-in using an authenticator app (Google Authenticator, Authy, 1Password…).
               </p>
               <button
                 type="button"
                 onClick={startEnroll}
                 disabled={busy}
-                className="mt-4 px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 text-white font-semibold disabled:opacity-50"
+                className="mt-4 px-4 py-2 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white font-semibold disabled:opacity-50"
                 data-testid="enable-2fa"
               >
                 {busy ? "Starting…" : "Enable two-factor"}
@@ -132,11 +132,11 @@ export default function SecurityPage() {
           {phase === "enrolling" && (
             <>
               <h2 className="font-semibold">Scan this QR code</h2>
-              <p className="text-sm text-slate-500 mt-1">Scan it in your authenticator app, then enter the 6-digit code.</p>
+              <p className="text-sm text-[var(--text-soft)] mt-1">Scan it in your authenticator app, then enter the 6-digit code.</p>
               {qr && (
                 <Image src={qr} alt="2FA QR code" width={200} height={200} className="my-4 border rounded" unoptimized />
               )}
-              {secret && <p className="text-xs text-slate-400 break-all">Or enter this key manually: {secret}</p>}
+              {secret && <p className="text-xs text-[var(--text-faint)] break-all">Or enter this key manually: {secret}</p>}
               <input
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
@@ -150,7 +150,7 @@ export default function SecurityPage() {
                 type="button"
                 onClick={confirmEnable}
                 disabled={busy || !code.trim()}
-                className="mt-3 px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 text-white font-semibold disabled:opacity-50"
+                className="mt-3 px-4 py-2 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white font-semibold disabled:opacity-50"
                 data-testid="confirm-2fa"
               >
                 {busy ? "Verifying…" : "Verify & enable"}
@@ -161,18 +161,18 @@ export default function SecurityPage() {
           {phase === "backup" && (
             <>
               <h2 className="font-semibold">Save your backup codes</h2>
-              <p className="text-sm text-slate-500 mt-1">
+              <p className="text-sm text-[var(--text-soft)] mt-1">
                 Each code works once if you lose your device. Store them somewhere safe — they won&apos;t be shown again.
               </p>
               <ul className="mt-4 grid grid-cols-2 gap-2 font-mono text-sm" data-testid="backup-codes">
                 {backupCodes.map((c) => (
-                  <li key={c} className="bg-slate-50 border rounded px-2 py-1 text-center">{c}</li>
+                  <li key={c} className="bg-[var(--surface-slate)] border rounded px-2 py-1 text-center">{c}</li>
                 ))}
               </ul>
               <button
                 type="button"
                 onClick={() => setPhase("on")}
-                className="mt-4 px-4 py-2 rounded-md border font-semibold hover:bg-slate-50"
+                className="mt-4 px-4 py-2 rounded-md border font-semibold hover:bg-[var(--surface-slate)]"
               >
                 I&apos;ve saved them
               </button>
@@ -182,7 +182,7 @@ export default function SecurityPage() {
           {phase === "on" && (
             <>
               <h2 className="font-semibold text-green-700">Two-factor authentication is on</h2>
-              <p className="text-sm text-slate-500 mt-1">Enter a current code or your password to turn it off.</p>
+              <p className="text-sm text-[var(--text-soft)] mt-1">Enter a current code or your password to turn it off.</p>
               <input
                 value={disableInput}
                 onChange={(e) => setDisableInput(e.target.value)}

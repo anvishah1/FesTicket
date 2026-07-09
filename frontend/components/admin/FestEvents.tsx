@@ -22,16 +22,16 @@ interface FestEventsProps {
 
 // Human label + badge colour for the backend's effectiveStatus / stored status.
 const STATUS_META: Record<string, { label: string; className: string }> = {
-  UPCOMING: { label: "Upcoming", className: "bg-[#522C5D] text-white" },
+  UPCOMING: { label: "Upcoming", className: "bg-[var(--fill-plum)] text-white" },
   LIVE: { label: "Live", className: "bg-green-500 text-white" },
-  PAST: { label: "Past", className: "bg-[#6B597F] text-white" },
-  PUBLISHED: { label: "Published", className: "bg-[#522C5D] text-white" },
+  PAST: { label: "Past", className: "bg-[var(--fill-mauve)] text-white" },
+  PUBLISHED: { label: "Published", className: "bg-[var(--fill-plum)] text-white" },
   DRAFT: { label: "Draft", className: "bg-yellow-500 text-white" },
   CANCELLED: { label: "Cancelled", className: "bg-red-500 text-white" },
 };
 
 function statusMeta(status: string) {
-  return STATUS_META[status] ?? { label: status || "—", className: "bg-[#6B597F] text-white" };
+  return STATUS_META[status] ?? { label: status || "—", className: "bg-[var(--fill-mauve)] text-white" };
 }
 
 export default function FestEvents({ festId }: FestEventsProps) {
@@ -99,11 +99,11 @@ export default function FestEvents({ festId }: FestEventsProps) {
           {[...Array(3)].map((_, i) => (
             <div
               key={i}
-              className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm animate-pulse h-24"
+              className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm animate-pulse h-24"
             />
           ))}
         </div>
-        <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 shadow-sm h-64 animate-pulse" />
+        <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-6 shadow-sm h-64 animate-pulse" />
       </div>
     );
   }
@@ -117,22 +117,22 @@ export default function FestEvents({ festId }: FestEventsProps) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
-            <p className="text-sm text-[#6B597F]">Total Events</p>
-            <p className="text-2xl font-bold text-[#29104A]">0</p>
+          <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
+            <p className="text-sm text-[var(--text-muted)]">Total Events</p>
+            <p className="text-2xl font-bold text-[var(--text-primary)]">0</p>
           </div>
-          <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
-            <p className="text-sm text-[#6B597F]">Total Tickets Sold</p>
-            <p className="text-2xl font-bold text-[#29104A]">0</p>
+          <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
+            <p className="text-sm text-[var(--text-muted)]">Total Tickets Sold</p>
+            <p className="text-2xl font-bold text-[var(--text-primary)]">0</p>
           </div>
-          <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
-            <p className="text-sm text-[#6B597F]">Capacity Filled</p>
-            <p className="text-2xl font-bold text-[#522C5D]">0%</p>
+          <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
+            <p className="text-sm text-[var(--text-muted)]">Capacity Filled</p>
+            <p className="text-2xl font-bold text-[var(--text-secondary)]">0%</p>
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-[#29104A] mb-2">All Events</h2>
-          <p className="text-sm text-[#6B597F]">No events found for this fest.</p>
+        <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-2">All Events</h2>
+          <p className="text-sm text-[var(--text-muted)]">No events found for this fest.</p>
         </div>
       </div>
     );
@@ -142,27 +142,27 @@ export default function FestEvents({ festId }: FestEventsProps) {
     <div className="space-y-6">
       {/* Stats Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
-          <p className="text-sm text-[#6B597F]">Total Events</p>
-          <p className="text-2xl font-bold text-[#29104A]">{events.length}</p>
+        <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
+          <p className="text-sm text-[var(--text-muted)]">Total Events</p>
+          <p className="text-2xl font-bold text-[var(--text-primary)]">{events.length}</p>
         </div>
-        <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
-          <p className="text-sm text-[#6B597F]">Total Tickets Sold</p>
-          <p className="text-2xl font-bold text-[#29104A]">
+        <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
+          <p className="text-sm text-[var(--text-muted)]">Total Tickets Sold</p>
+          <p className="text-2xl font-bold text-[var(--text-primary)]">
             {totalTicketsSold.toLocaleString()}
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-[#C5BAC4] p-4 shadow-sm">
-          <p className="text-sm text-[#6B597F]">Capacity Filled</p>
-          <p className="text-2xl font-bold text-[#522C5D]">
+        <div className="bg-[var(--surface)] rounded-xl border border-[var(--border-card)] p-4 shadow-sm">
+          <p className="text-sm text-[var(--text-muted)]">Capacity Filled</p>
+          <p className="text-2xl font-bold text-[var(--text-secondary)]">
             {capacityFilled}%
           </p>
         </div>
       </div>
 
       {/* Events Grid */}
-      <div className="bg-white rounded-2xl border border-[#C5BAC4] p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-[#29104A] mb-6">All Events</h2>
+      <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-[var(--text-primary)] mb-6">All Events</h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {events.map((event) => (
@@ -178,7 +178,7 @@ export default function FestEvents({ festId }: FestEventsProps) {
               role="button"
               tabIndex={0}
               aria-label={`Manage event ${event.name}`}
-              className="group cursor-pointer border border-[#C5BAC4] rounded-xl overflow-hidden hover:shadow-lg hover:border-[#522C5D] transition-all"
+              className="group cursor-pointer border border-[var(--border-card)] rounded-xl overflow-hidden hover:shadow-lg hover:border-[var(--border-plum)] transition-all"
             >
               <div className="relative h-40 overflow-hidden">
                 <img
@@ -192,18 +192,18 @@ export default function FestEvents({ festId }: FestEventsProps) {
                   </span>
                 </div>
                 {/* Hover overlay */}
-                <div className="absolute inset-0 bg-[#29104A]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <span className="px-4 py-2 bg-white text-[#29104A] rounded-lg font-semibold text-sm">
+                <div className="absolute inset-0 bg-[color-mix(in_srgb,var(--fill-ink)_60%,transparent)] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <span className="px-4 py-2 bg-[var(--surface)] text-[var(--text-primary)] rounded-lg font-semibold text-sm">
                     View Details
                   </span>
                 </div>
               </div>
 
               <div className="p-4">
-                <h3 className="font-semibold text-[#29104A] group-hover:text-[#522C5D] transition-colors">
+                <h3 className="font-semibold text-[var(--text-primary)] group-hover:text-[var(--text-secondary)] transition-colors">
                   {event.name}
                 </h3>
-                <p className="text-sm text-[#6B597F] mt-1">
+                <p className="text-sm text-[var(--text-muted)] mt-1">
                   {event.location}
                 </p>
                 <p className="text-sm text-[#C5BAC4] mt-0.5">
@@ -213,12 +213,12 @@ export default function FestEvents({ festId }: FestEventsProps) {
                 {/* Progress bar */}
                 <div className="mt-3">
                   <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-[#6B597F]">Tickets sold</span>
-                    <span className="font-medium text-[#29104A]">
+                    <span className="text-[var(--text-muted)]">Tickets sold</span>
+                    <span className="font-medium text-[var(--text-primary)]">
                       {event.ticketsSold}/{event.totalTickets}
                     </span>
                   </div>
-                  <div className="w-full h-1.5 bg-[#C5BAC4]/30 rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-[#29104A] to-[#522C5D] rounded-full"
                       style={{ width: `${Math.min(100, event.totalTickets ? (event.ticketsSold / event.totalTickets) * 100 : 0)}%` }}

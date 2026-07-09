@@ -41,10 +41,10 @@ export default function CardForm({ amount, onPaymentComplete, processing: extern
   return (
     <div className="w-full">
       <div className="p-4 border rounded-lg">
-        <div className="text-sm text-slate-600">Enter Card Details</div>
+        <div className="text-sm text-[var(--text-slate)]">Enter Card Details</div>
 
         <div className="mt-4">
-          <label className="text-xs text-slate-500">Card number</label>
+          <label className="text-xs text-[var(--text-soft)]">Card number</label>
           <input
             value={cardNumber}
             onChange={(e) => setCardNumber(e.target.value)}
@@ -55,7 +55,7 @@ export default function CardForm({ amount, onPaymentComplete, processing: extern
 
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-slate-500">Expiry (MM/YY)</label>
+              <label className="text-xs text-[var(--text-soft)]">Expiry (MM/YY)</label>
               <input 
                 value={expiry} 
                 onChange={(e) => setExpiry(e.target.value)} 
@@ -64,7 +64,7 @@ export default function CardForm({ amount, onPaymentComplete, processing: extern
               />
             </div>
             <div>
-              <label className="text-xs text-slate-500">CVV</label>
+              <label className="text-xs text-[var(--text-soft)]">CVV</label>
               <input 
                 value={cvv} 
                 onChange={(e) => setCvv(e.target.value)} 
@@ -81,8 +81,8 @@ export default function CardForm({ amount, onPaymentComplete, processing: extern
               disabled={!validCard() || isProcessing} 
               className={`px-4 py-2 rounded-md text-white ${
                 validCard() && !isProcessing 
-                  ? "bg-primary-600 hover:bg-primary-700" 
-                  : "bg-slate-300 cursor-not-allowed"
+                  ? "bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)]" 
+                  : "bg-[var(--surface-slate-200)] cursor-not-allowed"
               }`}
             >
               {isProcessing ? "Processing…" : `Pay ${formatPaise(amount)}`}

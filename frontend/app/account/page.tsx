@@ -142,7 +142,7 @@ export default function AccountPage() {
     return (
       <div className="min-h-screen bg-[var(--bg)]">
         <Header />
-        <main className="container py-16 text-center text-slate-500">Loading…</main>
+        <main className="container py-16 text-center text-[var(--text-soft)]">Loading…</main>
         <Footer />
       </div>
     );
@@ -156,56 +156,56 @@ export default function AccountPage() {
           <h1 className="text-2xl font-extrabold">Account settings</h1>
 
           <div className="flex flex-wrap gap-3">
-            <Link href="/account/sessions" className="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">
+            <Link href="/account/sessions" className="text-sm px-3 py-1.5 rounded-md border hover:bg-[var(--surface-slate)]">
               Active sessions
             </Link>
             {/* NOTIF-09 */}
-            <Link href="/settings/notifications" className="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">
+            <Link href="/settings/notifications" className="text-sm px-3 py-1.5 rounded-md border hover:bg-[var(--surface-slate)]">
               Notification preferences
             </Link>
             {/* AUTH-08 */}
-            <Link href="/account/security" className="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">
+            <Link href="/account/security" className="text-sm px-3 py-1.5 rounded-md border hover:bg-[var(--surface-slate)]">
               Security &amp; 2FA
             </Link>
             {role === "VIEWER" && (
-              <Link href="/account/organizer" className="text-sm px-3 py-1.5 rounded-md border hover:bg-slate-50">
+              <Link href="/account/organizer" className="text-sm px-3 py-1.5 rounded-md border hover:bg-[var(--surface-slate)]">
                 Become an organizer
               </Link>
             )}
           </div>
 
           {/* Profile */}
-          <section className="rounded-lg bg-white border p-6 shadow-sm">
+          <section className="rounded-lg bg-[var(--surface)] border p-6 shadow-sm">
             <h2 className="text-lg font-semibold mb-4">Profile</h2>
             <form onSubmit={saveProfile} className="space-y-4">
               <div>
-                <label htmlFor="acc-email" className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                <input id="acc-email" value={accountEmail} disabled className="w-full px-3 py-2 border rounded-md bg-slate-50 text-slate-500" />
+                <label htmlFor="acc-email" className="block text-sm font-medium text-[var(--text-strong)] mb-1">Email</label>
+                <input id="acc-email" value={accountEmail} disabled className="w-full px-3 py-2 border rounded-md bg-[var(--surface-slate)] text-[var(--text-soft)]" />
               </div>
               <div>
-                <label htmlFor="acc-name" className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                <label htmlFor="acc-name" className="block text-sm font-medium text-[var(--text-strong)] mb-1">Name</label>
                 <input id="acc-name" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 border rounded-md" />
               </div>
               <div>
-                <label htmlFor="acc-phone" className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+                <label htmlFor="acc-phone" className="block text-sm font-medium text-[var(--text-strong)] mb-1">Phone</label>
                 <input id="acc-phone" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-3 py-2 border rounded-md" />
               </div>
               <div>
-                <label htmlFor="acc-org" className="block text-sm font-medium text-slate-700 mb-1">Organisation</label>
+                <label htmlFor="acc-org" className="block text-sm font-medium text-[var(--text-strong)] mb-1">Organisation</label>
                 <input id="acc-org" value={organizationName} onChange={(e) => setOrganizationName(e.target.value)} className="w-full px-3 py-2 border rounded-md" />
               </div>
-              <button type="submit" disabled={profileSaving} className="px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold">
+              <button type="submit" disabled={profileSaving} className="px-4 py-2 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] disabled:opacity-50 text-white font-semibold">
                 {profileSaving ? "Saving…" : "Save profile"}
               </button>
             </form>
           </section>
 
           {/* Change password */}
-          <section className="rounded-lg bg-white border p-6 shadow-sm">
+          <section className="rounded-lg bg-[var(--surface)] border p-6 shadow-sm">
             <h2 className="text-lg font-semibold mb-4">Change password</h2>
             <form onSubmit={changePassword} className="space-y-4">
               <div>
-                <label htmlFor="cur-pw" className="block text-sm font-medium text-slate-700 mb-1">Current password</label>
+                <label htmlFor="cur-pw" className="block text-sm font-medium text-[var(--text-strong)] mb-1">Current password</label>
                 <input id="cur-pw" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="w-full px-3 py-2 border rounded-md" autoComplete="current-password" />
               </div>
               <PasswordFields
@@ -215,17 +215,17 @@ export default function AccountPage() {
                 onConfirmChange={setConfirmPassword}
                 idPrefix="change"
               />
-              <p className="text-xs text-slate-500">Changing your password signs you out of all devices.</p>
-              <button type="submit" disabled={pwSaving || !pwValid} className="px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold">
+              <p className="text-xs text-[var(--text-soft)]">Changing your password signs you out of all devices.</p>
+              <button type="submit" disabled={pwSaving || !pwValid} className="px-4 py-2 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] disabled:opacity-50 text-white font-semibold">
                 {pwSaving ? "Updating…" : "Change password"}
               </button>
             </form>
           </section>
 
           {/* Delete */}
-          <section className="rounded-lg bg-white border border-red-200 p-6 shadow-sm">
+          <section className="rounded-lg bg-[var(--surface)] border border-red-200 p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-red-700 mb-2">Delete account</h2>
-            <p className="text-sm text-slate-500 mb-4">
+            <p className="text-sm text-[var(--text-soft)] mb-4">
               This permanently deletes your account. Type your email{" "}
               <span className="font-mono">{accountEmail}</span> to confirm.
             </p>

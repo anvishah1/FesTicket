@@ -152,8 +152,8 @@ export default function BookingConfirmationPage() {
         <Header />
         <main className="container py-10">
           <div className="animate-pulse space-y-4 max-w-2xl mx-auto">
-            <div className="h-8 bg-gray-200 rounded w-1/2"></div>
-            <div className="h-64 bg-gray-200 rounded"></div>
+            <div className="h-8 bg-[var(--surface-slate-200)] rounded w-1/2"></div>
+            <div className="h-64 bg-[var(--surface-slate-200)] rounded"></div>
           </div>
         </main>
         <Footer />
@@ -170,13 +170,13 @@ export default function BookingConfirmationPage() {
         <Header />
         <main className="container py-10 text-center">
           <h1 className="text-2xl font-bold">{offline ? "You're offline" : "Booking not found"}</h1>
-          <p className="text-slate-500 mt-2">
+          <p className="text-[var(--text-soft)] mt-2">
             {offline
               ? "This ticket wasn't saved for offline use. Reconnect to load it."
               : "We couldn't find a booking for that code."}
           </p>
           <div className="mt-4 flex items-center justify-center gap-3">
-            <Link href="/bookings" className="px-4 py-2 bg-primary-600 text-white rounded-md">
+            <Link href="/bookings" className="px-4 py-2 bg-[var(--fill-ink)] text-white rounded-md">
               Look up a booking
             </Link>
             <Link href="/events" className="px-4 py-2 border rounded-md">
@@ -229,19 +229,19 @@ export default function BookingConfirmationPage() {
       <main className="container py-10">
         <div className="max-w-2xl mx-auto space-y-6">
           {/* Success banner */}
-          <div className="rounded-lg bg-white border p-6 shadow-sm text-center">
+          <div className="rounded-lg bg-[var(--surface)] border p-6 shadow-sm text-center">
             <div className={`mx-auto w-14 h-14 rounded-full ${statusUi.ring} flex items-center justify-center`}>
               <svg className={`w-7 h-7 ${statusUi.icon}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d={statusUi.iconPath} strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
             <h1 className="text-2xl font-extrabold mt-4">{statusUi.title}</h1>
-            <p className="text-sm text-slate-500 mt-1">{statusUi.sub}</p>
+            <p className="text-sm text-[var(--text-soft)] mt-1">{statusUi.sub}</p>
           </div>
 
           {/* Booking code */}
-          <div className="rounded-lg bg-white border p-6 shadow-sm">
-            <h2 className="text-sm font-medium text-slate-500">Your booking code</h2>
+          <div className="rounded-lg bg-[var(--surface)] border p-6 shadow-sm">
+            <h2 className="text-sm font-medium text-[var(--text-soft)]">Your booking code</h2>
             <div className="mt-2 flex items-center justify-between gap-4">
               <span
                 data-testid="booking-code"
@@ -252,29 +252,29 @@ export default function BookingConfirmationPage() {
               <button
                 type="button"
                 onClick={copyCode}
-                className="shrink-0 px-3 py-2 text-sm rounded-md border hover:bg-slate-50"
+                className="shrink-0 px-3 py-2 text-sm rounded-md border hover:bg-[var(--surface-slate)]"
               >
                 {copied ? "Copied ✓" : "Copy"}
               </button>
             </div>
-            <p className="text-xs text-slate-500 mt-2">
+            <p className="text-xs text-[var(--text-soft)] mt-2">
               Keep this code — you can use it to look up your booking any time.
             </p>
             {/* TIX-01: scannable QR of the booking code — your pass at entry. */}
             <div className="mt-4 flex flex-col items-center gap-2">
-              <div className="bg-white p-3 rounded-lg border" data-testid="booking-qr">
+              <div className="bg-[var(--surface)] p-3 rounded-lg border" data-testid="booking-qr">
                 <QRCodeSVG value={booking.bookingCode} size={160} />
               </div>
-              <p className="text-xs text-slate-500">Show this QR at the entrance.</p>
+              <p className="text-xs text-[var(--text-soft)]">Show this QR at the entrance.</p>
             </div>
           </div>
 
           {/* Event + tickets */}
-          <div className="rounded-lg bg-white border p-6 shadow-sm space-y-4">
+          <div className="rounded-lg bg-[var(--surface)] border p-6 shadow-sm space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold">{booking.event?.name || "Event"}</h2>
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="text-sm text-[var(--text-soft)] mt-1">
                   {formatDate(booking.event?.startDate)}
                   {booking.event?.venue ? ` · ${booking.event.venue}` : ""}
                 </p>
@@ -293,7 +293,7 @@ export default function BookingConfirmationPage() {
             </div>
 
             <div className="border-t pt-4">
-              <h3 className="text-sm font-medium text-slate-500 mb-2">
+              <h3 className="text-sm font-medium text-[var(--text-soft)] mb-2">
                 Tickets ({totalTickets})
               </h3>
               <div className="space-y-2 text-sm">
@@ -308,18 +308,18 @@ export default function BookingConfirmationPage() {
 
             {booking.attendees && booking.attendees.length > 0 && (
               <div className="border-t pt-4">
-                <h3 className="text-sm font-medium text-slate-500 mb-2">Attendees</h3>
+                <h3 className="text-sm font-medium text-[var(--text-soft)] mb-2">Attendees</h3>
                 <ul className="space-y-3 text-sm">
                   {booking.attendees.map((att, idx) => (
                     <li key={idx} className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate">{att.name}</p>
-                        <p className="text-slate-500 truncate">{att.email}</p>
+                        <p className="text-[var(--text-soft)] truncate">{att.email}</p>
                       </div>
                       {/* TIX-02: each attendee gets their own scannable ticket QR. */}
                       {att.ticketCode && (
                         <div className="shrink-0 flex flex-col items-end gap-1.5">
-                          <div className="bg-white p-1.5 rounded border" data-testid="attendee-qr">
+                          <div className="bg-[var(--surface)] p-1.5 rounded border" data-testid="attendee-qr">
                             <QRCodeSVG value={att.ticketCode} size={64} />
                           </div>
                           {/* TIX-07: per-attendee wallet passes (completed bookings only). */}
@@ -354,7 +354,7 @@ export default function BookingConfirmationPage() {
               href={`${getApiUrl()}/api/bookings/${booking.id}/invoice?code=${encodeURIComponent(booking.bookingCode)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="block text-center px-4 py-3 mb-3 rounded-md border border-primary-600 text-primary-700 hover:bg-primary-50 font-semibold"
+              className="block text-center px-4 py-3 mb-3 rounded-md border border-[var(--border-ink)] text-[var(--text-primary)] hover:bg-[var(--surface-page)] font-semibold"
             >
               Download tax invoice (PDF)
             </a>
@@ -363,7 +363,7 @@ export default function BookingConfirmationPage() {
           {/* TIX-05: print / save the per-attendee tickets. */}
           <Link
             href={`/tickets/${encodeURIComponent(booking.bookingCode)}`}
-            className="block text-center px-4 py-3 mb-3 rounded-md border border-primary-600 text-primary-700 hover:bg-primary-50 font-semibold"
+            className="block text-center px-4 py-3 mb-3 rounded-md border border-[var(--border-ink)] text-[var(--text-primary)] hover:bg-[var(--surface-page)] font-semibold"
           >
             Print / download tickets
           </Link>
@@ -393,13 +393,13 @@ export default function BookingConfirmationPage() {
           <div className="flex flex-col sm:flex-row gap-3">
             <Link
               href="/bookings"
-              className="flex-1 text-center px-4 py-3 rounded-md bg-primary-600 hover:bg-primary-700 text-white font-semibold"
+              className="flex-1 text-center px-4 py-3 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white font-semibold"
             >
               View my bookings
             </Link>
             <Link
               href="/events"
-              className="flex-1 text-center px-4 py-3 rounded-md border hover:bg-slate-50 font-semibold"
+              className="flex-1 text-center px-4 py-3 rounded-md border hover:bg-[var(--surface-slate)] font-semibold"
             >
               Discover more events
             </Link>

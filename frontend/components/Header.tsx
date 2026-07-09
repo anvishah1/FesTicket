@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStoredUser, isAuthenticated, logout } from "@/lib/auth";
 import NotificationBell from "@/components/NotificationBell";
+import ThemeToggle from "@/components/ThemeToggle";
 
 type StoredUser = ReturnType<typeof getStoredUser>;
 
@@ -179,6 +180,9 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-3">
+          {/* FE-11: light/dark theme toggle — visible on every breakpoint. */}
+          <ThemeToggle />
+
           <Link
             href="/contact"
             className="hidden sm:inline-flex px-4 py-2 text-sm font-medium text-white/80 border border-white/30 rounded-lg hover:bg-white/10 hover:text-white transition-colors"
@@ -204,7 +208,7 @@ export default function Header() {
                 aria-expanded={menuOpen}
                 className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors"
               >
-                <span className="w-8 h-8 rounded-full bg-white text-[#2D1B4E] font-semibold flex items-center justify-center">
+                <span className="w-8 h-8 rounded-full bg-[var(--surface)] text-[var(--text-primary)] font-semibold flex items-center justify-center">
                   {initialOf(user)}
                 </span>
                 <span className="text-sm font-medium text-white max-w-[8rem] truncate">
@@ -217,14 +221,14 @@ export default function Header() {
                   role="menu"
                   aria-orientation="vertical"
                   onKeyDown={onMenuKeyDown}
-                  className="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg py-1 text-sm"
+                  className="absolute right-0 mt-2 w-48 rounded-lg bg-[var(--surface)] shadow-lg py-1 text-sm"
                 >
                   {dash && (
                     <Link
                       href={dash}
                       role="menuitem"
                       onClick={() => setMenuOpen(false)}
-                      className="block px-4 py-2 text-[#2D1B4E] hover:bg-slate-100"
+                      className="block px-4 py-2 text-[var(--text-primary)] hover:bg-[var(--surface-slate-100)]"
                     >
                       Dashboard
                     </Link>
@@ -233,7 +237,7 @@ export default function Header() {
                     href="/bookings"
                     role="menuitem"
                     onClick={() => setMenuOpen(false)}
-                    className="block px-4 py-2 text-[#2D1B4E] hover:bg-slate-100"
+                    className="block px-4 py-2 text-[var(--text-primary)] hover:bg-[var(--surface-slate-100)]"
                   >
                     My bookings
                   </Link>
@@ -241,7 +245,7 @@ export default function Header() {
                     href="/account"
                     role="menuitem"
                     onClick={() => setMenuOpen(false)}
-                    className="block px-4 py-2 text-[#2D1B4E] hover:bg-slate-100"
+                    className="block px-4 py-2 text-[var(--text-primary)] hover:bg-[var(--surface-slate-100)]"
                   >
                     Account
                   </Link>
@@ -249,7 +253,7 @@ export default function Header() {
                     type="button"
                     role="menuitem"
                     onClick={handleLogout}
-                    className="w-full text-left px-4 py-2 text-red-600 hover:bg-slate-100"
+                    className="w-full text-left px-4 py-2 text-red-600 hover:bg-[var(--surface-slate-100)]"
                   >
                     Log out
                   </button>
@@ -259,7 +263,7 @@ export default function Header() {
           ) : (
             <Link
               href="/signin"
-              className="hidden sm:inline-flex px-4 py-2 text-sm font-semibold text-[#2D1B4E] bg-white rounded-lg hover:bg-white/90 transition-all"
+              className="hidden sm:inline-flex px-4 py-2 text-sm font-semibold text-[var(--text-primary)] bg-[var(--surface)] rounded-lg hover:bg-white/90 transition-all"
             >
               Sign In
             </Link>

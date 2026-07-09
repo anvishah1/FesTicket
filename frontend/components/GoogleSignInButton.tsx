@@ -62,7 +62,7 @@ export default function GoogleSignInButton({ onCredential }: { onCredential: (id
         type="button"
         disabled
         aria-disabled="true"
-        className="w-full flex items-center justify-center gap-2 rounded-lg border border-[#6B597F]/50 px-4 py-2.5 opacity-60 cursor-not-allowed"
+        className="w-full flex items-center justify-center gap-2 rounded-lg border border-[color-mix(in_srgb,var(--border-mauve)_50%,transparent)] px-4 py-2.5 opacity-60 cursor-not-allowed"
         data-testid="google-disabled"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden className="inline-block">

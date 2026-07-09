@@ -8,7 +8,7 @@ const AUTO_DISMISS_MS = 4000;
 const TYPE_STYLES: Record<ToastType, string> = {
   success: "bg-[#1E7F4F] border-[#166139] text-white",
   error: "bg-[#B42318] border-[#8A1911] text-white",
-  info: "bg-[#29104A] border-[#522C5D] text-[#DEDCDC]",
+  info: "bg-[var(--fill-ink)] border-[var(--border-plum)] text-[#DEDCDC]",
 };
 
 const TYPE_ICON: Record<ToastType, string> = {

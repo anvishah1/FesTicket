@@ -20,7 +20,7 @@ describe("PaymentButton", () => {
     render(<PaymentButton amount={50000} disabled onSuccess={onSuccess} />);
     const btn = screen.getByRole("button", { name: "Pay 500 rupees" });
     expect(btn).toBeDisabled();
-    expect(btn.className).toContain("bg-slate-300");
+    expect(btn.className).toContain("bg-[var(--surface-slate-200)]");
     await userEvent.click(btn);
     expect(onSuccess).not.toHaveBeenCalled();
   });

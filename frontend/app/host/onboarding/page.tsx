@@ -20,12 +20,12 @@ export default function HostOnboardingPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fdfdff]">
+    <div className="min-h-screen flex flex-col bg-[var(--surface-tint)]">
       <Header />
       <main className="flex-1 flex items-center justify-center px-6 py-10">
         <div className="text-center">
-          <p className="text-[#6B597F]">Redirecting you to sign up…</p>
-          <a href="/signup" className="mt-3 inline-block text-[#522C5D] hover:underline font-medium">
+          <p className="text-[var(--text-muted)]">Redirecting you to sign up…</p>
+          <a href="/signup" className="mt-3 inline-block text-[var(--text-secondary)] hover:underline font-medium">
             Continue to Sign Up
           </a>
         </div>

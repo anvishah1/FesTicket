@@ -55,8 +55,8 @@ export default function SharePanel({
 
   return (
     <div className="border-t pt-4" data-testid="share-panel">
-      <h3 className="text-sm font-medium text-slate-500 mb-1">Bring your friends</h3>
-      <p className="text-sm text-slate-500 mb-3">Share this event — the more the merrier.</p>
+      <h3 className="text-sm font-medium text-[var(--text-soft)] mb-1">Bring your friends</h3>
+      <p className="text-sm text-[var(--text-soft)] mb-3">Share this event — the more the merrier.</p>
       <div className="flex flex-wrap gap-3">
         <a
           href={whatsappUrl}
@@ -70,7 +70,7 @@ export default function SharePanel({
           <button
             type="button"
             onClick={handleNativeShare}
-            className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-semibold text-[var(--text-strong)] hover:bg-[var(--surface-slate)]"
           >
             Share…
           </button>
@@ -79,7 +79,7 @@ export default function SharePanel({
           type="button"
           onClick={handleCopy}
           data-testid="copy-link"
-          className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-semibold text-[var(--text-strong)] hover:bg-[var(--surface-slate)]"
         >
           Copy link
         </button>

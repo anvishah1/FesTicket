@@ -163,11 +163,11 @@ export default function FestEventsClient({
 
   if (festLoading) {
     return (
-      <div className="min-h-screen bg-[#fdfdff]">
+      <div className="min-h-screen bg-[var(--surface-tint)]">
         <Header />
         <main className="py-8 px-4">
           <div className="max-w-6xl mx-auto">
-            <p className="text-[#6B597F]">Loading events...</p>
+            <p className="text-[var(--text-muted)]">Loading events...</p>
           </div>
         </main>
         <Footer />
@@ -177,14 +177,14 @@ export default function FestEventsClient({
 
   if (!festInfo) {
     return (
-      <div className="min-h-screen bg-[#fdfdff]">
+      <div className="min-h-screen bg-[var(--surface-tint)]">
         <Header />
         <main className="py-8 px-4">
           <div className="max-w-6xl mx-auto">
-            <p className="text-[#6B597F]">Fest not found</p>
+            <p className="text-[var(--text-muted)]">Fest not found</p>
             <button
               onClick={() => router.push("/fests")}
-              className="mt-4 text-[#522C5D] hover:underline"
+              className="mt-4 text-[var(--text-secondary)] hover:underline"
             >
               ← Back to Fests
             </button>
@@ -199,19 +199,19 @@ export default function FestEventsClient({
   const total = pagination?.total;
 
   return (
-    <div className="min-h-screen bg-[#fdfdff]">
+    <div className="min-h-screen bg-[var(--surface-tint)]">
       <Header />
       <main className="py-8 px-4">
         {/* Page Title */}
         <div className="max-w-6xl mx-auto mb-6">
           <button
             onClick={() => router.push("/fests")}
-            className="text-[#522C5D] hover:underline mb-4 flex items-center gap-1"
+            className="text-[var(--text-secondary)] hover:underline mb-4 flex items-center gap-1"
           >
             <span>←</span> Back to Fests
           </button>
-          <h1 className="text-3xl font-bold text-[#29104A]">{festInfo.name} Events</h1>
-          <p className="text-[#6B597F] mt-1">
+          <h1 className="text-3xl font-bold text-[var(--text-primary)]">{festInfo.name} Events</h1>
+          <p className="text-[var(--text-muted)] mt-1">
             Explore all events at {festInfo.name} • {festInfo.college}
           </p>
         </div>
@@ -224,15 +224,15 @@ export default function FestEventsClient({
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search events by name…"
             aria-label="Search events"
-            className="w-full sm:max-w-md rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm text-[#29104A] placeholder-[#6B597F] focus:border-[#522C5D] focus:outline-none"
+            className="w-full sm:max-w-md rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--text-primary)] placeholder-[#6B597F] focus:border-[var(--border-plum)] focus:outline-none"
           />
-          <label className="flex items-center gap-2 text-sm text-[#6B597F]">
+          <label className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
             Sort by
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value)}
               aria-label="Sort events"
-              className="rounded-lg border border-[#C5BAC4] bg-white px-3 py-2 text-sm text-[#29104A] focus:border-[#522C5D] focus:outline-none"
+              className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-plum)] focus:outline-none"
             >
               {SORT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -253,8 +253,8 @@ export default function FestEventsClient({
                 aria-pressed={selectedCategory === category}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                   selectedCategory === category
-                    ? "bg-[#522C5D] text-white"
-                    : "bg-white text-[#6B597F] hover:bg-[#C5BAC4]"
+                    ? "bg-[var(--fill-plum)] text-white"
+                    : "bg-[var(--surface)] text-[var(--text-muted)] hover:bg-[var(--surface-card)]"
                 }`}
               >
                 {category}
@@ -266,7 +266,7 @@ export default function FestEventsClient({
         {/* Result count */}
         {!listLoading && typeof total === "number" && (
           <div className="max-w-6xl mx-auto mb-4">
-            <p className="text-sm text-[#6B597F]" role="status" aria-live="polite">
+            <p className="text-sm text-[var(--text-muted)]" role="status" aria-live="polite">
               {total} {total === 1 ? "event" : "events"} found
             </p>
           </div>
@@ -304,7 +304,7 @@ export default function FestEventsClient({
               ))}
             </div>
           ) : (
-            <p className="text-[#6B597F]">
+            <p className="text-[var(--text-muted)]">
               {debouncedSearch || selectedCategory !== "All"
                 ? "No events match your filters."
                 : "No events found"}
@@ -322,18 +322,18 @@ export default function FestEventsClient({
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
               aria-label="Previous page"
-              className="rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm font-medium text-[#522C5D] transition-colors hover:bg-[#C5BAC4] disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-card)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <span aria-hidden="true">←</span> Prev
             </button>
-            <span className="text-sm text-[#6B597F]" aria-current="page">
+            <span className="text-sm text-[var(--text-muted)]" aria-current="page">
               Page {page} of {totalPages}
             </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
               aria-label="Next page"
-              className="rounded-lg border border-[#C5BAC4] bg-white px-4 py-2 text-sm font-medium text-[#522C5D] transition-colors hover:bg-[#C5BAC4] disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-card)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               Next <span aria-hidden="true">→</span>
             </button>

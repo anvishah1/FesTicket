@@ -81,14 +81,14 @@ export default function NotificationSettingsPage() {
       <Header />
       <main className="container py-10 max-w-2xl">
         <h1 className="text-2xl font-bold">Notification preferences</h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-[var(--text-soft)] mt-1">
           Choose which emails you&apos;d like to receive. Booking receipts and account emails are always sent.
         </p>
 
         {!ready ? (
-          <div className="mt-6 animate-pulse h-40 bg-gray-200 rounded" />
+          <div className="mt-6 animate-pulse h-40 bg-[var(--surface-slate-200)] rounded" />
         ) : (
-          <div className="mt-6 rounded-lg bg-white border shadow-sm divide-y">
+          <div className="mt-6 rounded-lg bg-[var(--surface)] border shadow-sm divide-y">
             {FIELDS.map((f) => (
               <label key={f.key} className="flex items-start gap-3 p-4 cursor-pointer">
                 <input
@@ -100,7 +100,7 @@ export default function NotificationSettingsPage() {
                 />
                 <span>
                   <span className="block font-medium">{f.label}</span>
-                  <span className="block text-sm text-slate-500">{f.help}</span>
+                  <span className="block text-sm text-[var(--text-soft)]">{f.help}</span>
                 </span>
               </label>
             ))}
@@ -109,7 +109,7 @@ export default function NotificationSettingsPage() {
                 type="button"
                 onClick={save}
                 disabled={saving}
-                className="px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 text-white font-semibold disabled:opacity-50"
+                className="px-4 py-2 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white font-semibold disabled:opacity-50"
               >
                 {saving ? "Saving…" : "Save preferences"}
               </button>

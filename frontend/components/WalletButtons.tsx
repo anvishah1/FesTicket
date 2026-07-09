@@ -33,7 +33,7 @@ export default function WalletButtons({
   return (
     <div className={`flex flex-wrap ${compact ? "gap-1.5" : "gap-3"}`} data-testid="wallet-buttons">
       {apple && (
-        <a href={appleHref} className={`${btn} bg-black text-white hover:bg-slate-800`} data-testid="apple-wallet-button">
+        <a href={appleHref} className={`${btn} bg-black text-white hover:bg-[var(--surface-slate-800)]`} data-testid="apple-wallet-button">
           {compact ? "Apple" : "Add to Apple Wallet"}
         </a>
       )}
@@ -42,7 +42,7 @@ export default function WalletButtons({
           href={googleHref}
           target="_blank"
           rel="noopener noreferrer"
-          className={`${btn} border border-slate-300 text-slate-700 hover:bg-slate-50`}
+          className={`${btn} border border-[var(--border-slate)] text-[var(--text-strong)] hover:bg-[var(--surface-slate)]`}
           data-testid="google-wallet-button"
         >
           {compact ? "Google" : "Save to Google Wallet"}

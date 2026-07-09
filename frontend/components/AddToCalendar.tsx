@@ -81,13 +81,13 @@ export default function AddToCalendar({
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="px-3 py-1.5 rounded-md border text-sm hover:bg-slate-50"
+        className="px-3 py-1.5 rounded-md border text-sm hover:bg-[var(--surface-slate)]"
       >
         Add to calendar ▾
       </button>
       {open && (
-        <div className="absolute z-20 mt-1 w-48 rounded-md bg-white border shadow-lg py-1 text-sm" role="menu">
-          <a href={icsUrl} className="block px-3 py-2 hover:bg-slate-100" onClick={() => setOpen(false)}>
+        <div className="absolute z-20 mt-1 w-48 rounded-md bg-[var(--surface)] border shadow-lg py-1 text-sm" role="menu">
+          <a href={icsUrl} className="block px-3 py-2 hover:bg-[var(--surface-slate-100)]" onClick={() => setOpen(false)}>
             Apple / Outlook (.ics)
           </a>
           {googleUrl && (
@@ -95,7 +95,7 @@ export default function AddToCalendar({
               href={googleUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="block px-3 py-2 hover:bg-slate-100"
+              className="block px-3 py-2 hover:bg-[var(--surface-slate-100)]"
               onClick={() => setOpen(false)}
             >
               Google Calendar

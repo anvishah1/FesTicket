@@ -36,7 +36,7 @@ function formatDate(dateStr?: string) {
 const statusStyles: Record<string, string> = {
   COMPLETED: "bg-green-100 text-green-700",
   PENDING: "bg-amber-100 text-amber-700",
-  CANCELLED: "bg-slate-200 text-slate-600",
+  CANCELLED: "bg-[var(--surface-slate-200)] text-[var(--text-slate)]",
   REFUNDED: "bg-blue-100 text-blue-700",
 };
 
@@ -44,7 +44,7 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-        statusStyles[status] || "bg-slate-100 text-slate-600"
+        statusStyles[status] || "bg-[var(--surface-slate-100)] text-[var(--text-slate)]"
       }`}
     >
       {status}
@@ -89,7 +89,7 @@ function BookingCard({
 
   return (
     <div
-      className="rounded-lg bg-white border shadow-sm hover:shadow-md transition-shadow"
+      className="rounded-lg bg-[var(--surface)] border shadow-sm hover:shadow-md transition-shadow"
       data-testid="booking-card"
     >
       <Link
@@ -99,17 +99,17 @@ function BookingCard({
         <div className="flex items-start justify-between gap-4">
           <div>
             <h3 className="font-semibold">{booking.event?.name || "Event"}</h3>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-sm text-[var(--text-soft)] mt-0.5">
               {formatDate(booking.event?.startDate)}
               {booking.event?.venue ? ` · ${booking.event.venue}` : ""}
             </p>
-            <p className="text-xs text-slate-400 mt-1 font-mono">{booking.bookingCode}</p>
+            <p className="text-xs text-[var(--text-faint)] mt-1 font-mono">{booking.bookingCode}</p>
           </div>
           <div className="text-right shrink-0">
             <StatusBadge status={booking.status} />
             <div className="font-bold mt-2">{formatPaise(booking.total ?? 0)}</div>
             {totalTickets > 0 && (
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-[var(--text-soft)]">
                 {totalTickets} ticket{totalTickets === 1 ? "" : "s"}
               </div>
             )}
@@ -122,7 +122,7 @@ function BookingCard({
           {canCancel && booking.event?.id != null && (
             <Link
               href={`/events/${booking.event.id}/payment?bookingCode=${encodeURIComponent(booking.bookingCode)}`}
-              className="text-sm px-3 py-1.5 rounded-md bg-primary-600 hover:bg-primary-700 text-white font-semibold"
+              className="text-sm px-3 py-1.5 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white font-semibold"
               data-testid="complete-payment"
             >
               Complete payment
@@ -132,7 +132,7 @@ function BookingCard({
             type="button"
             onClick={act}
             disabled={busy}
-            className="text-sm px-3 py-1.5 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="text-sm px-3 py-1.5 rounded-md border border-[var(--border-slate)] text-[var(--text-strong)] hover:bg-[var(--surface-slate)] disabled:opacity-50"
           >
             {busy ? "Processing…" : canCancel ? "Cancel booking" : "Request refund"}
           </button>
@@ -208,7 +208,7 @@ export default function BookingsPage() {
         <div className="max-w-3xl mx-auto space-y-6">
           <div className="flex items-center justify-between gap-4">
             <h1 className="text-2xl font-extrabold">My bookings</h1>
-            <Link href="/fests" className="text-sm text-primary-600 hover:underline">
+            <Link href="/fests" className="text-sm text-[var(--text-primary)] hover:underline">
               Discover events →
             </Link>
           </div>
@@ -217,18 +217,18 @@ export default function BookingsPage() {
           {signedIn ? (
             loading ? (
               <div className="animate-pulse space-y-3">
-                <div className="h-24 bg-gray-200 rounded"></div>
-                <div className="h-24 bg-gray-200 rounded"></div>
+                <div className="h-24 bg-[var(--surface-slate-200)] rounded"></div>
+                <div className="h-24 bg-[var(--surface-slate-200)] rounded"></div>
               </div>
             ) : bookings.length === 0 ? (
-              <div className="rounded-lg bg-white border p-10 text-center shadow-sm" data-testid="empty-state">
+              <div className="rounded-lg bg-[var(--surface)] border p-10 text-center shadow-sm" data-testid="empty-state">
                 <h2 className="text-lg font-semibold">No bookings yet</h2>
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="text-sm text-[var(--text-soft)] mt-1">
                   When you book tickets, they&apos;ll show up here.
                 </p>
                 <Link
                   href="/fests"
-                  className="inline-block mt-4 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-md font-semibold"
+                  className="inline-block mt-4 px-4 py-2 bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white rounded-md font-semibold"
                 >
                   Discover events
                 </Link>
@@ -248,11 +248,11 @@ export default function BookingsPage() {
             )
           ) : (
             /* Guest: look up by booking code */
-            <div className="rounded-lg bg-white border p-6 shadow-sm">
+            <div className="rounded-lg bg-[var(--surface)] border p-6 shadow-sm">
               <h2 className="text-lg font-semibold">Look up a booking</h2>
-              <p className="text-sm text-slate-500 mt-1 mb-4">
+              <p className="text-sm text-[var(--text-soft)] mt-1 mb-4">
                 Enter your booking code to view your tickets. Or{" "}
-                <Link href="/signin" className="text-primary-600 hover:underline">
+                <Link href="/signin" className="text-[var(--text-primary)] hover:underline">
                   sign in
                 </Link>{" "}
                 to see all your bookings.
@@ -264,12 +264,12 @@ export default function BookingsPage() {
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="Your booking code"
                   aria-label="Booking code"
-                  className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono"
+                  className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-[var(--ring-plum)] focus:border-[var(--border-plum)] font-mono"
                 />
                 <button
                   type="submit"
                   disabled={!code.trim() || lookupLoading}
-                  className="px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold"
+                  className="px-4 py-2 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold"
                 >
                   {lookupLoading ? "Looking up…" : "Find booking"}
                 </button>

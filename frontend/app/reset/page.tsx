@@ -59,15 +59,15 @@ export default function ResetPage() {
       <Header />
 
       <main className="flex-1 flex items-center justify-center px-4 py-10">
-        <div className="w-full max-w-md bg-white shadow-md rounded-2xl p-8">
+        <div className="w-full max-w-md bg-[var(--surface)] shadow-md rounded-2xl p-8">
           
           {/* TITLE */}
           <div className="flex flex-col items-center gap-2 mb-4">
-            <h1 className="text-2xl font-extrabold text-slate-900">Reset password</h1>
+            <h1 className="text-2xl font-extrabold text-[var(--text-slate-900)]">Reset password</h1>
 
             {/* ✔ NOW ONLY SHOW THIS IF TOKEN EXISTS */}
             {token ? (
-              <p className="text-sm text-slate-500 text-center">
+              <p className="text-sm text-[var(--text-soft)] text-center">
                 Enter a new password for your account.
               </p>
             ) : null}
@@ -85,7 +85,7 @@ export default function ResetPage() {
 
           {/* NO TOKEN MESSAGE */}
           {!token ? (
-            <div className="text-sm text-slate-600">
+            <div className="text-sm text-[var(--text-slate)]">
               No reset token found in the URL. Please open the link from the email we sent you.
             </div>
           ) : (
@@ -108,8 +108,8 @@ export default function ResetPage() {
                 }
                 className={`w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium transition ${
                   status !== "submitting" && getPasswordChecks(password, confirm).valid
-                    ? "bg-primary-600 text-white hover:bg-primary-700"
-                    : "bg-slate-300 text-slate-600 cursor-not-allowed"
+                    ? "bg-[var(--fill-ink)] text-white hover:bg-[var(--fill-ink)]"
+                    : "bg-[var(--surface-slate-200)] text-[var(--text-slate)] cursor-not-allowed"
                 }`}
               >
                 {status === "submitting" ? "Updating…" : "Set new password"}
@@ -117,9 +117,9 @@ export default function ResetPage() {
             </form>
           )}
 
-          <div className="text-center text-sm text-slate-500 mt-4">
+          <div className="text-center text-sm text-[var(--text-soft)] mt-4">
             Return to{" "}
-            <a className="text-primary-600 hover:underline" href="/signin">
+            <a className="text-[var(--text-primary)] hover:underline" href="/signin">
               Sign in
             </a>
           </div>

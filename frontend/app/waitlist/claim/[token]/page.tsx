@@ -49,18 +49,18 @@ export default function WaitlistClaimPage() {
     <div className="min-h-screen bg-[var(--bg)]">
       <Header />
       <main className="container py-12 max-w-lg">
-        <div className="rounded-xl bg-white border shadow-sm p-8 text-center">
-          {state === "loading" && <p className="text-slate-500">Checking your claim…</p>}
+        <div className="rounded-xl bg-[var(--surface)] border shadow-sm p-8 text-center">
+          {state === "loading" && <p className="text-[var(--text-soft)]">Checking your claim…</p>}
 
           {state === "ok" && claim && (
             <>
               <h1 className="text-xl font-bold">A ticket is waiting for you 🎟️</h1>
-              <p className="text-slate-600 mt-2">
+              <p className="text-[var(--text-slate)] mt-2">
                 A <span className="font-medium">{claim.ticketType?.name || "ticket"}</span> for{" "}
                 <span className="font-medium">{claim.event?.name || "the event"}</span> just opened up.
               </p>
               {claim.ticketType?.price != null && (
-                <p className="text-slate-500 mt-1">{formatPaise(claim.ticketType.price)}</p>
+                <p className="text-[var(--text-soft)] mt-1">{formatPaise(claim.ticketType.price)}</p>
               )}
               {claim.claimExpiresAt && (
                 <p className="text-xs text-amber-600 mt-3">
@@ -69,7 +69,7 @@ export default function WaitlistClaimPage() {
               )}
               <Link
                 href={`/events/${claim.eventId}/booking`}
-                className="inline-block mt-5 px-5 py-2.5 rounded-md bg-primary-600 hover:bg-primary-700 text-white font-semibold"
+                className="inline-block mt-5 px-5 py-2.5 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white font-semibold"
               >
                 Book now
               </Link>
@@ -79,10 +79,10 @@ export default function WaitlistClaimPage() {
           {state === "expired" && (
             <>
               <h1 className="text-xl font-bold">This claim has expired</h1>
-              <p className="text-slate-600 mt-2">
+              <p className="text-[var(--text-slate)] mt-2">
                 The seat has been offered to the next person on the waitlist. You can re-join the waitlist from the event page.
               </p>
-              <Link href="/fests" className="inline-block mt-5 px-5 py-2.5 rounded-md border font-semibold hover:bg-slate-50">
+              <Link href="/fests" className="inline-block mt-5 px-5 py-2.5 rounded-md border font-semibold hover:bg-[var(--surface-slate)]">
                 Discover events
               </Link>
             </>
@@ -91,8 +91,8 @@ export default function WaitlistClaimPage() {
           {state === "invalid" && (
             <>
               <h1 className="text-xl font-bold">Claim link invalid</h1>
-              <p className="text-slate-600 mt-2">This link is invalid or has already been used.</p>
-              <Link href="/fests" className="inline-block mt-5 px-5 py-2.5 rounded-md border font-semibold hover:bg-slate-50">
+              <p className="text-[var(--text-slate)] mt-2">This link is invalid or has already been used.</p>
+              <Link href="/fests" className="inline-block mt-5 px-5 py-2.5 rounded-md border font-semibold hover:bg-[var(--surface-slate)]">
                 Discover events
               </Link>
             </>

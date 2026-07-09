@@ -26,8 +26,8 @@ export default function PaymentTabs({ amount, orderId, onPaymentComplete, proces
                 onClick={() => setActive(t)}
                 className={`w-full text-left px-3 py-3 rounded-md flex items-center gap-3 ${
                   active === t
-                    ? "bg-primary-50 text-primary-700 font-medium border-l-2 border-primary-500"
-                    : "text-slate-700 hover:bg-slate-50"
+                    ? "bg-[var(--surface-page)] text-[var(--text-primary)] font-medium border-l-2 border-[var(--border-plum)]"
+                    : "text-[var(--text-strong)] hover:bg-[var(--surface-slate)]"
                 }`}
               >
                 {t}

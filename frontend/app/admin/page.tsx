@@ -27,8 +27,8 @@ export default function AdminPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-[#fdfdff] flex items-center justify-center">
-      <p className="text-[#6B597F]">Redirecting...</p>
+    <div className="min-h-screen bg-[var(--surface-tint)] flex items-center justify-center">
+      <p className="text-[var(--text-muted)]">Redirecting...</p>
     </div>
   );
 }

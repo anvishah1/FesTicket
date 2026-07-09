@@ -155,7 +155,7 @@ export default function AttendeeForm({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="text-sm text-slate-700">Attendees ({attendees.length}/{requiredCount})</div>
+        <div className="text-sm text-[var(--text-strong)]">Attendees ({attendees.length}/{requiredCount})</div>
         <div className="flex items-center gap-3">
           <input
             ref={fileRef}
@@ -169,7 +169,7 @@ export default function AttendeeForm({
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="text-sm text-primary-600 hover:underline"
+            className="text-sm text-[var(--text-primary)] hover:underline"
           >
             Import from CSV
           </button>
@@ -177,7 +177,7 @@ export default function AttendeeForm({
             type="button"
             onClick={add}
             disabled={attendees.length >= requiredCount}
-            className="text-sm text-primary-600 hover:underline disabled:opacity-50"
+            className="text-sm text-[var(--text-primary)] hover:underline disabled:opacity-50"
           >
             + Add attendee
           </button>
@@ -185,8 +185,8 @@ export default function AttendeeForm({
       </div>
 
       {importMsg && (
-        <div className="text-xs text-slate-500" data-testid="csv-import-msg">
-          {importMsg} <span className="text-slate-400">Expected columns: name, email.</span>
+        <div className="text-xs text-[var(--text-soft)]" data-testid="csv-import-msg">
+          {importMsg} <span className="text-[var(--text-faint)]">Expected columns: name, email.</span>
         </div>
       )}
 

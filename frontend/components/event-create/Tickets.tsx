@@ -101,15 +101,15 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
   };
 
   return (
-    <div className="flex-1 rounded-xl border border-[#C5BAC4] bg-white p-6 shadow-sm">
-      <h2 className="mb-6 text-xl font-semibold text-[#29104A]">
+    <div className="flex-1 rounded-xl border border-[var(--border-card)] bg-[var(--surface)] p-6 shadow-sm">
+      <h2 className="mb-6 text-xl font-semibold text-[var(--text-primary)]">
         Tickets
       </h2>
 
       <div className="space-y-6">
         {/* Ticket Type */}
         <div>
-          <span id="ticket-type-label" className="mb-2 block text-sm font-medium text-[#29104A]">
+          <span id="ticket-type-label" className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
             Ticket Type
           </span>
 
@@ -132,10 +132,10 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
           {tickets.map((ticket, index) => (
             <div
               key={ticket.id}
-              className="rounded-lg border border-[#C5BAC4] bg-[#C5BAC4]/10 p-4 space-y-4"
+              className="rounded-lg border border-[var(--border-card)] bg-[color-mix(in_srgb,var(--surface-card)_10%,transparent)] p-4 space-y-4"
             >
               <div className="flex justify-between items-center">
-                <h3 className="text-sm font-medium text-[#29104A]">
+                <h3 className="text-sm font-medium text-[var(--text-primary)]">
                   Ticket {index + 1}
                 </h3>
 
@@ -163,7 +163,7 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
                     onChange={(e) =>
                       updateTicket(ticket.id, "name", e.target.value)
                     }
-                    className="w-full rounded-lg border border-[#C5BAC4] px-3 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
+                    className="w-full rounded-lg border border-[var(--border-card)] px-3 py-2 focus:border-[var(--border-plum)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:outline-none text-[var(--text-primary)]"
                   />
                 </div>
 
@@ -185,11 +185,11 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
                           Math.max(0, parseInt(e.target.value) || 0)
                         )
                       }
-                      className="w-full rounded-lg border border-[#C5BAC4] px-3 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
+                      className="w-full rounded-lg border border-[var(--border-card)] px-3 py-2 focus:border-[var(--border-plum)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:outline-none text-[var(--text-primary)]"
                     />
                   </div>
                 ) : (
-                  <div className="flex items-center justify-center rounded-lg border border-[#C5BAC4] bg-[#C5BAC4]/30 text-sm text-[#6B597F]">
+                  <div className="flex items-center justify-center rounded-lg border border-[var(--border-card)] bg-[color-mix(in_srgb,var(--surface-card)_30%,transparent)] text-sm text-[var(--text-muted)]">
                     Free
                   </div>
                 )}
@@ -211,7 +211,7 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
                         Math.max(0, parseInt(e.target.value) || 0)
                       )
                     }
-                    className="w-full rounded-lg border border-[#C5BAC4] px-3 py-2 focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
+                    className="w-full rounded-lg border border-[var(--border-card)] px-3 py-2 focus:border-[var(--border-plum)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:outline-none text-[var(--text-primary)]"
                   />
                 </div>
               </div>
@@ -227,7 +227,7 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
                 onChange={(e) =>
                   updateTicket(ticket.id, "description", e.target.value)
                 }
-                className="w-full rounded-lg border border-[#C5BAC4] px-3 py-2 text-sm focus:border-[#522C5D] focus:ring-2 focus:ring-[#522C5D]/20 focus:outline-none text-[#29104A]"
+                className="w-full rounded-lg border border-[var(--border-card)] px-3 py-2 text-sm focus:border-[var(--border-plum)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:outline-none text-[var(--text-primary)]"
               />
             </div>
           ))}
@@ -237,21 +237,21 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
         <button
           type="button"
           onClick={addTicket}
-          className="w-full rounded-lg border-2 border-dashed border-[#C5BAC4] py-4 text-[#6B597F] hover:border-[#522C5D] hover:text-[#522C5D] transition"
+          className="w-full rounded-lg border-2 border-dashed border-[var(--border-card)] py-4 text-[var(--text-muted)] hover:border-[var(--border-plum)] hover:text-[var(--text-secondary)] transition"
         >
           + Add Another Ticket Type
         </button>
 
         {/* PAY-06: Refund policy */}
-        <div className="rounded-lg border border-[#C5BAC4] p-4 space-y-3">
-          <label htmlFor="refund-policy" className="block text-sm font-medium text-[#29104A]">
+        <div className="rounded-lg border border-[var(--border-card)] p-4 space-y-3">
+          <label htmlFor="refund-policy" className="block text-sm font-medium text-[var(--text-primary)]">
             Refund policy
           </label>
           <select
             id="refund-policy"
             value={refundPolicy}
             onChange={(e) => setRefundPolicy(e.target.value as RefundPolicy)}
-            className="w-full rounded-lg border border-[#C5BAC4] px-3 py-2 text-sm text-[#29104A] focus:border-[#522C5D] focus:outline-none"
+            className="w-full rounded-lg border border-[var(--border-card)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-plum)] focus:outline-none"
           >
             <option value="NO_REFUND">No refunds</option>
             <option value="FULL_ANYTIME">Full refund any time before the event</option>
@@ -259,7 +259,7 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
           </select>
           {refundPolicy === "FULL_UNTIL_CUTOFF" && (
             <div>
-              <label htmlFor="refund-cutoff" className="mb-1 block text-xs text-[#6B597F]">
+              <label htmlFor="refund-cutoff" className="mb-1 block text-xs text-[var(--text-muted)]">
                 Refund cutoff (hours before the event start)
               </label>
               <input
@@ -269,15 +269,15 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
                 value={refundCutoffHours}
                 onChange={(e) => setRefundCutoffHours(e.target.value)}
                 placeholder="48"
-                className="w-40 rounded-lg border border-[#C5BAC4] px-3 py-2 text-sm text-[#29104A] focus:border-[#522C5D] focus:outline-none"
+                className="w-40 rounded-lg border border-[var(--border-card)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-plum)] focus:outline-none"
               />
             </div>
           )}
         </div>
 
         {/* TIX-10: per-order ticket cap */}
-        <div className="rounded-lg border border-[#C5BAC4] p-4 space-y-2">
-          <label htmlFor="max-per-order" className="block text-sm font-medium text-[#29104A]">
+        <div className="rounded-lg border border-[var(--border-card)] p-4 space-y-2">
+          <label htmlFor="max-per-order" className="block text-sm font-medium text-[var(--text-primary)]">
             Max tickets per order
           </label>
           <input
@@ -287,16 +287,16 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
             value={maxTicketsPerOrder}
             onChange={(e) => setMaxTicketsPerOrder(e.target.value)}
             placeholder="No limit"
-            className="w-40 rounded-lg border border-[#C5BAC4] px-3 py-2 text-sm text-[#29104A] focus:border-[#522C5D] focus:outline-none"
+            className="w-40 rounded-lg border border-[var(--border-card)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-plum)] focus:outline-none"
           />
-          <p className="text-xs text-[#6B597F]">Leave blank to allow any number of tickets in a single order.</p>
+          <p className="text-xs text-[var(--text-muted)]">Leave blank to allow any number of tickets in a single order.</p>
         </div>
 
         {/* Save */}
         <button
           type="button"
           onClick={handleSubmit}
-          className="mt-6 w-full rounded-lg bg-[#522C5D] py-3 text-white font-medium hover:bg-[#29104A] transition"
+          className="mt-6 w-full rounded-lg bg-[var(--fill-plum)] py-3 text-white font-medium hover:bg-[var(--fill-ink)] transition"
         >
           Save & Continue
         </button>
@@ -322,8 +322,8 @@ function ToggleButton({
       className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition
         ${
           active
-            ? "border-[#522C5D] bg-[#522C5D]/10 text-[#522C5D]"
-            : "border-[#C5BAC4] bg-white text-[#6B597F] hover:bg-[#C5BAC4]/20"
+            ? "border-[var(--border-plum)] bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] text-[var(--text-secondary)]"
+            : "border-[var(--border-card)] bg-[var(--surface)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--surface-card)_20%,transparent)]"
         }`}
     >
       {label}

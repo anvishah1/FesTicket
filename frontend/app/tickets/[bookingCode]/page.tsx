@@ -76,9 +76,9 @@ export default function TicketsPage() {
     setTransferBusy(false);
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-500">Loading…</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-[var(--text-soft)]">Loading…</div>;
   if (notFound || !booking)
-    return <div className="min-h-screen flex items-center justify-center text-slate-500">Booking not found.</div>;
+    return <div className="min-h-screen flex items-center justify-center text-[var(--text-soft)]">Booking not found.</div>;
 
   // One ticket per attendee; fall back to a single order-level ticket (TIX-01) when
   // no attendees were captured.
@@ -94,19 +94,19 @@ export default function TicketsPage() {
       : [{ id: undefined as number | undefined, code: booking.bookingCode, name: undefined as string | undefined, ticketType: booking.items?.[0]?.ticketType?.name, checkedInAt: null }];
 
   return (
-    <div className="min-h-screen bg-slate-100 print:bg-white">
+    <div className="min-h-screen bg-[var(--surface-slate-100)] print:bg-[var(--surface)]">
       <div className="max-w-2xl mx-auto p-6 print:p-0">
         <div className="flex items-center justify-between mb-6 print:hidden">
           <Link
             href={`/booking-confirmation?bookingCode=${encodeURIComponent(booking.bookingCode)}`}
-            className="text-sm text-primary-600 hover:underline"
+            className="text-sm text-[var(--text-primary)] hover:underline"
           >
             ← Back
           </Link>
           <button
             type="button"
             onClick={() => window.print()}
-            className="px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 text-white font-semibold"
+            className="px-4 py-2 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white font-semibold"
           >
             Print / Save as PDF
           </button>
@@ -117,20 +117,20 @@ export default function TicketsPage() {
             <div
               key={idx}
               data-testid="printable-ticket"
-              className={`bg-white rounded-xl border p-6 shadow-sm print:shadow-none print:rounded-none ${
+              className={`bg-[var(--surface)] rounded-xl border p-6 shadow-sm print:shadow-none print:rounded-none ${
                 idx < tickets.length - 1 ? "break-after-page" : ""
               }`}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <h1 className="text-xl font-extrabold text-slate-900">{booking.event?.name || "Event"}</h1>
-                  <p className="text-sm text-slate-600 mt-1">{fmtDate(booking.event?.startDate)}</p>
-                  {booking.event?.venue && <p className="text-sm text-slate-600">{booking.event.venue}</p>}
+                  <h1 className="text-xl font-extrabold text-[var(--text-slate-900)]">{booking.event?.name || "Event"}</h1>
+                  <p className="text-sm text-[var(--text-slate)] mt-1">{fmtDate(booking.event?.startDate)}</p>
+                  {booking.event?.venue && <p className="text-sm text-[var(--text-slate)]">{booking.event.venue}</p>}
                   {t.name && <p className="mt-3 font-semibold">{t.name}</p>}
-                  {t.ticketType && <p className="text-sm text-slate-500">{t.ticketType}</p>}
-                  <p className="mt-3 text-xs font-mono text-slate-500 break-all">{booking.bookingCode}</p>
+                  {t.ticketType && <p className="text-sm text-[var(--text-soft)]">{t.ticketType}</p>}
+                  <p className="mt-3 text-xs font-mono text-[var(--text-soft)] break-all">{booking.bookingCode}</p>
                 </div>
-                <div className="bg-white p-2 rounded border shrink-0">
+                <div className="bg-[var(--surface)] p-2 rounded border shrink-0">
                   <QRCodeSVG value={t.code} size={132} />
                 </div>
               </div>
@@ -139,7 +139,7 @@ export default function TicketsPage() {
                 <button
                   type="button"
                   onClick={() => setTransfer({ id: t.id as number, name: t.name || "", email: "" })}
-                  className="mt-3 text-sm text-primary-600 hover:underline print:hidden"
+                  className="mt-3 text-sm text-[var(--text-primary)] hover:underline print:hidden"
                 >
                   Transfer / edit attendee
                 </button>
@@ -152,20 +152,20 @@ export default function TicketsPage() {
       {/* TIX-06 transfer modal */}
       {transfer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 print:hidden">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-sm rounded-2xl bg-[var(--surface)] p-6 shadow-xl">
             <h2 className="text-lg font-bold mb-1">Transfer ticket</h2>
-            <p className="text-sm text-slate-500 mb-4">
+            <p className="text-sm text-[var(--text-soft)] mb-4">
               Reassign this ticket to someone else. The old QR stops working. Tickets can&apos;t be
               transferred after check-in.
             </p>
-            <label htmlFor="tf-name" className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+            <label htmlFor="tf-name" className="block text-sm font-medium text-[var(--text-strong)] mb-1">Name</label>
             <input
               id="tf-name"
               value={transfer.name}
               onChange={(e) => setTransfer((t) => (t ? { ...t, name: e.target.value } : t))}
               className="w-full px-3 py-2 border rounded-md mb-3"
             />
-            <label htmlFor="tf-email" className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+            <label htmlFor="tf-email" className="block text-sm font-medium text-[var(--text-strong)] mb-1">Email</label>
             <input
               id="tf-email"
               type="email"
@@ -181,7 +181,7 @@ export default function TicketsPage() {
                 type="button"
                 onClick={submitTransfer}
                 disabled={transferBusy || !transfer.name.trim() || !transfer.email.trim()}
-                className="px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold"
+                className="px-4 py-2 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] disabled:opacity-50 text-white font-semibold"
               >
                 {transferBusy ? "Transferring…" : "Transfer"}
               </button>

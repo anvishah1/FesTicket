@@ -90,17 +90,17 @@ export default function OrganizerUpgradePage() {
         <div className="max-w-xl mx-auto space-y-6">
           <div className="flex items-center justify-between gap-4">
             <h1 className="text-2xl font-extrabold">Become an organizer</h1>
-            <Link href="/account" className="text-sm text-primary-600 hover:underline">
+            <Link href="/account" className="text-sm text-[var(--text-primary)] hover:underline">
               ← Account
             </Link>
           </div>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-[var(--text-soft)]">
             Enter the fest key your fest&apos;s admin gave you to request organizer (editor) access.
           </p>
 
-          <section className="rounded-lg bg-white border p-6 shadow-sm">
+          <section className="rounded-lg bg-[var(--surface)] border p-6 shadow-sm">
             <form onSubmit={submit} className="space-y-3">
-              <label htmlFor="fest-key" className="block text-sm font-medium text-slate-700">
+              <label htmlFor="fest-key" className="block text-sm font-medium text-[var(--text-strong)]">
                 Fest key
               </label>
               <input
@@ -109,7 +109,7 @@ export default function OrganizerUpgradePage() {
                 onChange={(e) => setFestKey(e.target.value)}
                 placeholder="e.g. TECHFEST-2026"
                 disabled={hasPending}
-                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 disabled:bg-slate-50"
+                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[var(--ring-plum)] disabled:bg-[var(--surface-slate)]"
               />
               {fieldError && <p className="text-sm text-red-600">{fieldError}</p>}
               {hasPending ? (
@@ -120,7 +120,7 @@ export default function OrganizerUpgradePage() {
                 <button
                   type="submit"
                   disabled={!festKey.trim() || submitting}
-                  className="px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold"
+                  className="px-4 py-2 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] disabled:opacity-50 text-white font-semibold"
                 >
                   {submitting ? "Submitting…" : "Request access"}
                 </button>
@@ -131,22 +131,22 @@ export default function OrganizerUpgradePage() {
           <section className="space-y-3">
             <h2 className="text-lg font-semibold">Your requests</h2>
             {loading ? (
-              <div className="h-16 bg-gray-200 rounded animate-pulse" />
+              <div className="h-16 bg-[var(--surface-slate-200)] rounded animate-pulse" />
             ) : requests.length === 0 ? (
-              <p className="text-sm text-slate-500">No requests yet.</p>
+              <p className="text-sm text-[var(--text-soft)]">No requests yet.</p>
             ) : (
               <ul className="space-y-3" data-testid="request-list">
                 {requests.map((r) => (
-                  <li key={r.id} className="rounded-lg bg-white border p-4 shadow-sm">
+                  <li key={r.id} className="rounded-lg bg-[var(--surface)] border p-4 shadow-sm">
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <p className="font-medium text-slate-800">{r.festName || "Fest"}</p>
-                        <p className="text-xs text-slate-500">
+                        <p className="font-medium text-[var(--text-slate-800)]">{r.festName || "Fest"}</p>
+                        <p className="text-xs text-[var(--text-soft)]">
                           {r.requestedRole || "EDITOR"} ·{" "}
                           {r.requestDate ? new Date(r.requestDate).toLocaleDateString("en-IN") : ""}
                         </p>
                       </div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge[r.status] || "bg-slate-100 text-slate-600"}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge[r.status] || "bg-[var(--surface-slate-100)] text-[var(--text-slate)]"}`}>
                         {r.status}
                       </span>
                     </div>

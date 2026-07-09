@@ -1,0 +1,27 @@
+# OPS-07: gitleaks config. Extends the default ruleset and allowlists only the
+# repo's KNOWN-SAFE, non-secret test/CI/example values + generated output, so the
+# secret scan stays green without weakening detection of real credentials.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known-safe test/example/CI values and generated build artifacts"
+
+# Generated/vendored trees (not tracked in git, but keeps local --no-git scans
+# clean too). The CI scan is history-based and never sees these anyway.
+paths = [
+  '''frontend/\.next/.*''',
+  '''(^|/)node_modules/.*''',
+  '''(^|/)coverage/.*''',
+]
+
+# Narrow, literal descriptive placeholders used as throwaway test secrets — NOT
+# real credentials. Kept specific so a real high-entropy secret in the same files
+# is still flagged.
+regexes = [
+  '''ci-(it|e2e|load)-secret-at-least-32-characters-long''',
+  '''e2e-local-jwt-secret-at-least-32-characters-long''',
+  '''k6-probe-secret-at-least-32-characters-long''',
+  '''your-secret-at-least-32-chars-long''',
+  '''change-me-to-a-long-random-string''',
+]

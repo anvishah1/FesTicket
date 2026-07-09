@@ -13,10 +13,37 @@ env:
   NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
   NPM_CONFIG_FETCH_TIMEOUT: "300000"
 
+# OPS-07: a second push to the SAME ref cancels the in-progress run so rapid
+# pushes don't stack duplicate CI. Scoped per-ref so branches never cancel each
+# other (and a nearly-finished run on another branch is untouched).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # OPS-07: detect whether any NON-docs file changed. The heavy jobs (backend,
+  # frontend, integration, e2e) gate on this so a docs-only change skips them
+  # while the lightweight security job still runs.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - '**'
+              - '!**/*.md'
+
   backend:
     name: Backend (tests)
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     defaults:
       run:
         working-directory: backend
@@ -62,6 +89,8 @@ jobs:
   frontend:
     name: Frontend (lint, tests, typecheck)
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     defaults:
       run:
         working-directory: frontend
@@ -108,6 +137,8 @@ jobs:
   integration:
     name: Backend integration (real Postgres)
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     defaults:
       run:
         working-directory: backend
@@ -171,6 +202,8 @@ jobs:
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     # OPS-05: BLOCKING — a failing money-path journey (guest checkout,
     # cancel-restore, role-approval, event-create, booking->complete) fails CI.
 
@@ -290,3 +323,54 @@ jobs:
           path: e2e/playwright-report
           if-no-files-found: ignore
           retention-days: 7
+
+  # OPS-07: dependency audit + secret scanning. A LIGHTWEIGHT check that runs on
+  # every push (incl. docs-only) — it is NOT gated on the `changes` filter.
+  security:
+    name: Security (audit + secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitleaks scans the whole git history, so fetch it all.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # AUDIT POLICY: `--audit-level=high` is reported as ADVISORY (it must not
+      # permanently red the pipeline — several transitive/dev highs currently have
+      # no non-major fix, e.g. xlsx). The BLOCKING gate is `--audit-level=critical`
+      # (zero criticals today). Dependabot (.github/dependabot.yml) opens PRs that
+      # bump the fixable highs over time.
+      - name: npm audit — backend
+        working-directory: backend
+        run: |
+          echo "::group::backend advisory (high)"
+          npm audit --audit-level=high || echo "::warning::backend has high-severity advisories (tracked; Dependabot opens fix PRs)"
+          echo "::endgroup::"
+          npm audit --audit-level=critical
+
+      - name: npm audit — frontend
+        working-directory: frontend
+        run: |
+          echo "::group::frontend advisory (high)"
+          npm audit --audit-level=high || echo "::warning::frontend has high-severity advisories (tracked; Dependabot opens fix PRs)"
+          echo "::endgroup::"
+          npm audit --audit-level=critical
+
+      - name: npm audit — e2e
+        working-directory: e2e
+        run: |
+          echo "::group::e2e advisory (high)"
+          npm audit --audit-level=high || echo "::warning::e2e has high-severity advisories (tracked; Dependabot opens fix PRs)"
+          echo "::endgroup::"
+          npm audit --audit-level=critical
+
+      # Secret scanning is BLOCKING: a committed credential fails the run. Uses the
+      # open-source gitleaks CLI via its Docker image (no action license needed).
+      - name: Secret scan (gitleaks)
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:latest \
+            detect --source=/repo --redact --verbose --no-banner

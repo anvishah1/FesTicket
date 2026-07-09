@@ -72,7 +72,7 @@ jobs:
         run: |
           node index.js > backend.log 2>&1 &
           echo "BACKEND_PID=$!" >> "$GITHUB_ENV"
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -sf http://localhost:4000/api/ready >/dev/null; then
               echo "backend ready"; exit 0
             fi

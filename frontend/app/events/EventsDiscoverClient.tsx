@@ -5,6 +5,7 @@ import { FALLBACK_POSTER } from "@/lib/images";
 import Card from "@/components/card";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import CardGridSkeleton from "@/components/skeletons/CardGridSkeleton";
 import { getApiUrl } from "@/lib/auth";
 import { CATEGORY_LABELS } from "@/lib/categories";
 
@@ -331,7 +332,7 @@ export default function EventsDiscoverClient({
             </div>
 
             {loading ? (
-              <p className="text-[#6B597F]">Loading events…</p>
+              <CardGridSkeleton />
             ) : events.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {events.map((event) => (

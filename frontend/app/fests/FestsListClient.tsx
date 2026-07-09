@@ -5,6 +5,7 @@ import { FALLBACK_POSTER } from "@/lib/images";
 import Card from "@/components/card";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import CardGridSkeleton from "@/components/skeletons/CardGridSkeleton";
 import { useApi, prefetchApi } from "@/lib/api";
 
 function festsKey(search: string, page: number) {
@@ -146,7 +147,7 @@ export default function FestsListClient({
         {/* Cards Grid */}
         <div className="max-w-6xl mx-auto">
           {loading ? (
-            <p className="text-[#6B597F]">Loading fests...</p>
+            <CardGridSkeleton />
           ) : error ? (
             <div role="alert" className="text-[#6B597F]">
               <p>Something went wrong while loading fests. Please check your connection and try again.</p>

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Card from "@/components/card";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import CardGridSkeleton from "@/components/skeletons/CardGridSkeleton";
 import { useApi, prefetchApi } from "@/lib/api";
 
 interface Event {
@@ -274,7 +275,7 @@ export default function FestEventsClient({
         {/* Events Grid */}
         <div className="max-w-6xl mx-auto">
           {listLoading ? (
-            <p className="text-[#6B597F]">Loading events...</p>
+            <CardGridSkeleton />
           ) : events.length > 0 ? (
             <div
               aria-busy={listPaging}

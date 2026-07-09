@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -21,6 +21,12 @@ import Expenses from "@/components/admin/Expenses";
 import CreateFest from "@/components/admin/CreateFest";
 
 type AdminSection = "events" | "approvals" | "companies" | "expenses" | "createFest";
+
+// ANL-10: ISO instant one hour ago (for the trailing-60-min "sold in last hour").
+// Module-scope so the impure Date.now() isn't called from render scope.
+function hourAgoIso() {
+  return new Date(Date.now() - 3600000).toISOString();
+}
 
 // ANL-02: yyyy-mm-dd in IST (matches the backend's bucketing tz), offset by days.
 // Module-scope so the impure Date.now() isn't called from render scope.
@@ -56,6 +62,8 @@ export default function AdminDashboardPage() {
   const [ticketTypes, setTicketTypes] = useState<TicketTypeRow[] | null>(null); // ANL-09
   const [settlement, setSettlement] = useState<SettlementData | null>(null); // ANL-08
   const [exporting, setExporting] = useState(false); // ANL-05
+  const [live, setLive] = useState(false); // ANL-10
+  const [soldLastHour, setSoldLastHour] = useState<number | null>(null); // ANL-10
   // ANL-02: date-range filter for the range-scoped cards + trend chart.
   const [festDates, setFestDates] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
   const [preset, setPreset] = useState<"all" | "today" | "7d" | "fest" | "custom">("all");
@@ -118,12 +126,9 @@ export default function AdminDashboardPage() {
       .catch(() => {});
   }, [managedFestId]);
 
-  // Fest-scoped financials: income/tickets/events/bookings from analytics, and
-  // total spend from the fest-wide expenses (both fest-scoped, so the net is
-  // correct even on multi-editor fests).
-  // ANL-01/02: range-scoped income/tickets/bookings + trend. Re-runs when the
-  // date-range preset changes; expenses/sponsors below stay lifetime.
-  useEffect(() => {
+  // ANL-01/02: range-scoped income/tickets/bookings + trend. Extracted so the
+  // ANL-10 live poll can re-run the same fetches. Re-runs when the preset changes.
+  const loadRangeAnalytics = useCallback(() => {
     if (!managedFestId) return;
     const qs = range ? `?from=${range.from}&to=${range.to}` : "";
     apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}${qs}`)
@@ -140,7 +145,6 @@ export default function AdminDashboardPage() {
       })
       .catch(() => {});
 
-    // ANL-01: day-bucketed sales trend for the chart under the stat grid.
     apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}/timeseries${qs}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -150,12 +154,60 @@ export default function AdminDashboardPage() {
   }, [managedFestId, range]);
 
   useEffect(() => {
+    loadRangeAnalytics();
+  }, [loadRangeAnalytics]);
+
+  // ANL-10: tickets sold in the trailing 60 minutes (a range-scoped analytics
+  // query with from = now-1h; ticketsSold there counts COMPLETED items in-window).
+  const loadHourly = useCallback(() => {
+    if (!managedFestId) return;
+    const from = encodeURIComponent(hourAgoIso());
+    apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}?from=${from}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.success && data.data) setSoldLastHour(data.data.ticketsSold ?? 0);
+      })
+      .catch(() => {});
+  }, [managedFestId]);
+
+  // ANL-10: opt-in 30s polling. Pauses while the tab is hidden and resumes on
+  // visibility; the cleanup clears the interval + listener so no timer leaks
+  // (and React strict-mode's double-invoke can't stack two intervals).
+  useEffect(() => {
+    if (!live || !managedFestId) return;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const tick = () => {
+      loadRangeAnalytics();
+      loadHourly();
+    };
+    const start = () => {
+      if (intervalId == null) {
+        tick();
+        intervalId = setInterval(tick, 30000);
+      }
+    };
+    const stop = () => {
+      if (intervalId != null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+    const onVisibility = () => (document.visibilityState === "visible" ? start() : stop());
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [live, managedFestId, loadRangeAnalytics, loadHourly]);
+
+  useEffect(() => {
     if (!managedFestId) return;
     // ANL-03: all-time booking funnel (per-status counts + paise sums).
     apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}/funnel`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data?.success && data.data) setFunnel(data.data);
+        if (data?.success && typeof data.data?.started === "number") setFunnel(data.data);
       })
       .catch(() => {});
 
@@ -179,7 +231,7 @@ export default function AdminDashboardPage() {
     apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}/settlement`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data?.success && data.data) setSettlement(data.data);
+        if (data?.success && typeof data.data?.grossCollected === "number") setSettlement(data.data);
       })
       .catch(() => {});
 
@@ -477,6 +529,36 @@ export default function AdminDashboardPage() {
                     {preset === "fest" && !(festDates.start && festDates.end) && (
                       <span className="text-xs text-amber-600">Fest has no dates set — showing all time.</span>
                     )}
+
+                    {/* ANL-10: live refresh toggle + trailing-hour indicator */}
+                    <div className="ml-auto flex items-center gap-2">
+                      {live && (
+                        <span className="inline-flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                          <span className="relative flex h-2 w-2" aria-hidden="true">
+                            <span className="absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75 animate-ping" />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-600" />
+                          </span>
+                          <span aria-live="polite">
+                            {soldLastHour == null ? "Live" : `+${soldLastHour} sold in last hour`}
+                          </span>
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLive((v) => !v);
+                          if (live) setSoldLastHour(null);
+                        }}
+                        aria-pressed={live}
+                        className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                          live
+                            ? "border-green-600 text-green-700 bg-green-50"
+                            : "border-[var(--border-card)] text-[var(--text-muted)] hover:bg-[var(--surface-slate-100)]"
+                        }`}
+                      >
+                        {live ? "Live: on" : "Go live"}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

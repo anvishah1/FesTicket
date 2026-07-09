@@ -126,7 +126,7 @@ function confirmationPage(ok, category) {
   const body = ok
     ? `<h1>You're unsubscribed</h1><p>You'll no longer receive ${label}. You can re-enable them any time from your notification settings.</p>`
     : `<h1>Link invalid</h1><p>This unsubscribe link is invalid or has already been used. Manage your preferences from your account settings instead.</p>`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Unsubscribe · tiqr</title></head>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Unsubscribe · FesTicket</title></head>
 <body style="font-family:system-ui,sans-serif;background:#faf8fb;margin:0;padding:48px 16px;color:#29104A;">
 <div style="max-width:480px;margin:0 auto;background:#fff;border:1px solid #eee;border-radius:12px;padding:32px;text-align:center;">
 ${body}

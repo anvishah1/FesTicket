@@ -5,8 +5,8 @@ describe("PWA manifest (TIX-08)", () => {
   const m = manifest();
 
   it("declares an installable standalone app with brand identity", () => {
-    expect(m.name).toMatch(/tiqr/i);
-    expect(m.short_name).toBe("tiqr");
+    expect(m.name).toMatch(/FesTicket/i);
+    expect(m.short_name).toBe("FesTicket");
     expect(m.display).toBe("standalone");
     expect(m.start_url).toBe("/");
     expect(m.theme_color).toBe("#522C5D");

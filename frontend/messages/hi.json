@@ -46,8 +46,8 @@
   "events": {
     "title": "इवेंट खोजें",
     "titleCategory": "{category} इवेंट",
-    "subtitle": "tiqr पर हर फ़ेस्ट के इवेंट देखें और टिकट बुक करें।",
-    "subtitleCategory": "tiqr पर हर फ़ेस्ट के {category} इवेंट देखें।",
+    "subtitle": "FesTicket पर हर फ़ेस्ट के इवेंट देखें और टिकट बुक करें।",
+    "subtitleCategory": "FesTicket पर हर फ़ेस्ट के {category} इवेंट देखें।",
     "searchLabel": "खोज",
     "searchPlaceholder": "इवेंट का नाम…",
     "categoryLabel": "श्रेणी",

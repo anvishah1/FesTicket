@@ -27,7 +27,7 @@ function resolveRef(ref) {
 describe("OpenAPI document (ARCH-04)", () => {
   it("is an OpenAPI 3.0 document with the required top-level fields", () => {
     expect(doc.openapi).toBe("3.0.3");
-    expect(doc.info?.title).toBe("tiqr API");
+    expect(doc.info?.title).toBe("FesTicket API");
     expect(doc.info?.version).toBeTruthy();
     expect(doc.paths && typeof doc.paths).toBe("object");
   });

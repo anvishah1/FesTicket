@@ -374,7 +374,7 @@ export default function EventCreatePage() {
             </svg>
           </button>
           <div className="min-w-0">
-            <span className="text-lg sm:text-xl font-semibold text-[var(--text-primary)]">tiqr.events</span>
+            <span className="text-lg sm:text-xl font-semibold text-[var(--text-primary)]">FesTicket.events</span>
             <div className="flex items-center gap-2 mt-0.5 min-w-0">
               <span className="hidden sm:inline text-sm text-[var(--text-muted)] shrink-0">Creating event for</span>
               <span className="text-sm font-medium text-[var(--text-secondary)] bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] px-2 py-0.5 rounded truncate">

@@ -25,10 +25,10 @@ describe("Header", () => {
     expect(skip).toHaveClass("skip-link");
   });
 
-  it("renders the tiqr brand linked to home", () => {
+  it("renders the FesTicket brand linked to home", () => {
     render(<Header />);
-    expect(screen.getByText("tiqr")).toBeInTheDocument();
-    expect(screen.getByText("tiqr").closest("a")).toHaveAttribute("href", "/");
+    expect(screen.getByText("FesTicket")).toBeInTheDocument();
+    expect(screen.getByText("FesTicket").closest("a")).toHaveAttribute("href", "/");
   });
 
   it("renders the Discover and About nav links (no duplicate Fests)", () => {

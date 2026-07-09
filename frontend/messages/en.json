@@ -46,8 +46,8 @@
   "events": {
     "title": "Discover Events",
     "titleCategory": "{category} Events",
-    "subtitle": "Browse and book tickets for events across every fest on tiqr.",
-    "subtitleCategory": "Browse {category} events across every fest on tiqr.",
+    "subtitle": "Browse and book tickets for events across every fest on FesTicket.",
+    "subtitleCategory": "Browse {category} events across every fest on FesTicket.",
     "searchLabel": "Search",
     "searchPlaceholder": "Event name…",
     "categoryLabel": "Category",

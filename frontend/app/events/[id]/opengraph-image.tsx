@@ -8,7 +8,7 @@ import { serverFetch } from "@/lib/serverApi";
 import { renderCard, fetchPoster, formatDateRange, priceChip, size, contentType } from "../../_og/ogCard";
 
 export const runtime = "nodejs";
-export const alt = "Event on tiqr";
+export const alt = "Event on FesTicket";
 export { size, contentType };
 
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
@@ -16,7 +16,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
   try {
     const { status, data: e } = await serverFetch<any>(`/api/events/${encodeURIComponent(id)}`);
     if (status !== 200 || !e) {
-      return renderCard({ eyebrow: "Event", title: "tiqr", subtitle: "Discover & book college-fest events" });
+      return renderCard({ eyebrow: "Event", title: "FesTicket", subtitle: "Discover & book college-fest events" });
     }
     const poster = await fetchPoster(e.image);
     return renderCard({
@@ -28,6 +28,6 @@ export default async function Image({ params }: { params: Promise<{ id: string }
       poster,
     });
   } catch {
-    return renderCard({ eyebrow: "Event", title: "tiqr", subtitle: "Discover & book college-fest events" });
+    return renderCard({ eyebrow: "Event", title: "FesTicket", subtitle: "Discover & book college-fest events" });
   }
 }

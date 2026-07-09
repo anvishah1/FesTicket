@@ -23,8 +23,8 @@ export function unsubscribeFor(userId, category) {
   return { url, headers };
 }
 
-const MAIL_FROM = process.env.MAIL_FROM || process.env.SMTP_USER || "noreply@tiqr.events";
-const APP_NAME = process.env.APP_NAME || "tiqr";
+const MAIL_FROM = process.env.MAIL_FROM || process.env.SMTP_USER || "noreply@FesTicket.events";
+const APP_NAME = process.env.APP_NAME || "FesTicket";
 const BRAND = "#522C5D";
 
 /**
@@ -833,7 +833,7 @@ export async function sendWaitlistClaim(waiter, event, ticketType, claimUrl) {
 export async function sendMagicLink({ to, name, link }) {
   const { html, text } = renderEmail({
     preheader: "Your sign-in link",
-    heading: "Sign in to tiqr",
+    heading: "Sign in to FesTicket",
     bodyHtml: `
     <tr><td style="padding:0 0 16px;">Hi ${escapeHtml(name || "there")}, use the button below to sign in. This link works once and expires in 15 minutes.</td></tr>
     <tr><td style="padding:0 0 8px;font-size:14px;color:#666666;">If the button doesn't work, paste this link into your browser:</td></tr>

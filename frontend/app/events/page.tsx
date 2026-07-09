@@ -9,18 +9,18 @@ import EventsDiscoverClient from "./EventsDiscoverClient";
 export const metadata: Metadata = {
   title: "Discover Events",
   description:
-    "Browse and book tickets for college-fest events across every fest on tiqr — filter by category, date, city, online, and free events.",
+    "Browse and book tickets for college-fest events across every fest on FesTicket — filter by category, date, city, online, and free events.",
   alternates: { canonical: siteUrl("/events") },
   openGraph: {
-    title: "Discover Events | tiqr",
-    description: "Browse and book tickets for college-fest events across every fest on tiqr.",
+    title: "Discover Events | FesTicket",
+    description: "Browse and book tickets for college-fest events across every fest on FesTicket.",
     url: siteUrl("/events"),
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Discover Events | tiqr",
-    description: "Browse and book tickets for college-fest events across every fest on tiqr.",
+    title: "Discover Events | FesTicket",
+    description: "Browse and book tickets for college-fest events across every fest on FesTicket.",
   },
 };
 

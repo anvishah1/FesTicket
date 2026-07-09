@@ -37,7 +37,7 @@ describe("TOTP verify (AUTH-08)", () => {
   });
 
   it("builds an otpauth URI with the issuer", () => {
-    expect(keyUri("a@x.com", "SECRET")).toMatch(/^otpauth:\/\/totp\/.*issuer=tiqr/);
+    expect(keyUri("a@x.com", "SECRET")).toMatch(/^otpauth:\/\/totp\/.*issuer=FesTicket/);
   });
 });
 

@@ -8,7 +8,7 @@ import { serverFetch } from "@/lib/serverApi";
 import { renderCard, fetchPoster, formatDateRange, priceChip, size, contentType } from "../../_og/ogCard";
 
 export const runtime = "nodejs";
-export const alt = "Fest on tiqr";
+export const alt = "Fest on FesTicket";
 export { size, contentType };
 
 export default async function Image({ params }: { params: Promise<{ festId: string }> }) {
@@ -16,7 +16,7 @@ export default async function Image({ params }: { params: Promise<{ festId: stri
   try {
     const { status, data: f } = await serverFetch<any>(`/api/fests/${encodeURIComponent(festId)}`);
     if (status !== 200 || !f) {
-      return renderCard({ eyebrow: "Fest", title: "tiqr", subtitle: "Discover & book college-fest events" });
+      return renderCard({ eyebrow: "Fest", title: "FesTicket", subtitle: "Discover & book college-fest events" });
     }
     // Cheapest ticket across all of the fest's published events.
     const allTickets = (Array.isArray(f.events) ? f.events : []).flatMap((e: any) =>
@@ -32,6 +32,6 @@ export default async function Image({ params }: { params: Promise<{ festId: stri
       poster,
     });
   } catch {
-    return renderCard({ eyebrow: "Fest", title: "tiqr", subtitle: "Discover & book college-fest events" });
+    return renderCard({ eyebrow: "Fest", title: "FesTicket", subtitle: "Discover & book college-fest events" });
   }
 }

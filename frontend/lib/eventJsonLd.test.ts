@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildEventJsonLd, serializeJsonLd } from "@/lib/eventJsonLd";
 
-const CANON = "https://tiqr.test/events/5";
+const CANON = "https://FesTicket.test/events/5";
 
 const base = {
   id: 5,

@@ -86,7 +86,7 @@ export function buildEventIcs(event, stamp = new Date()) {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//tiqr//events//EN",
+    "PRODID:-//FesTicket//events//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",

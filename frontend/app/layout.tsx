@@ -10,12 +10,12 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
   ),
   title: {
-    default: "tiqr — Events & ticketing",
-    template: "%s | tiqr",
+    default: "FesTicket — Events & ticketing",
+    template: "%s | FesTicket",
   },
   description:
-    "tiqr is the fastest way to discover, book, and manage tickets for college fest events. Browse fests, grab your passes, and organise events all in one place.",
-  applicationName: "tiqr",
+    "FesTicket is the fastest way to discover, book, and manage tickets for college fest events. Browse fests, grab your passes, and organise events all in one place.",
+  applicationName: "FesTicket",
   // TIX-08: Next auto-links the manifest from app/manifest.ts, but declaring it
   // keeps the intent explicit. appleWebApp enables iOS "Add to Home Screen" with
   // a standalone shell and the correct title.
@@ -23,20 +23,20 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "tiqr",
+    title: "FesTicket",
   },
   openGraph: {
-    title: "tiqr — Events & ticketing for college fests",
+    title: "FesTicket — Events & ticketing for college fests",
     description:
-      "Discover, book, and manage tickets for college fest events with tiqr.",
-    siteName: "tiqr",
+      "Discover, book, and manage tickets for college fest events with FesTicket.",
+    siteName: "FesTicket",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "tiqr — Events & ticketing for college fests",
+    title: "FesTicket — Events & ticketing for college fests",
     description:
-      "Discover, book, and manage tickets for college fest events with tiqr.",
+      "Discover, book, and manage tickets for college fest events with FesTicket.",
   },
   icons: {
     icon: "/favicon.ico",

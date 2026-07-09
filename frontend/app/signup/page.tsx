@@ -218,7 +218,7 @@ export default function SignUpPage() {
 
             <h3 className="mt-8 text-2xl font-semibold text-[var(--text-primary)] text-center">Protection from scammers!</h3>
             <p className="mt-3 text-center text-[var(--text-secondary)] max-w-md">
-              Verify your tickets quickly and securely with TiQr Scan — create an account to get started.
+              Verify your tickets quickly and securely with FesTicket Scan — create an account to get started.
             </p>
           </div>
 

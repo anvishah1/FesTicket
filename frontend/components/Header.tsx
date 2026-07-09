@@ -175,7 +175,7 @@ export default function Header() {
           <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white font-bold shadow-md">
             t
           </div>
-          <span className="font-bold text-white">tiqr</span>
+          <span className="font-bold text-white">FesTicket</span>
         </Link>
 
         {/* Desktop nav */}

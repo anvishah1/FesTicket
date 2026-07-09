@@ -6,15 +6,15 @@ import FestsListClient, { type Fest, type Pagination } from "./FestsListClient";
 // search + pagination.
 export const metadata: Metadata = {
   title: "Discover Fests",
-  description: "Explore the most exciting college festivals across India and book tickets on tiqr.",
+  description: "Explore the most exciting college festivals across India and book tickets on FesTicket.",
   alternates: { canonical: siteUrl("/fests") },
   openGraph: {
-    title: "Discover Fests | tiqr",
-    description: "Explore the most exciting college festivals across India and book tickets on tiqr.",
+    title: "Discover Fests | FesTicket",
+    description: "Explore the most exciting college festivals across India and book tickets on FesTicket.",
     url: siteUrl("/fests"),
     type: "website",
   },
-  twitter: { card: "summary_large_image", title: "Discover Fests | tiqr" },
+  twitter: { card: "summary_large_image", title: "Discover Fests | FesTicket" },
 };
 
 export default async function FestsPage() {

@@ -1,4 +1,4 @@
-// ARCH-04: OpenAPI 3.0 document for the tiqr API.
+// ARCH-04: OpenAPI 3.0 document for the FesTicket API.
 //
 // Request-body schemas are derived from the SAME zod validators the routes
 // enforce (src/validators/*), via zod v4's native `z.toJSONSchema`. This keeps
@@ -76,7 +76,7 @@ export function buildOpenApiDocument() {
   return {
     openapi: "3.0.3",
     info: {
-      title: "tiqr API",
+      title: "FesTicket API",
       version: "1.0.0",
       description:
         "Event ticketing/booking API for college fests. Auth is a bearer JWT " +

@@ -29,7 +29,7 @@ export async function generateStaticParams() {
 }
 
 function metaDescription(e: EventData): string {
-  const raw = e.shortDescription || e.description || e.aboutEvent || `${e.name} — book tickets on tiqr.`;
+  const raw = e.shortDescription || e.description || e.aboutEvent || `${e.name} — book tickets on FesTicket.`;
   return String(raw).replace(/\s+/g, " ").trim().slice(0, 160);
 }
 

@@ -53,7 +53,7 @@ export function getAppleWalletConfig() {
     signerKey,
     wwdr,
     signerKeyPassphrase: process.env.APPLE_WALLET_SIGNER_KEY_PASSPHRASE || undefined,
-    organizationName: process.env.APPLE_WALLET_ORG_NAME || "tiqr",
+    organizationName: process.env.APPLE_WALLET_ORG_NAME || "FesTicket",
   };
 }
 
@@ -224,7 +224,7 @@ export function buildGoogleSaveUrl({ event, attendee }) {
 
   const eventTicketClass = {
     id: classId,
-    issuerName: "tiqr",
+    issuerName: "FesTicket",
     reviewStatus: "UNDER_REVIEW",
     eventName: { defaultValue: { language: "en-US", value: event.name || "Event" } },
   };

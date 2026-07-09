@@ -16,7 +16,7 @@ export default function SignInPage() {
               {/* logo / brand */}
               <div className="w-28 h-28 flex items-center justify-center">
                 <span className="text-5xl font-extrabold tracking-tight text-[var(--text-primary)]">
-                  tiqr
+                  FesTicket
                 </span>
               </div>
 

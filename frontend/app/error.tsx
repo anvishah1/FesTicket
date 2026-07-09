@@ -23,7 +23,7 @@ export default function Error({
           className="text-sm font-semibold tracking-wide uppercase"
           style={{ color: "var(--text-secondary)" }}
         >
-          tiqr
+          FesTicket
         </p>
         <h1
           className="mt-3 text-2xl font-bold"

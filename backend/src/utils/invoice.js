@@ -21,7 +21,7 @@ export function streamInvoicePdf(res, { booking, event, fest }) {
   const AMT_W = 100;
 
   // Seller header (fest + college, falling back to the app name).
-  doc.fontSize(20).fillColor("#29104A").text(fest?.name || event?.name || "tiqr");
+  doc.fontSize(20).fillColor("#29104A").text(fest?.name || event?.name || "FesTicket");
   if (fest?.college) doc.fontSize(10).fillColor("#666").text(fest.college);
   doc.moveDown(0.4);
   doc.fontSize(15).fillColor("#000").text("Tax Invoice / Receipt");

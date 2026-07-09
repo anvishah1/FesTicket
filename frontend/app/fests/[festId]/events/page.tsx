@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: { params: Promise<{ festId: s
   const title = `${fest.name} Events`;
   const description =
     (fest.description && String(fest.description).replace(/\s+/g, " ").trim().slice(0, 160)) ||
-    `Browse and book tickets for events at ${fest.name}${fest.college ? `, ${fest.college}` : ""} on tiqr.`;
+    `Browse and book tickets for events at ${fest.name}${fest.college ? `, ${fest.college}` : ""} on FesTicket.`;
   const canonical = siteUrl(`/fests/${fest.id}/events`);
 
   return {

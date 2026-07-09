@@ -12,7 +12,7 @@ export default function Footer() {
             T
           </div>
           <span className="text-sm text-[var(--text-muted)]">
-            tiqr · © {new Date().getFullYear()}
+            FesTicket · © {new Date().getFullYear()}
           </span>
         </div>
 
@@ -31,7 +31,7 @@ export default function Footer() {
             Contact
           </Link>
           <a
-            href="mailto:support@tiqr.events"
+            href="mailto:support@FesTicket.events"
             className="hover:text-[var(--text-primary)] transition-colors"
           >
             Support

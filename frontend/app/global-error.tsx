@@ -41,7 +41,7 @@ export default function GlobalError({
                 color: "#522C5D",
               }}
             >
-              tiqr
+              FesTicket
             </p>
             <h1
               style={{

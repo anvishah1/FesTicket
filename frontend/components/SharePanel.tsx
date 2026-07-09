@@ -33,7 +33,7 @@ export default function SharePanel({
   }, []);
 
   const shareUrl = `${origin}/events/${eventId}?ref=${encodeURIComponent(String(bookingId))}`;
-  const message = `Check out ${eventName || "this event"} on tiqr!`;
+  const message = `Check out ${eventName || "this event"} on FesTicket!`;
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${message} ${shareUrl}`)}`;
 
   const handleNativeShare = async () => {

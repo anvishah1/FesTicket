@@ -1,13 +1,13 @@
 import type { MetadataRoute } from "next";
 
-// TIX-08: Web App Manifest. Makes tiqr installable (Chrome install prompt / iOS
+// TIX-08: Web App Manifest. Makes FesTicket installable (Chrome install prompt / iOS
 // Add to Home Screen) and drives the standalone app-shell look. Icons live in
 // /public (generated brand "t" marks). Keep theme_color in sync with the brand
 // primary (#522C5D) used across the UI.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "tiqr — Events & ticketing",
-    short_name: "tiqr",
+    name: "FesTicket — Events & ticketing",
+    short_name: "FesTicket",
     description:
       "Discover, book, and manage tickets for college fest events. Your ticket QR stays available at the gate, even offline.",
     start_url: "/",

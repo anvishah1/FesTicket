@@ -99,7 +99,7 @@ export default function HomeEventRails({
     <>
       <EventRail
         title="Trending now"
-        subtitle="The most-booked events on tiqr"
+        subtitle="The most-booked events on FesTicket"
         events={(trending || []).map(mapEvent)}
       />
       <EventRail

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // SEO-04: sitemap.ts and robots.ts are pure server functions — test them directly
 // with a mocked serverApi (deterministic origin + a stubbed backend feed).
 vi.mock("@/lib/serverApi", () => ({
-  siteUrl: (p = "") => `https://tiqr.test${p}`,
+  siteUrl: (p = "") => `https://FesTicket.test${p}`,
   serverFetch: vi.fn(),
 }));
 
@@ -30,15 +30,15 @@ describe("sitemap (SEO-04)", () => {
     const map = await sitemap();
     const urls = map.map((e) => e.url);
 
-    expect(urls).toContain("https://tiqr.test/");
-    expect(urls).toContain("https://tiqr.test/fests");
-    expect(urls).toContain("https://tiqr.test/fests/3/events");
-    expect(urls).toContain("https://tiqr.test/events/10");
+    expect(urls).toContain("https://FesTicket.test/");
+    expect(urls).toContain("https://FesTicket.test/fests");
+    expect(urls).toContain("https://FesTicket.test/fests/3/events");
+    expect(urls).toContain("https://FesTicket.test/events/10");
     // SEO-10: a category with events is included; a 0-count one is not.
-    expect(urls).toContain("https://tiqr.test/events/category/concert");
-    expect(urls).not.toContain("https://tiqr.test/events/category/workshop");
+    expect(urls).toContain("https://FesTicket.test/events/category/concert");
+    expect(urls).not.toContain("https://FesTicket.test/events/category/workshop");
 
-    const ev = map.find((e) => e.url === "https://tiqr.test/events/10");
+    const ev = map.find((e) => e.url === "https://FesTicket.test/events/10");
     expect(ev?.lastModified).toEqual(new Date("2026-05-01T00:00:00.000Z"));
 
     // No admin/host/booking/payment/auth URL ever appears.
@@ -49,9 +49,9 @@ describe("sitemap (SEO-04)", () => {
     sf.mockResolvedValue({ status: 0, data: null, body: null });
     const map = await sitemap();
     expect(map.map((e) => e.url)).toEqual([
-      "https://tiqr.test/",
-      "https://tiqr.test/fests",
-      "https://tiqr.test/events",
+      "https://FesTicket.test/",
+      "https://FesTicket.test/fests",
+      "https://FesTicket.test/events",
     ]);
   });
 
@@ -62,7 +62,7 @@ describe("sitemap (SEO-04)", () => {
         : { status: 200, data: [], body: null }
     );
     const map = await sitemap();
-    expect(map.find((e) => e.url === "https://tiqr.test/events/1")?.lastModified).toBeUndefined();
+    expect(map.find((e) => e.url === "https://FesTicket.test/events/1")?.lastModified).toBeUndefined();
   });
 });
 
@@ -85,6 +85,6 @@ describe("robots (SEO-04)", () => {
         "/events/*/payment",
       ])
     );
-    expect(r.sitemap).toBe("https://tiqr.test/sitemap.xml");
+    expect(r.sitemap).toBe("https://FesTicket.test/sitemap.xml");
   });
 });

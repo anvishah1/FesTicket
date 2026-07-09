@@ -2,8 +2,8 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
 export const metadata = {
-  title: "Contact · tiqr",
-  description: "How to reach the tiqr team.",
+  title: "Contact · FesTicket",
+  description: "How to reach the FesTicket team.",
 };
 
 export default function ContactPage() {
@@ -24,10 +24,10 @@ export default function ContactPage() {
               Email us and we&apos;ll get back to you as soon as we can.
             </p>
             <a
-              href="mailto:support@tiqr.events"
+              href="mailto:support@FesTicket.events"
               className="mt-4 inline-flex px-5 py-2.5 rounded-lg font-semibold text-white bg-[var(--fill-plum)] hover:bg-[#3D1B5C] transition-colors"
             >
-              support@tiqr.events
+              support@FesTicket.events
             </a>
           </div>
 

@@ -806,8 +806,8 @@ export default function BookingPage() {
             <h4 className="font-semibold mb-3">Need help?</h4>
             <p className="text-sm text-[var(--text-slate)]">
               Contact support at{" "}
-              <a className="text-[var(--text-primary)] underline" href="mailto:support@tiqr.events">
-                support@tiqr.events
+              <a className="text-[var(--text-primary)] underline" href="mailto:support@FesTicket.events">
+                support@FesTicket.events
               </a>
             </p>
             <Link href="/fests" className="block mt-3 text-sm text-[var(--text-soft)] hover:underline">

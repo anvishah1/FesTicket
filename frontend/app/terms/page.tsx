@@ -2,8 +2,8 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
 export const metadata = {
-  title: "Terms · tiqr",
-  description: "The basic terms for using tiqr.",
+  title: "Terms · FesTicket",
+  description: "The basic terms for using FesTicket.",
 };
 
 export default function TermsPage() {
@@ -14,7 +14,7 @@ export default function TermsPage() {
         <div className="container max-w-3xl py-12 md:py-16">
           <h1 className="text-3xl md:text-4xl font-bold text-[var(--text-primary)]">Terms of use</h1>
           <p className="mt-4 text-[var(--text-slate)] leading-relaxed">
-            By using tiqr you agree to the basics below. This is a short, honest summary
+            By using FesTicket you agree to the basics below. This is a short, honest summary
             of the rules for using the platform.
           </p>
 
@@ -29,7 +29,7 @@ export default function TermsPage() {
           <p className="mt-3 text-[var(--text-slate)] leading-relaxed">
             Ticket prices shown include the platform fee and applicable taxes at checkout.
             Once a booking is confirmed, refunds and changes are subject to the policy of
-            the fest that owns the event. tiqr facilitates the sale but does not run the
+            the fest that owns the event. FesTicket facilitates the sale but does not run the
             fest itself.
           </p>
 
@@ -42,8 +42,8 @@ export default function TermsPage() {
 
           <p className="mt-10 text-[var(--text-slate)]">
             Questions about these terms? Contact{" "}
-            <a href="mailto:support@tiqr.events" className="text-[var(--text-secondary)] font-medium underline">
-              support@tiqr.events
+            <a href="mailto:support@FesTicket.events" className="text-[var(--text-secondary)] font-medium underline">
+              support@FesTicket.events
             </a>
             .
           </p>

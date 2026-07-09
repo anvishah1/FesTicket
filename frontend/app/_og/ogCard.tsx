@@ -3,7 +3,7 @@
 //
 // SEO-03: shared builder for the 1200x630 OpenGraph share cards rendered by the
 // per-event and per-fest opengraph-image routes. Composes a branded card (poster
-// background when the image is an absolute, fetchable URL, else the tiqr gradient)
+// background when the image is an absolute, fetchable URL, else the FesTicket gradient)
 // and returns a next/og ImageResponse. Fonts are bundled (Poppins TTF, which
 // includes the ₹ glyph) and read from the module dir so no external font fetch is
 // needed. Every helper is defensive: a font/poster failure degrades, never throws.
@@ -65,7 +65,7 @@ export type CardProps = {
 };
 
 function Card({ eyebrow, title, subtitle, meta, chip, poster }: CardProps) {
-  const safeTitle = (title || "tiqr").slice(0, 72);
+  const safeTitle = (title || "FesTicket").slice(0, 72);
   const overlay = poster
     ? "linear-gradient(180deg, rgba(20,8,40,0.30) 0%, rgba(20,8,40,0.55) 45%, rgba(20,8,40,0.96) 100%)"
     : "linear-gradient(180deg, rgba(41,16,74,0.0) 0%, rgba(20,8,40,0.35) 100%)";
@@ -142,7 +142,7 @@ function Card({ eyebrow, title, subtitle, meta, chip, poster }: CardProps) {
               letterSpacing: "-1px",
             }}
           >
-            tiqr
+            FesTicket
           </div>
           {eyebrow ? (
             <div

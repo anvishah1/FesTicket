@@ -6,7 +6,7 @@
 import crypto from "node:crypto";
 import * as otp from "otplib";
 
-const ISSUER = "tiqr";
+const ISSUER = "FesTicket";
 
 // 32-byte key derived from a dedicated secret (falls back to JWT_SECRET so the
 // feature works without extra config; set TWO_FACTOR_ENC_KEY in production).

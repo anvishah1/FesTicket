@@ -20,14 +20,14 @@ export async function generateMetadata({
   if (!label) return { title: "Category", robots: { index: false, follow: false } };
 
   const title = `${label} Events`;
-  const description = `Discover and book ${label.toLowerCase()} events across every college fest on tiqr.`;
+  const description = `Discover and book ${label.toLowerCase()} events across every college fest on FesTicket.`;
   const canonical = siteUrl(`/events/category/${category.toLowerCase()}`);
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title: `${label} Events | tiqr`, description, url: canonical, type: "website" },
-    twitter: { card: "summary_large_image", title: `${label} Events | tiqr`, description },
+    openGraph: { title: `${label} Events | FesTicket`, description, url: canonical, type: "website" },
+    twitter: { card: "summary_large_image", title: `${label} Events | FesTicket`, description },
   };
 }
 

@@ -188,7 +188,7 @@ export default function PaymentPage() {
           amount,
           currency,
           order_id: orderId,
-          name: "tiqr",
+          name: "FesTicket",
           description: booking.event?.name || "Event booking",
           handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string }) => {
             try {
@@ -367,8 +367,8 @@ export default function PaymentPage() {
             <h3 className="font-semibold">Need help?</h3>
             <p className="text-sm text-[var(--text-slate)] mt-2">
               If you face trouble completing payment, contact our support at{" "}
-              <a className="text-[var(--text-primary)] underline" href="mailto:support@tiqr.events">
-                support@tiqr.events
+              <a className="text-[var(--text-primary)] underline" href="mailto:support@FesTicket.events">
+                support@FesTicket.events
               </a>
             </p>
           </div>

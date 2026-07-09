@@ -7,7 +7,7 @@ describe("Footer", () => {
     render(<Footer />);
     const year = String(new Date().getFullYear());
     expect(
-      screen.getByText((content) => content.includes("tiqr") && content.includes(year))
+      screen.getByText((content) => content.includes("FesTicket") && content.includes(year))
     ).toBeInTheDocument();
   });
 
@@ -35,7 +35,7 @@ describe("Footer", () => {
     render(<Footer />);
     expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
       "href",
-      "mailto:support@tiqr.events"
+      "mailto:support@FesTicket.events"
     );
   });
 });

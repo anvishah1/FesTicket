@@ -10,7 +10,7 @@
 import prisma from "../prisma.js";
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
-const USER_AGENT = "tiqr/1.0 (college-fest event ticketing)";
+const USER_AGENT = "FesTicket/1.0 (college-fest event ticketing)";
 const MIN_INTERVAL_MS = 1100; // >= 1 req/s per Nominatim policy
 const TIMEOUT_MS = 5000;
 

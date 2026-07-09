@@ -1,4 +1,4 @@
-/* tiqr service worker (TIX-08)
+/* FesTicket service worker (TIX-08)
  *
  * Goal: a saved ticket QR still renders at the gate with no signal.
  *

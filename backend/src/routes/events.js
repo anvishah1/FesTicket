@@ -682,6 +682,63 @@ router.get("/analytics/fest/:festId/timeseries", authenticateUser, async (req, r
   }
 });
 
+// GET /api/events/analytics/fest/:festId/funnel (ANL-03) - per-status booking
+// counts + rupee(paise) sums for the fest, so admins can see abandonment and the
+// value currently held in PENDING (inventory is reserved at booking creation).
+router.get("/analytics/fest/:festId/funnel", authenticateUser, async (req, res) => {
+  try {
+    const festId = parseInt(req.params.festId);
+    if (Number.isNaN(festId)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Invalid fest id" },
+      });
+    }
+    if (!canAccessFest(festId, await callerFests(req))) return forbid(res);
+
+    const events = await prisma.event.findMany({ where: { festId }, select: { id: true } });
+    const eventIds = events.map((e) => e.id);
+
+    // groupBy only returns statuses that are present, so zero-fill the rest.
+    const grouped = eventIds.length
+      ? await prisma.booking.groupBy({
+          by: ["status"],
+          where: { eventId: { in: eventIds } },
+          _count: true,
+          _sum: { total: true, subtotal: true, discount: true },
+        })
+      : [];
+    const by = new Map(grouped.map((g) => [g.status, g]));
+    const count = (s) => by.get(s)?._count || 0;
+    const totalSum = (s) => by.get(s)?._sum?.total || 0; // integer paise
+
+    const started = count("PENDING") + count("COMPLETED") + count("CANCELLED") + count("REFUNDED");
+    const completed = count("COMPLETED");
+
+    res.json({
+      success: true,
+      data: {
+        started,
+        completed,
+        cancelled: count("CANCELLED"),
+        refunded: count("REFUNDED"),
+        // Guard divide-by-zero -> 0, not NaN. Rounded to 4dp (0..1).
+        conversionRate: started > 0 ? Math.round((completed / started) * 10000) / 10000 : 0,
+        valueHeldPending: totalSum("PENDING"),
+        valueCompleted: totalSum("COMPLETED"),
+        valueCancelled: totalSum("CANCELLED"),
+        valueRefunded: totalSum("REFUNDED"),
+      },
+    });
+  } catch (error) {
+    req.log.error({ err: error }, "Error fetching fest funnel");
+    res.status(500).json({
+      success: false,
+      error: { code: "FETCH_ERROR", message: "Failed to fetch funnel" },
+    });
+  }
+});
+
 // ==================== PAY-04: PROMO CODES (host/admin scoped) ====================
 // Registered BEFORE GET /:id so "promo-codes" isn't captured as an :id param.
 const PROMO_KINDS = ["PERCENT", "FLAT"];

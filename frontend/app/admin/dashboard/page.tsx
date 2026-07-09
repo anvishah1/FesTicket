@@ -9,6 +9,7 @@ import { showToast } from "@/lib/toast";
 import { formatPaise } from "@/lib/format";
 
 import SalesTrendChart, { type TrendPoint } from "@/components/analytics/SalesTrendChart";
+import BookingFunnel, { type FunnelData } from "@/components/admin/BookingFunnel";
 import RoleRequests from "@/components/admin/RoleRequests";
 import FestEvents from "@/components/admin/FestEvents";
 import Companies from "@/components/admin/Companies";
@@ -46,6 +47,7 @@ export default function AdminDashboardPage() {
   const [totalSpend, setTotalSpend] = useState<number | null>(null);
   const [sponsorIncome, setSponsorIncome] = useState<number | null>(null);
   const [trend, setTrend] = useState<TrendPoint[] | null>(null); // ANL-01
+  const [funnel, setFunnel] = useState<FunnelData | null>(null); // ANL-03
   // ANL-02: date-range filter for the range-scoped cards + trend chart.
   const [festDates, setFestDates] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
   const [preset, setPreset] = useState<"all" | "today" | "7d" | "fest" | "custom">("all");
@@ -141,6 +143,14 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (!managedFestId) return;
+    // ANL-03: all-time booking funnel (per-status counts + paise sums).
+    apiFetch(`${getApiUrl()}/api/events/analytics/fest/${managedFestId}/funnel`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.success && data.data) setFunnel(data.data);
+      })
+      .catch(() => {});
+
     apiFetch(`${getApiUrl()}/api/events/marketing/fest/${managedFestId}/expenses`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -449,21 +459,30 @@ export default function AdminDashboardPage() {
                     </div>
                   </div>
 
-                  {/* ANL-01: sales trend chart */}
-                  <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-5 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
-                      <h2 className="text-sm font-semibold text-[var(--text-primary)]">Sales trend</h2>
-                      <span className="text-xs text-[var(--text-muted)]">completed bookings</span>
-                    </div>
-                    {trend == null ? (
-                      <div className="h-40 rounded-lg bg-[var(--surface-slate-100)] animate-pulse" aria-hidden="true" />
-                    ) : trend.reduce((a, p) => a + p.revenue, 0) === 0 ? (
-                      <div className="h-40 flex items-center justify-center text-sm text-[var(--text-muted)]">
-                        No sales yet — your daily revenue will chart here.
+                  {/* ANL-01 trend chart + ANL-03 booking funnel */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="lg:col-span-2 bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-5 shadow-sm">
+                      <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-sm font-semibold text-[var(--text-primary)]">Sales trend</h2>
+                        <span className="text-xs text-[var(--text-muted)]">completed bookings</span>
                       </div>
-                    ) : (
-                      <SalesTrendChart points={trend} />
-                    )}
+                      {trend == null ? (
+                        <div className="h-40 rounded-lg bg-[var(--surface-slate-100)] animate-pulse" aria-hidden="true" />
+                      ) : trend.reduce((a, p) => a + p.revenue, 0) === 0 ? (
+                        <div className="h-40 flex items-center justify-center text-sm text-[var(--text-muted)]">
+                          No sales yet — your daily revenue will chart here.
+                        </div>
+                      ) : (
+                        <SalesTrendChart points={trend} />
+                      )}
+                    </div>
+                    <div className="lg:col-span-1 bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-5 shadow-sm">
+                      {funnel == null ? (
+                        <div className="h-48 rounded-lg bg-[var(--surface-slate-100)] animate-pulse" aria-hidden="true" />
+                      ) : (
+                        <BookingFunnel data={funnel} />
+                      )}
+                    </div>
                   </div>
                 </div>
 

@@ -2119,6 +2119,54 @@ describe("GET /api/events/analytics/fest/:festId/timeseries", () => {
   });
 });
 
+// ============ GET /api/events/analytics/fest/:festId/funnel (ANL-03) ============
+describe("GET /api/events/analytics/fest/:festId/funnel", () => {
+  const auth = ["Authorization", `Bearer ${signToken({ userId: 42, role: "HOST" })}`];
+
+  it("returns 403 when the fest is not the caller's", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 999, editorFestId: null });
+    const res = await request(app).get("/api/events/analytics/fest/7/funnel").set(...auth);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns per-status counts + paise sums, conversion rate, and value held in pending", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.event.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+    // groupBy returns only present statuses; REFUNDED absent -> must zero-fill.
+    prismaMock.booking.groupBy.mockResolvedValue([
+      { status: "PENDING", _count: 4, _sum: { total: 40000, subtotal: 35000, discount: 0 } },
+      { status: "COMPLETED", _count: 6, _sum: { total: 60000, subtotal: 55000, discount: 5000 } },
+      { status: "CANCELLED", _count: 2, _sum: { total: 20000, subtotal: 18000, discount: 0 } },
+    ]);
+
+    const res = await request(app).get("/api/events/analytics/fest/7/funnel").set(...auth);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      started: 12, // 4 + 6 + 2 + 0
+      completed: 6,
+      cancelled: 2,
+      refunded: 0,
+      conversionRate: 0.5, // 6/12
+      valueHeldPending: 40000,
+      valueCompleted: 60000,
+      valueCancelled: 20000,
+      valueRefunded: 0,
+    });
+  });
+
+  it("conversionRate is 0 (not NaN) and value is 0 when there are no bookings", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: 7, editorFestId: null });
+    prismaMock.event.findMany.mockResolvedValue([{ id: 1 }]);
+    prismaMock.booking.groupBy.mockResolvedValue([]);
+    const res = await request(app).get("/api/events/analytics/fest/7/funnel").set(...auth);
+    expect(res.status).toBe(200);
+    expect(res.body.data.conversionRate).toBe(0);
+    expect(res.body.data.started).toBe(0);
+    expect(res.body.data.valueHeldPending).toBe(0);
+  });
+});
+
 // ==================== FILE STORAGE: inline base64 -> /uploads URL ====================
 describe("inline base64 uploads are stored and their /uploads URL persisted", () => {
   const mktAuth2 = ["Authorization", `Bearer ${signToken({ userId: 42, role: "HOST" })}`];

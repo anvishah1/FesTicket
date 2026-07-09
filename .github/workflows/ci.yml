@@ -43,8 +43,21 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
-      - name: Run tests
-        run: npm test
+      # OPS-01: run WITH coverage so the vitest.config.js thresholds gate the
+      # build — a drop below the ratchet floor exits non-zero and fails CI.
+      - name: Run tests (with coverage)
+        run: npm run test:coverage
+
+      - name: Upload backend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: |
+            backend/coverage/lcov.info
+            backend/coverage/
+          if-no-files-found: ignore
+          retention-days: 14
 
   frontend:
     name: Frontend (lint, tests, typecheck)
@@ -73,8 +86,21 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Run tests
-        run: npm test
+      # OPS-01: coverage-gated (frontend vitest.config.ts thresholds). A drop
+      # below the ratchet floor exits non-zero and fails CI.
+      - name: Run tests (with coverage)
+        run: npm run test:coverage
+
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: |
+            frontend/coverage/lcov.info
+            frontend/coverage/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Typecheck
         run: npx tsc --noEmit

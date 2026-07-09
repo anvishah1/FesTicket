@@ -1,0 +1,98 @@
+name: Load (oversell soak)
+
+# OPS-06: nightly load/soak of the booking inventory hot path — NOT on the
+# per-PR path (keeps normal CI fast). Fires C+OVERSHOOT concurrent guest bookings
+# at a capacity-C ticket type and asserts, via k6 thresholds + a teardown check,
+# that EXACTLY C succeed, the losers get 409 SOLD_OUT, and sold never exceeds
+# quantity — against a real Postgres with the CHECK constraint applied.
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC nightly
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  soak:
+    name: Booking hot-path soak (k6)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tiqr
+          POSTGRES_PASSWORD: tiqr
+          POSTGRES_DB: tiqr_load
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tiqr"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://tiqr:tiqr@localhost:5432/tiqr_load
+      DIRECT_URL: postgresql://tiqr:tiqr@localhost:5432/tiqr_load
+      JWT_SECRET: ci-load-secret-at-least-32-characters-long
+      NODE_ENV: development
+      # k6 config (kept <= 30 so the single-runner-IP burst stays under the
+      # bookingLimiter's 30/min/IP cap; the losers are then all 409 SOLD_OUT).
+      CAPACITY: "15"
+      OVERSHOOT: "10"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      # Apply the committed migrations (schema + the folded CHECK constraints,
+      # incl. ticket_sold_lte_quantity) — the same path a real deploy uses.
+      - name: Apply migrations (schema + CHECK constraints)
+        working-directory: backend
+        run: npx prisma migrate deploy
+
+      - name: Start backend
+        working-directory: backend
+        run: |
+          node index.js > backend.log 2>&1 &
+          echo "BACKEND_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4000/api/ready >/dev/null; then
+              echo "backend ready"; exit 0
+            fi
+            sleep 1
+          done
+          echo "backend did not become ready"; cat backend.log; exit 1
+
+      - name: Install k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Run oversell soak
+        run: k6 run ops/load/booking-hot-path.js
+        env:
+          BASE_URL: http://localhost:4000
+          # JWT_SECRET/CAPACITY/OVERSHOOT inherited from the job env above.
+
+      - name: Backend log (on failure)
+        if: failure()
+        run: cat backend/backend.log || true
+
+      - name: Stop backend
+        if: always()
+        run: kill "$BACKEND_PID" 2>/dev/null || true

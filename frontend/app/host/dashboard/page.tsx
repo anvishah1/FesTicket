@@ -473,7 +473,7 @@ export default function HostDashboard() {
                                 <th className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]"></th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-[#C5BAC4]">
+                            <tbody className="divide-y divide-[var(--border-card)]">
                               {getFilteredEvents(fest.events).map((event) => (
                                 <tr key={event.id} className="hover:bg-[color-mix(in_srgb,var(--surface-card)_10%,transparent)] transition-colors">
                                   <td className="px-6 py-4">

@@ -381,7 +381,7 @@ export default function SignUpPage() {
                       type="checkbox"
                       checked={wantsEditor}
                       onChange={(e) => setWantsEditor(e.target.checked)}
-                      className="mt-1 w-4 h-4 accent-[#DEDCDC]"
+                      className="mt-1 w-4 h-4 accent-[var(--surface-page)]"
                     />
                     <span>
                       I want to become an <span className="font-semibold">Editor (student fest head)</span> for a specific fest.
@@ -426,7 +426,7 @@ export default function SignUpPage() {
                           type="checkbox"
                           checked={captchaOk}
                           onChange={(e) => setCaptchaOk(e.target.checked)}
-                          className="w-5 h-5 accent-[#522C5D]"
+                          className="w-5 h-5 accent-[var(--fill-plum)]"
                         />
                         <span>I'm not a robot (demo checkbox)</span>
                       </label>

@@ -224,7 +224,7 @@ export default function FestEventsClient({
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search events by name…"
             aria-label="Search events"
-            className="w-full sm:max-w-md rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--text-primary)] placeholder-[#6B597F] focus:border-[var(--border-plum)] focus:outline-none"
+            className="w-full sm:max-w-md rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:border-[var(--border-plum)] focus:outline-none"
           />
           <label className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
             Sort by

@@ -134,7 +134,7 @@ export default function FestsListClient({
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search fests by name…"
             aria-label="Search fests"
-            className="w-full sm:max-w-md rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--text-primary)] placeholder-[#6B597F] focus:border-[var(--border-plum)] focus:outline-none"
+            className="w-full sm:max-w-md rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:border-[var(--border-plum)] focus:outline-none"
           />
           {!loading && !error && typeof total === "number" && (
             <p className="mt-2 text-sm text-[var(--text-muted)]" role="status" aria-live="polite">

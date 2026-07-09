@@ -327,7 +327,7 @@ export default function Expenses({ festId }: ExpensesProps) {
                   <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Files</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#C5BAC4]">
+              <tbody className="divide-y divide-[var(--border-card)]">
                 {filteredExpenses.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-8 text-center text-[var(--text-muted)]">

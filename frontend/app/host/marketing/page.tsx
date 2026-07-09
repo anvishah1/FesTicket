@@ -820,7 +820,7 @@ export default function MarketingPage() {
                     <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#C5BAC4]">
+                <tbody className="divide-y divide-[var(--border-card)]">
                   {sponsors.map((sponsor) => (
                     <tr key={sponsor.id} className="hover:bg-[color-mix(in_srgb,var(--surface-card)_10%,transparent)] transition-colors">
                       <td className="px-6 py-4">
@@ -896,7 +896,7 @@ export default function MarketingPage() {
                     <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#C5BAC4]">
+                <tbody className="divide-y divide-[var(--border-card)]">
                   {expenses.map((expense) => (
                     <tr key={expense.id} className="hover:bg-[color-mix(in_srgb,var(--surface-card)_10%,transparent)] transition-colors">
                       <td className="px-6 py-4">

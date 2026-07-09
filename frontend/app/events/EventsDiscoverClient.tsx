@@ -217,7 +217,7 @@ export default function EventsDiscoverClient({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Event name…"
-                  className="w-full rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[#6B597F] focus:border-[var(--border-plum)] focus:outline-none"
+                  className="w-full rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:border-[var(--border-plum)] focus:outline-none"
                 />
               </div>
 
@@ -271,7 +271,7 @@ export default function EventsDiscoverClient({
                   value={college}
                   onChange={(e) => setCollege(e.target.value)}
                   placeholder="e.g. IIT Bombay"
-                  className="w-full rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[#6B597F] focus:border-[var(--border-plum)] focus:outline-none"
+                  className="w-full rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:border-[var(--border-plum)] focus:outline-none"
                 />
               </div>
 

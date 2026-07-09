@@ -130,7 +130,7 @@ export default function RoleRequests() {
             <p className="font-semibold text-[var(--text-primary)]">{requests.length} Pending Request{requests.length > 1 ? 's' : ''}</p>
           </div>
           
-          <div className="divide-y divide-[#C5BAC4]">
+          <div className="divide-y divide-[var(--border-card)]">
             {requests.map((req) => (
               <div
                 key={req.id}

@@ -1323,7 +1323,7 @@ export default function ManageEventPage() {
                     <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#C5BAC4]">
+                <tbody className="divide-y divide-[var(--border-card)]">
                   {pagedBuyers.map((buyer) => (
                     <tr key={buyer.id} className="hover:bg-[color-mix(in_srgb,var(--surface-card)_10%,transparent)] transition-colors">
                       <td className="px-6 py-4">
@@ -1512,7 +1512,7 @@ export default function ManageEventPage() {
                         <th scope="col" className="text-left px-6 py-4 text-sm font-semibold text-[var(--text-muted)]">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#C5BAC4]">
+                    <tbody className="divide-y divide-[var(--border-card)]">
                       {promoCodes.map((promo) => (
                         <tr key={promo.id} className="hover:bg-[color-mix(in_srgb,var(--surface-card)_10%,transparent)] transition-colors">
                           <td className="px-6 py-4">
@@ -1614,7 +1614,7 @@ export default function ManageEventPage() {
                 {filtered.length === 0 ? (
                   <p className="px-6 py-10 text-center text-[var(--text-muted)]">No attendees{q ? " match your search" : " yet"}.</p>
                 ) : (
-                  <ul className="divide-y divide-[#C5BAC4]" data-testid="checkin-list">
+                  <ul className="divide-y divide-[var(--border-card)]" data-testid="checkin-list">
                     {filtered.map((a) => (
                       <li key={a.id} className="flex items-center justify-between gap-4 px-5 py-3">
                         <div className="min-w-0">

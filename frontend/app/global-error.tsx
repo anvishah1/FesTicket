@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 
 export default function GlobalError({
   error,
@@ -10,6 +11,8 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
+    // OPS-02: report the top-level render fault. No-op unless a DSN is configured.
+    Sentry.captureException(error);
     console.error(error);
   }, [error]);
 

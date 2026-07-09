@@ -24,6 +24,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // OPS-01: generated v8/istanbul coverage report — never lint it.
+    "coverage/**",
   ]),
 ]);
 

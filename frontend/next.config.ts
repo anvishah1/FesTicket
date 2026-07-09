@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+import { withSentryConfig } from "@sentry/nextjs";
 
 // FE-12: point next-intl at the request config (cookie-based locale, no routing).
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
@@ -34,4 +35,12 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withNextIntl(nextConfig);
+// OPS-02: wrap with Sentry. Runtime Sentry is gated on NEXT_PUBLIC_SENTRY_DSN in
+// the instrumentation files, so with no DSN the app runs identically. Source-map
+// upload only happens when SENTRY_AUTH_TOKEN is present, so local/CI builds
+// without the token still succeed.
+export default withSentryConfig(withNextIntl(nextConfig), {
+  silent: !process.env.CI,
+  telemetry: false,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+});

@@ -9,6 +9,7 @@ import cookieParser from "cookie-parser";
 import fs from "node:fs";
 import prisma from "./src/prisma.js";
 import logger from "./src/utils/logger.js";
+import { initSentry, captureException as sentryCapture } from "./src/utils/sentry.js";
 import requestLogger from "./src/middleware/requestLogger.js";
 import respond from "./src/middleware/respond.js";
 import AppError from "./src/utils/AppError.js";
@@ -35,6 +36,11 @@ import adminRequestsRouter from "./src/routes/adminRequests.js";
 import sponsorLeadsRouter from "./src/routes/sponsorLeads.js";
 import swaggerUi from "swagger-ui-express";
 import { buildOpenApiDocument } from "./src/openapi.js";
+
+// OPS-02: initialise Sentry as early as possible (reads SENTRY_DSN at call time,
+// so this runs after dotenv.config() has populated process.env). No-op — no init,
+// no network — when SENTRY_DSN is unset, and a bad DSN can never block boot.
+initSentry();
 
 // Fail fast: validate required environment before doing anything else.
 (function validateEnv() {
@@ -246,6 +252,9 @@ app.use((err, req, res, next) => {
   }
 
   (req.log || logger).error({ err }, "Unhandled Express Error");
+  // OPS-02: report ONLY genuine server faults (this 500 branch), never the 4xx
+  // client-error branches above. Tagged with the request id + authenticated user.
+  sentryCapture(err, { requestId: req.id, userId: req.user?.userId });
 
   res.status(500).json({
     success: false,
@@ -333,9 +342,11 @@ const shutdown = async () => {
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 process.on("unhandledRejection", (reason) => {
+  sentryCapture(reason);
   logger.error({ err: reason }, "Unhandled Rejection");
 });
 process.on("uncaughtException", (err) => {
+  sentryCapture(err);
   logger.error({ err }, "Uncaught Exception");
   shutdown();
 });

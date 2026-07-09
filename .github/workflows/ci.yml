@@ -147,23 +147,23 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: tiqr
-          POSTGRES_PASSWORD: tiqr
-          POSTGRES_DB: tiqr_it
+          POSTGRES_USER: festicket
+          POSTGRES_PASSWORD: festicket
+          POSTGRES_DB: festicket_it
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U tiqr"
+          --health-cmd "pg_isready -U festicket"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://tiqr:tiqr@localhost:5432/tiqr_it
+      DATABASE_URL: postgresql://festicket:festicket@localhost:5432/festicket_it
       # directUrl is declared in schema.prisma (ARCH-06); Prisma requires the env
       # var to exist whenever declared. The throwaway Postgres is unpooled, so
       # point DIRECT_URL at the same URL as DATABASE_URL.
-      DIRECT_URL: postgresql://tiqr:tiqr@localhost:5432/tiqr_it
+      DIRECT_URL: postgresql://festicket:festicket@localhost:5432/festicket_it
       JWT_SECRET: ci-it-secret-at-least-32-characters-long
       # Un-gate the integration suite (it self-skips unless this is "1"). This job
       # runs against a REAL Postgres and IS blocking, so a broken invariant fails CI.
@@ -211,23 +211,23 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: tiqr
-          POSTGRES_PASSWORD: tiqr
-          POSTGRES_DB: tiqr_e2e
+          POSTGRES_USER: festicket
+          POSTGRES_PASSWORD: festicket
+          POSTGRES_DB: festicket_e2e
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U tiqr"
+          --health-cmd "pg_isready -U festicket"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
     env:
       # Backend runtime env (Playwright boots the backend via `npm run dev`).
-      DATABASE_URL: postgresql://tiqr:tiqr@localhost:5432/tiqr_e2e
+      DATABASE_URL: postgresql://festicket:festicket@localhost:5432/festicket_e2e
       # directUrl is declared in schema.prisma (ARCH-06) and Prisma requires it to
       # exist; the throwaway Postgres is unpooled, so mirror DATABASE_URL.
-      DIRECT_URL: postgresql://tiqr:tiqr@localhost:5432/tiqr_e2e
+      DIRECT_URL: postgresql://festicket:festicket@localhost:5432/festicket_e2e
       JWT_SECRET: ci-e2e-secret-at-least-32-characters-long
       # The token-minting helper (_helpers.ts) signs seeded bearer tokens with
       # E2E_JWT_SECRET; it MUST equal the backend's JWT_SECRET above, or

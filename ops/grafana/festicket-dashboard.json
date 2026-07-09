@@ -3,7 +3,7 @@
     {
       "name": "DS_PROMETHEUS",
       "label": "Prometheus",
-      "description": "Prometheus datasource scraping the tiqr backend /api/metrics endpoint",
+      "description": "Prometheus datasource scraping the FesTicket backend /api/metrics endpoint",
       "type": "datasource",
       "pluginId": "prometheus",
       "pluginName": "Prometheus"
@@ -19,12 +19,12 @@
   "editable": true,
   "graphTooltip": 1,
   "schemaVersion": 39,
-  "tags": ["tiqr", "backend", "ops"],
+  "tags": ["festicket", "backend", "ops"],
   "templating": { "list": [] },
   "time": { "from": "now-6h", "to": "now" },
   "timezone": "browser",
-  "title": "tiqr — backend (OPS-03)",
-  "uid": "tiqr-backend-ops",
+  "title": "FesTicket — backend (OPS-03)",
+  "uid": "festicket-backend-ops",
   "version": 1,
   "panels": [
     {

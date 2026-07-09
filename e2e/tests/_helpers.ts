@@ -1,5 +1,5 @@
 // e2e/tests/_helpers.ts
-// Shared constants + small utilities for the tiqr E2E suite.
+// Shared constants + small utilities for the FesTicket E2E suite.
 // NOTE: this file intentionally does NOT match Playwright's testMatch
 // (*.spec.ts / *.test.ts), so it is imported by specs but never run as a test.
 

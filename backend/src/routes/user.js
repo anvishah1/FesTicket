@@ -158,7 +158,7 @@ router.delete("/me", authenticateUser, async (req, res) => {
         data: {
           deletedAt: new Date(),
           // Scrub PII + anonymise the email so it's freed and unfindable by signin.
-          email: `deleted+${user.id}@deleted.tiqr`,
+          email: `deleted+${user.id}@deleted.FesTicket`,
           name: null,
           phone: null,
           organizationName: null,

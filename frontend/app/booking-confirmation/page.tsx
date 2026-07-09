@@ -62,7 +62,7 @@ export default function BookingConfirmationPage() {
   useEffect(() => {
     // TIX-08: cache name must match BOOKINGS_CACHE in public/sw.js so the SW's
     // offline fallback can also serve what we write here.
-    const BOOKINGS_CACHE = "tiqr-bookings-v1";
+    const BOOKINGS_CACHE = "FesTicket-bookings-v1";
 
     const fetchBooking = async () => {
       if (!bookingCode) {

@@ -97,8 +97,8 @@ const mapRazorpayMethod = (m) => {
 const sumTicketQuantity = (items) => items.reduce((s, i) => s + i.quantity, 0);
 
 // PAY-07: stable GST-invoice number assigned once at completion. bookingId is
-// unique, so TIQR-<year>-<id> is unique and reproducible on every PDF render.
-const invoiceNumberFor = (bookingId) => `TIQR-${new Date().getFullYear()}-${bookingId}`;
+// unique, so FesTicket-<year>-<id> is unique and reproducible on every PDF render.
+const invoiceNumberFor = (bookingId) => `FesTicket-${new Date().getFullYear()}-${bookingId}`;
 
 // PAY-03: all money is INTEGER PAISE. Fees are computed with integer arithmetic
 // (Math.round yields whole paise), so there is no binary-float drift and the

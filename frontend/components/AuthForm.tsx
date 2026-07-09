@@ -39,8 +39,8 @@ export default function AuthForm() {
 
   React.useEffect(() => {
     if (!captchaSiteKey) return;
-    const w = window as unknown as { __tiqrCaptchaCb?: (t: string) => void };
-    w.__tiqrCaptchaCb = (token: string) => setCaptchaToken(token || "");
+    const w = window as unknown as { __FesTicketCaptchaCb?: (t: string) => void };
+    w.__FesTicketCaptchaCb = (token: string) => setCaptchaToken(token || "");
     if (!document.getElementById("cf-turnstile-script")) {
       const s = document.createElement("script");
       s.id = "cf-turnstile-script";
@@ -304,7 +304,7 @@ export default function AuthForm() {
         <div
           className="cf-turnstile"
           data-sitekey={captchaSiteKey}
-          data-callback="__tiqrCaptchaCb"
+          data-callback="__FesTicketCaptchaCb"
         />
       )}
 

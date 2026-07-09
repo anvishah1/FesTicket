@@ -338,7 +338,7 @@ const server = app.listen(PORT, () => logger.info({ port: PORT }, "Server runnin
 // auto-releases at transaction end, even on error, and is safe under pgbouncer).
 async function runStaleSweepTick() {
   await prisma.$transaction(async (tx) => {
-    const rows = await tx.$queryRaw`SELECT pg_try_advisory_xact_lock(hashtext('tiqr-stale-sweep')) AS locked`;
+    const rows = await tx.$queryRaw`SELECT pg_try_advisory_xact_lock(hashtext('FesTicket-stale-sweep')) AS locked`;
     const locked = rows?.[0]?.locked === true;
     if (!locked) {
       logger.info({ job: "stale-sweep", skipped: true }, "stale-sweep skipped (lock held by another instance)");

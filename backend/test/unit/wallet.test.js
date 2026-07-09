@@ -49,7 +49,7 @@ describe("wallet config gates", () => {
   });
 
   it("accepts base64-encoded apple certs", async () => {
-    process.env.APPLE_WALLET_PASS_TYPE_ID = "pass.com.tiqr.ticket";
+    process.env.APPLE_WALLET_PASS_TYPE_ID = "pass.com.festicket.ticket";
     process.env.APPLE_WALLET_TEAM_ID = "ABCDE12345";
     process.env.APPLE_WALLET_SIGNER_CERT = Buffer.from("-----BEGIN CERTIFICATE-----x-----END CERTIFICATE-----").toString("base64");
     process.env.APPLE_WALLET_SIGNER_KEY = Buffer.from("-----BEGIN PRIVATE KEY-----y-----END PRIVATE KEY-----").toString("base64");
@@ -57,7 +57,7 @@ describe("wallet config gates", () => {
     const { getAppleWalletConfig } = await import("../../src/utils/wallet.js");
     const cfg = getAppleWalletConfig();
     expect(cfg).not.toBeNull();
-    expect(cfg.passTypeId).toBe("pass.com.tiqr.ticket");
+    expect(cfg.passTypeId).toBe("pass.com.festicket.ticket");
     expect(cfg.signerCert.toString("utf8")).toContain("BEGIN CERTIFICATE");
   });
 });
@@ -134,7 +134,7 @@ describe("buildApplePkpass", () => {
     }
     vi.doMock("passkit-generator", () => ({ PKPass: MockPKPass }));
 
-    process.env.APPLE_WALLET_PASS_TYPE_ID = "pass.com.tiqr.ticket";
+    process.env.APPLE_WALLET_PASS_TYPE_ID = "pass.com.festicket.ticket";
     process.env.APPLE_WALLET_TEAM_ID = "ABCDE12345";
     process.env.APPLE_WALLET_SIGNER_CERT = Buffer.from("cert").toString("base64");
     process.env.APPLE_WALLET_SIGNER_KEY = Buffer.from("key").toString("base64");
@@ -146,7 +146,7 @@ describe("buildApplePkpass", () => {
     expect(Buffer.isBuffer(buf)).toBe(true);
     expect(buf.toString()).toBe("PKPASSDATA");
     expect(ctorArgs.type).toBe("eventTicket");
-    expect(ctorArgs.props).toEqual(expect.objectContaining({ passTypeIdentifier: "pass.com.tiqr.ticket", serialNumber: "tkt_abc123" }));
+    expect(ctorArgs.props).toEqual(expect.objectContaining({ passTypeIdentifier: "pass.com.festicket.ticket", serialNumber: "tkt_abc123" }));
     expect(setBarcodes).toHaveBeenCalledWith(expect.objectContaining({ message: "tkt_abc123", format: "PKBarcodeFormatQR" }));
     expect(primaryFields[0]).toEqual({ key: "event", label: "EVENT", value: "Spring Fest" });
     expect(auxiliaryFields.some((f) => f.value === "Alice")).toBe(true);

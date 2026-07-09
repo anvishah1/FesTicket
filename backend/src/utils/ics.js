@@ -90,7 +90,7 @@ export function buildEventIcs(event, stamp = new Date()) {
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",
-    `UID:event-${event.id}@tiqr`,
+    `UID:event-${event.id}@FesTicket`,
     `DTSTAMP:${toUtcStamp(stamp)}`,
     start.hasTime ? `DTSTART:${toFloatingStamp(start.date)}` : `DTSTART;VALUE=DATE:${toDateOnly(start.date)}`,
     start.hasTime ? `DTEND:${toFloatingStamp(end)}` : `DTEND;VALUE=DATE:${toDateOnly(end)}`,

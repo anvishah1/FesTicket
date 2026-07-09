@@ -1,6 +1,6 @@
 // frontend/components/ThemeToggle.tsx
 // FE-11: light/dark theme toggle. The chosen theme is written to
-// localStorage["tiqr-theme"] and reflected as <html data-theme="…">, which the
+// localStorage["FesTicket-theme"] and reflected as <html data-theme="…">, which the
 // token blocks in globals.css key off. With no stored choice the app follows
 // prefers-color-scheme (handled purely in CSS + the no-flash script in layout).
 "use client";
@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
-export const THEME_STORAGE_KEY = "tiqr-theme";
+export const THEME_STORAGE_KEY = "FesTicket-theme";
 
 /** The theme currently applied to <html>, resolving the system default. */
 function currentTheme(): "light" | "dark" {

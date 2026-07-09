@@ -82,8 +82,8 @@ jobs:
       # ---- container rollout (HOST-SPECIFIC — operator fills this in) ----
       # Roll out ${{ needs.build.outputs.image }}@${{ needs.build.outputs.digest }}
       # to the staging service, e.g.:
-      #   flyctl deploy --image <image@digest> --app tiqr-staging
-      #   gcloud run deploy tiqr-staging --image <image@digest> --region ...
+      #   flyctl deploy --image <image@digest> --app festicket-staging
+      #   gcloud run deploy festicket-staging --image <image@digest> --region ...
       #   curl -X POST "$RENDER_STAGING_DEPLOY_HOOK"
       - name: Roll out to staging (placeholder)
         run: |

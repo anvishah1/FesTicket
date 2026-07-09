@@ -3002,7 +3002,7 @@ describe("POST /api/bookings/:id/request-refund", () => {
 // ==================== PAY-07: GST invoice PDF ====================
 describe("GET /api/bookings/:id/invoice", () => {
   const inv = (over = {}) => ({
-    id: 5, bookingCode: "BKX", status: "COMPLETED", invoiceNumber: "TIQR-2026-5", userId: 20,
+    id: 5, bookingCode: "BKX", status: "COMPLETED", invoiceNumber: "FesTicket-2026-5", userId: 20,
     subtotal: 20000, discount: 0, promoDiscount: 0, platformFee: 400, tax: 3672, total: 24072, refundedAmount: 0,
     guestName: null, guestEmail: null, purchaseDate: "2026-01-02T00:00:00.000Z", createdAt: "2026-01-01T00:00:00.000Z",
     items: [{ quantity: 2, unitPrice: 10000, totalPrice: 20000, ticketType: { name: "GA" } }],

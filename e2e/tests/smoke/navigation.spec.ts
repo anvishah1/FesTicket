@@ -39,7 +39,7 @@ test.describe("navigation (smoke)", () => {
 
     await page
       .getByRole("banner")
-      .getByRole("link", { name: /tiqr/i })
+      .getByRole("link", { name: /FesTicket/i })
       .click();
 
     await expect(page).toHaveURL(/\/$/);

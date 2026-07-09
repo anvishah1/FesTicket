@@ -15,7 +15,7 @@ The app sends booking confirmation emails when a payment completes. To enable th
 
 1. In **Security**, open **2-Step Verification**.
 2. At the bottom, click **App passwords**.
-3. Select app: **Mail**, device: **Other** → type "tiqr" → **Generate**.
+3. Select app: **Mail**, device: **Other** → type "FesTicket" → **Generate**.
 4. Copy the **16-character password** (no spaces). This is your `SMTP_PASS`.
 
 ### 3. Add to `backend/.env`
@@ -29,7 +29,7 @@ SMTP_PORT=587
 SMTP_USER=your-gmail@gmail.com
 SMTP_PASS=xxxx xxxx xxxx xxxx
 MAIL_FROM=your-gmail@gmail.com
-APP_NAME=tiqr
+APP_NAME=FesTicket
 ```
 
 - Replace `your-gmail@gmail.com` with your Gmail address (for both `SMTP_USER` and `MAIL_FROM`).

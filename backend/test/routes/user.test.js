@@ -287,7 +287,7 @@ describe("DELETE /api/user/me", () => {
         where: { id: 1 },
         data: expect.objectContaining({
           deletedAt: expect.any(Date),
-          email: "deleted+1@deleted.tiqr",
+          email: "deleted+1@deleted.FesTicket",
           name: null,
           password: null,
           tokenVersion: { increment: 1 },

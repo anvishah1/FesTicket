@@ -15,7 +15,7 @@ describe("buildEventIcs (TIX-09)", () => {
       stamp
     );
     expect(ics).toContain("BEGIN:VCALENDAR");
-    expect(ics).toContain("UID:event-5@tiqr");
+    expect(ics).toContain("UID:event-5@FesTicket");
     // Floating local time (no Z): the wall-clock 18:30 must be preserved for the
     // importer, not declared as UTC (which would shift it by their offset).
     expect(ics).toContain("DTSTART:20260501T183000");

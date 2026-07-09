@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# OPS-08: production image for the tiqr backend. Multi-stage so the runtime layer
+# OPS-08: production image for the FesTicket backend. Multi-stage so the runtime layer
 # carries only production deps + the generated Prisma client (no dev toolchain).
 
 # ---- deps: install prod deps and generate the Prisma client ----

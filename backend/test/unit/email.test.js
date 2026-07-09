@@ -100,7 +100,7 @@ describe("sendMail", () => {
 
 describe("sendBookingConfirmation", () => {
   const baseBooking = {
-    bookingCode: "TIQR-ABC123",
+    bookingCode: "FesTicket-ABC123",
     guestName: "Guest User",
     event: {
       name: "Spring Fest Night",
@@ -134,9 +134,9 @@ describe("sendBookingConfirmation", () => {
     expect(sendMailMock).toHaveBeenCalledTimes(1);
     const arg = sendMailMock.mock.calls[0][0];
     expect(arg.to).toBe("guest@example.com");
-    expect(arg.subject).toContain("TIQR-ABC123");
+    expect(arg.subject).toContain("FesTicket-ABC123");
     expect(arg.subject).toContain("Spring Fest Night");
-    expect(arg.html).toContain("TIQR-ABC123");
+    expect(arg.html).toContain("FesTicket-ABC123");
     expect(arg.html).toContain("Spring Fest Night");
     expect(arg.html).toContain("VIP");
     expect(arg.html).toContain("Guest User");
@@ -204,7 +204,7 @@ describe("sendBookingConfirmation", () => {
 describe("lifecycle emails (NOTIF-06)", () => {
   const base = {
     id: 5,
-    bookingCode: "TIQR-XYZ",
+    bookingCode: "FesTicket-XYZ",
     guestName: "Buyer",
     event: { id: 9, name: "Autumn Fest" },
   };
@@ -225,7 +225,7 @@ describe("lifecycle emails (NOTIF-06)", () => {
     const arg = sendMailMock.mock.calls[0][0];
     expect(arg.subject).toContain("cancelled");
     expect(arg.subject).toContain("Autumn Fest");
-    expect(arg.html).toContain("TIQR-XYZ");
+    expect(arg.html).toContain("FesTicket-XYZ");
     expect(arg.html).toContain("₹120.00"); // 12000 paise
   });
 
@@ -234,7 +234,7 @@ describe("lifecycle emails (NOTIF-06)", () => {
     await sendPaymentFailed({ ...base, guestEmail: "b@x.com" });
     const arg = sendMailMock.mock.calls[0][0];
     expect(arg.subject).toMatch(/complete your payment/i);
-    expect(arg.html).toContain("/events/9/payment?bookingCode=TIQR-XYZ");
+    expect(arg.html).toContain("/events/9/payment?bookingCode=FesTicket-XYZ");
   });
 
   it("sendBookingExpired resolves the recipient from user.email when no guestEmail", async () => {
@@ -248,7 +248,7 @@ describe("lifecycle emails (NOTIF-06)", () => {
 describe("sendAbandonedCheckout (NOTIF-02)", () => {
   const base = {
     id: 3,
-    bookingCode: "TIQR-REC",
+    bookingCode: "FesTicket-REC",
     guestName: "Buyer",
     total: 24072,
     event: { id: 9, name: "Autumn Fest" },
@@ -267,7 +267,7 @@ describe("sendAbandonedCheckout (NOTIF-02)", () => {
     const result = await sendAbandonedCheckout({ ...base, guestEmail: "g@x.com" });
     expect(result).toEqual({ sent: true });
     const arg = sendMailMock.mock.calls[0][0];
-    expect(arg.html).toContain("/events/9/payment?bookingCode=TIQR-REC");
+    expect(arg.html).toContain("/events/9/payment?bookingCode=FesTicket-REC");
     // Guests have no userId -> no unsubscribe headers.
     expect(arg.headers?.["List-Unsubscribe"]).toBeUndefined();
   });
@@ -285,7 +285,7 @@ describe("sendAbandonedCheckout (NOTIF-02)", () => {
 describe("sendEventReminder (NOTIF-03)", () => {
   const base = {
     id: 4,
-    bookingCode: "TIQR-REM",
+    bookingCode: "FesTicket-REM",
     guestName: "Buyer",
     event: {
       id: 9,

@@ -21,14 +21,14 @@ function installFetch() {
   globalThis.fetch = vi.fn((url: unknown) => {
     const u = String(url);
     if (u.includes("/api/user/me"))
-      return resp({ success: true, data: { managedFestId: 7, editorFestId: null, managedFest: { adminKey: "TIQR-KEY" } } });
+      return resp({ success: true, data: { managedFestId: 7, editorFestId: null, managedFest: { adminKey: "FesTicket-KEY" } } });
     // Money is INTEGER PAISE (PAY-03): 500000 paise = ₹5,000.00.
     if (u.includes("/api/events/analytics/fest/7"))
       return resp({ success: true, data: { revenue: 500000, ticketsSold: 12, eventsCount: 3, bookingsCount: 4 } });
     if (u.includes("/api/events/marketing/fest/7/expenses"))
       return resp({ success: true, data: [{ amount: 200000 }] });
     if (u.includes("/api/fests/7/key"))
-      return resp({ success: true, data: { adminKey: "TIQR-KEY" } });
+      return resp({ success: true, data: { adminKey: "FesTicket-KEY" } });
     if (u.includes("/api/fests/7"))
       return resp({ success: true, data: { name: "TechFest" } });
     return resp({ success: true, data: [] });
@@ -48,7 +48,7 @@ describe("AdminDashboardPage", () => {
   it("shows the fest key and financial overview (income + net)", async () => {
     render(<AdminDashboardPage />);
     // Fest key from /api/user/me is displayed for sharing.
-    expect(await screen.findByText("TIQR-KEY")).toBeInTheDocument();
+    expect(await screen.findByText("FesTicket-KEY")).toBeInTheDocument();
     // Income from analytics (paise → ₹5,000.00).
     expect(await screen.findByText("₹5,000.00")).toBeInTheDocument();
     // Spend from fest expenses (paise → ₹2,000.00).
@@ -61,8 +61,8 @@ describe("AdminDashboardPage", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     render(<AdminDashboardPage />);
-    await screen.findByText("TIQR-KEY");
+    await screen.findByText("FesTicket-KEY");
     await userEvent.click(screen.getByRole("button", { name: /copy key/i }));
-    expect(writeText).toHaveBeenCalledWith("TIQR-KEY");
+    expect(writeText).toHaveBeenCalledWith("FesTicket-KEY");
   });
 });

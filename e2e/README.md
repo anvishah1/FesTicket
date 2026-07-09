@@ -1,4 +1,4 @@
-# tiqr E2E test suite (Playwright)
+# FesTicket E2E test suite (Playwright)
 
 End-to-end tests that drive the **real** frontend against the **real** backend in a headless Chromium browser.
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-**tiqr** — an event ticketing/booking app for college fests. Two independent apps in one repo (no root `package.json`; install and run each separately):
+**FesTicket** — an event ticketing/booking app for college fests. Two independent apps in one repo (no root `package.json`; install and run each separately):
 
 - `backend/` — Express 5 API (ESM) + Prisma + PostgreSQL (Neon). Entry: `backend/index.js`.
 - `frontend/` — Next.js 16 App Router + React 19 + Tailwind 3 (TypeScript).

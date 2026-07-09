@@ -66,7 +66,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var t=localStorage.getItem('tiqr-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}var m=document.cookie.match(/(?:^|;\\s*)NEXT_LOCALE=([^;]+)/);if(m&&(m[1]==='hi'||m[1]==='en')){document.documentElement.lang=m[1];}}catch(e){}})();",
+              "(function(){try{var t=localStorage.getItem('FesTicket-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}var m=document.cookie.match(/(?:^|;\\s*)NEXT_LOCALE=([^;]+)/);if(m&&(m[1]==='hi'||m[1]==='en')){document.documentElement.lang=m[1];}}catch(e){}})();",
           }}
         />
         <LocaleProvider>

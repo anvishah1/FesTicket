@@ -1,8 +1,8 @@
-# tiqr — Ops runbook
+# FesTicket — Ops runbook
 
-Operational surface for the tiqr backend: health/readiness probes, metrics, error
+Operational surface for the FesTicket backend: health/readiness probes, metrics, error
 tracking, and the uptime monitor. (CI/CD lives in `.github/workflows/`; the
-Grafana dashboard is `ops/grafana/tiqr-dashboard.json`.)
+Grafana dashboard is `ops/grafana/festicket-dashboard.json`.)
 
 ## Health & readiness endpoints
 
@@ -53,7 +53,7 @@ on-call backend engineer (email/Slack/PagerDuty per your monitor's config). A
 
 `GET /api/metrics` (Prometheus). Open in dev; in production requires
 `Authorization: Bearer $METRICS_TOKEN` and **fails closed** when `METRICS_TOKEN`
-is unset. Import `ops/grafana/tiqr-dashboard.json` into Grafana (it prompts for
+is unset. Import `ops/grafana/festicket-dashboard.json` into Grafana (it prompts for
 the Prometheus datasource).
 
 ## Error tracking (OPS-02)

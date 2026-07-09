@@ -1,9 +1,9 @@
 {
-  "name": "tiqr-e2e",
+  "name": "festicket-e2e",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "End-to-end Playwright test suite for tiqr (drives frontend + backend together)",
+  "description": "End-to-end Playwright test suite for FesTicket (drives frontend + backend together)",
   "scripts": {
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

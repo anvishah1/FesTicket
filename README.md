@@ -1,4 +1,4 @@
-# tiqr
+# FesTicket
 
 Event ticketing and booking app: fests, events, tickets, admin and host dashboards.
 

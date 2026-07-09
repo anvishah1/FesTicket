@@ -23,20 +23,20 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: tiqr
-          POSTGRES_PASSWORD: tiqr
-          POSTGRES_DB: tiqr_load
+          POSTGRES_USER: festicket
+          POSTGRES_PASSWORD: festicket
+          POSTGRES_DB: festicket_load
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U tiqr"
+          --health-cmd "pg_isready -U festicket"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://tiqr:tiqr@localhost:5432/tiqr_load
-      DIRECT_URL: postgresql://tiqr:tiqr@localhost:5432/tiqr_load
+      DATABASE_URL: postgresql://festicket:festicket@localhost:5432/festicket_load
+      DIRECT_URL: postgresql://festicket:festicket@localhost:5432/festicket_load
       JWT_SECRET: ci-load-secret-at-least-32-characters-long
       NODE_ENV: development
       # k6 config (kept <= 30 so the single-runner-IP burst stays under the

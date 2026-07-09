@@ -11,12 +11,12 @@ const repoRoot = path.resolve(rootDir, "..");
 // are started separately). Otherwise Playwright boots both dev servers.
 const startServers = !process.env.E2E_NO_SERVER;
 
-// The tiqr frontend is a Next.js dev server that normally listens on :3000, but
+// The FesTicket frontend is a Next.js dev server that normally listens on :3000, but
 // Next auto-increments to :3001, :3002, ... if 3000 is already taken by another
-// process. In this environment 3000 is occupied by an unrelated app, so tiqr
+// process. In this environment 3000 is occupied by an unrelated app, so FesTicket
 // actually serves from 3001. Rather than hard-code a port, probe the common
 // candidates and pick the one that is genuinely serving *this* app (identified
-// by a stable, tiqr-unique string in its server-rendered HTML). Honour an
+// by a stable, FesTicket-unique string in its server-rendered HTML). Honour an
 // explicit E2E_BASE_URL override when provided.
 function detectFrontendBaseURL(): string {
   if (process.env.E2E_BASE_URL) return process.env.E2E_BASE_URL;
@@ -30,7 +30,7 @@ function detectFrontendBaseURL(): string {
         encoding: "utf8",
         stdio: ["ignore", "pipe", "ignore"],
       });
-      // "Events and ticketing" is the tiqr landing-page hero copy and does not
+      // "Events and ticketing" is the FesTicket landing-page hero copy and does not
       // appear in the unrelated app squatting on :3000.
       if (/Events and ticketing/i.test(html)) return url;
     } catch {
@@ -64,7 +64,7 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         // The backend pins CORS to a single origin (FRONTEND_URL, default
-        // http://localhost:3000). In this environment the tiqr frontend is
+        // http://localhost:3000). In this environment the FesTicket frontend is
         // forced onto :3001 because another app already holds :3000, so every
         // browser-side fetch from the app to the :4000 API is rejected by CORS
         // (ACAO 3000 != origin 3001). We can't restart servers or edit app

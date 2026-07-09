@@ -21,8 +21,8 @@
  */
 
 const VERSION = "v1";
-const SHELL_CACHE = `tiqr-shell-${VERSION}`;
-const BOOKINGS_CACHE = `tiqr-bookings-${VERSION}`;
+const SHELL_CACHE = `FesTicket-shell-${VERSION}`;
+const BOOKINGS_CACHE = `FesTicket-bookings-${VERSION}`;
 
 // Minimal app-shell precache. Kept tiny on purpose: Next hashes its JS/CSS, so
 // those are picked up at runtime by the static-asset handler rather than listed
@@ -64,7 +64,7 @@ self.addEventListener("activate", (event) => {
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter((k) => k.startsWith("tiqr-") && ![SHELL_CACHE, BOOKINGS_CACHE].includes(k))
+          .filter((k) => k.startsWith("FesTicket-") && ![SHELL_CACHE, BOOKINGS_CACHE].includes(k))
           .map((k) => caches.delete(k))
       );
       await self.clients.claim();

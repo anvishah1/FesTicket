@@ -1,6 +1,6 @@
 # Pending Tasks: Full Complete Booking App
 
-A checklist of what’s left to make tiqr a full, production-ready event booking app.  
+A checklist of what’s left to make FesTicket a full, production-ready event booking app.  
 **Already in place:** Auth (signup/signin, refresh, forgot/reset password), admin flow (signup → AdminRequest → approval script, dashboard scoped by fest), editor flow (fest key → RoleRequest → approval → host dashboard), events & ticket types, fest/event discovery pages, booking UI (select tickets, attendees, guest info), payment UI (simulated complete), cancel booking, host event management, marketing (sponsors/expenses), admin view of events/expenses/sponsors/role requests.
 
 ---

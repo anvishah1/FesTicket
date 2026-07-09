@@ -13,7 +13,7 @@ test.describe("home page (smoke)", () => {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
     // Brand mark lives in the sticky header (role=banner).
-    await expect(page.getByRole("banner")).toContainText(/tiqr/i);
+    await expect(page.getByRole("banner")).toContainText(/FesTicket/i);
   });
 
   test("exposes the primary calls-to-action", async ({ page }) => {

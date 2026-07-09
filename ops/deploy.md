@@ -1,4 +1,4 @@
-# tiqr — deploy & promote-to-prod (OPS-08)
+# FesTicket — deploy & promote-to-prod (OPS-08)
 
 Build the backend image **once**, validate it on **staging** (its own Neon
 branch), then promote the **same digest** to **production** behind a manual
@@ -39,8 +39,8 @@ push to anvi ─▶ build (GHCR image @sha) ─▶ deploy-staging ─▶ deploy-
    (used for the smoke checks and the environment deployment URL).
 4. **Container rollout** is host-specific and left as a documented placeholder in
    `deploy.yml` (the `Roll out ...` steps). Wire your host, e.g.:
-   - Fly: `flyctl deploy --image <image@digest> --app tiqr-staging`
-   - Cloud Run: `gcloud run deploy tiqr-staging --image <image@digest> ...`
+   - Fly: `flyctl deploy --image <image@digest> --app festicket-staging`
+   - Cloud Run: `gcloud run deploy festicket-staging --image <image@digest> ...`
    - Render: `curl -X POST "$RENDER_STAGING_DEPLOY_HOOK"`
 
 ## Frontend (Vercel)

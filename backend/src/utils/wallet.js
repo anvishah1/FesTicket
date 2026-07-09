@@ -67,7 +67,7 @@ export function getGoogleWalletConfig() {
     serviceAccountEmail,
     serviceAccountKey,
     // A stable class per deployment; objects reference it inline in the JWT.
-    classSuffix: process.env.GOOGLE_WALLET_CLASS_SUFFIX || "tiqr_event",
+    classSuffix: process.env.GOOGLE_WALLET_CLASS_SUFFIX || "festicket_event",
   };
 }
 

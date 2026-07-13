@@ -554,6 +554,110 @@ describe("M1 zod validation", () => {
   });
 });
 
+// ==================== Date range: an event must never END BEFORE IT STARTS ====================
+// The wizard's date-picker `min` is a UX guard only — it's bypassed by a direct
+// API call, a script, or the manage-page edit form (which sends startDate alone).
+// These pin the SERVER-side rule.
+describe("event date range (endDate >= startDate)", () => {
+  const hostAuth = ["Authorization", `Bearer ${signToken({ userId: 50, role: "HOST" })}`];
+  const ownerToken = signToken({ userId: 10, role: "HOST" });
+
+  it("POST rejects an end date before the start date", async () => {
+    const res = await request(app)
+      .post("/api/events")
+      .set(...hostAuth)
+      .send({ name: "Backwards", startDate: "2026-08-10T18:00", endDate: "2026-08-09T18:00" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toBe("Validation failed");
+    expect(res.body.error.details?.endDate).toMatch(/on or after the start date/i);
+    expect(prismaMock.event.create).not.toHaveBeenCalled();
+  });
+
+  it("POST accepts an end date equal to the start date (zero-length is allowed)", async () => {
+    prismaMock.event.create.mockResolvedValue({ id: 120 });
+    prismaMock.event.findUnique.mockResolvedValue({ id: 120, ticketTypes: [] });
+
+    const res = await request(app)
+      .post("/api/events")
+      .set(...hostAuth)
+      .send({ name: "Instant", startDate: "2026-08-10T18:00", endDate: "2026-08-10T18:00" });
+
+    expect(res.status).toBe(201);
+    expect(prismaMock.event.create).toHaveBeenCalled();
+  });
+
+  it("PUT rejects moving the START past the STORED end date (partial update sends startDate only)", async () => {
+    // The manage-page edit form only sends startDate — the route must compare it
+    // against the stored endDate, not just the incoming body.
+    prismaMock.event.findUnique.mockResolvedValue({
+      hostId: 10,
+      festId: 1,
+      status: "PUBLISHED",
+      venue: "Hall",
+      venueAddress: "Hall",
+      startDate: new Date("2026-08-01T10:00:00Z"),
+      endDate: new Date("2026-08-02T10:00:00Z"),
+    });
+
+    const res = await request(app)
+      .put("/api/events/5")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ startDate: "2026-08-09T10:00:00Z" }); // now AFTER the stored end
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toEqual({
+      code: "INVALID_DATE",
+      message: "End date must be on or after the start date",
+    });
+    expect(prismaMock.event.update).not.toHaveBeenCalled();
+  });
+
+  it("PUT rejects an end date before the STORED start date", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({
+      hostId: 10,
+      festId: 1,
+      status: "PUBLISHED",
+      venue: "Hall",
+      venueAddress: "Hall",
+      startDate: new Date("2026-08-05T10:00:00Z"),
+      endDate: new Date("2026-08-06T10:00:00Z"),
+    });
+
+    const res = await request(app)
+      .put("/api/events/5")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ endDate: "2026-08-01T10:00:00Z" }); // before the stored start
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("INVALID_DATE");
+    expect(prismaMock.event.update).not.toHaveBeenCalled();
+  });
+
+  it("PUT allows a valid range change", async () => {
+    prismaMock.event.findUnique
+      .mockResolvedValueOnce({
+        hostId: 10,
+        festId: 1,
+        status: "PUBLISHED",
+        venue: "Hall",
+        venueAddress: "Hall",
+        startDate: new Date("2026-08-01T10:00:00Z"),
+        endDate: new Date("2026-08-02T10:00:00Z"),
+      })
+      .mockResolvedValue({ id: 5, ticketTypes: [] });
+    prismaMock.event.update.mockResolvedValue({ id: 5 });
+
+    const res = await request(app)
+      .put("/api/events/5")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ startDate: "2026-08-01T10:00:00Z", endDate: "2026-08-03T10:00:00Z" });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.event.update).toHaveBeenCalled();
+  });
+});
+
 // ==================== PUT /api/events/:id (auth + ownership) ====================
 describe("PUT /api/events/:id", () => {
   const ownerToken = signToken({ userId: 10, role: "HOST" });

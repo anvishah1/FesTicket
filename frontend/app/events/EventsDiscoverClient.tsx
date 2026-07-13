@@ -247,19 +247,35 @@ export default function EventsDiscoverClient({
 
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-2">{t("dateRangeLabel")}</p>
+                {/*
+                  The range can never invert: `max`/`min` stop the native picker
+                  from offering an impossible date, and the onChange clamps the
+                  other side if it would be left behind (e.g. moving "from" past an
+                  already-chosen "to" pushes "to" along instead of leaving from>to).
+                */}
                 <div className="flex flex-col gap-2">
                   <input
                     type="date"
                     aria-label={t("fromDateAria")}
                     value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
+                    max={dateTo || undefined}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setDateFrom(next);
+                      if (next && dateTo && next > dateTo) setDateTo(next);
+                    }}
                     className="w-full rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-plum)] focus:outline-none"
                   />
                   <input
                     type="date"
                     aria-label={t("toDateAria")}
                     value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
+                    min={dateFrom || undefined}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setDateTo(next);
+                      if (next && dateFrom && next < dateFrom) setDateFrom(next);
+                    }}
                     className="w-full rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-plum)] focus:outline-none"
                   />
                 </div>

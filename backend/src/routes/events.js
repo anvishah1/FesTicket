@@ -8,7 +8,7 @@ import { safeDate } from "../utils/date.js";
 import { authenticateUser, authorizeRoles, optionalAuthenticate } from "../middleware/authMiddleware.js";
 import { validate } from "../middleware/validate.js";
 import { saveDataUrl, UPLOADS_DIR } from "../utils/storage.js";
-import { createEventSchema, ticketTypeSchema, EVENT_CATEGORIES, normalizeCategory } from "../validators/eventValidator.js";
+import { createEventSchema, ticketTypeSchema, EVENT_CATEGORIES, normalizeCategory, validateDateRange } from "../validators/eventValidator.js";
 import { geocodeEventInBackground, venueQuery } from "../utils/geocode.js";
 import {
   createSponsorSchema,
@@ -72,7 +72,17 @@ async function checkEventOwnership(eventId, req) {
     where: { id: eventId },
     // venue/venueAddress: FE-06 re-geocode compares the incoming values against
     // these stored ones so an unrelated save doesn't wipe + re-geocode coords.
-    select: { hostId: true, festId: true, status: true, venue: true, venueAddress: true },
+    // startDate/endDate: PUT /:id is a PARTIAL update, so it validates the
+    // EFFECTIVE date range (incoming merged over stored) — it needs the stored side.
+    select: {
+      hostId: true,
+      festId: true,
+      status: true,
+      venue: true,
+      venueAddress: true,
+      startDate: true,
+      endDate: true,
+    },
   });
   if (!event) {
     return { ok: false, status: 404, body: { success: false, error: { code: "NOT_FOUND", message: "Event not found" } } };
@@ -1379,6 +1389,20 @@ router.put("/:id", authenticateUser, async (req, res) => {
       return res.status(400).json({
         success: false,
         error: { code: "VALIDATION_ERROR", message: "visibility must be PUBLIC or PRIVATE" },
+      });
+    }
+
+    // DATE RANGE: an event must never end before it starts. This is a PARTIAL
+    // update, so validate the EFFECTIVE range (what the row will look like after
+    // the write) — otherwise sending only a later startDate would silently push it
+    // past the stored endDate. `undefined` = field untouched; `null` = cleared.
+    const effectiveStart = startDate === undefined ? owner.event.startDate : startDate;
+    const effectiveEnd = endDate === undefined ? owner.event.endDate : endDate;
+    const dateRangeError = validateDateRange(effectiveStart, effectiveEnd);
+    if (dateRangeError) {
+      return res.status(400).json({
+        success: false,
+        error: { code: "INVALID_DATE", message: dateRangeError },
       });
     }
 

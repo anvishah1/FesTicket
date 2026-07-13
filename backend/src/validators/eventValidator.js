@@ -163,7 +163,31 @@ export const createEventSchema = z
     ticketTypes: z.array(inlineTicketTypeSchema).optional().nullable(),
     questions: z.array(eventQuestionSchema).optional().nullable(),
   })
-  .passthrough();
+  .passthrough()
+  // An event must never END BEFORE IT STARTS. Enforced server-side (not just with
+  // the wizard's date-picker `min`) because that guard is trivially bypassed by a
+  // direct API call, a script, or any other client — and bad ranges were reaching
+  // the DB (see the defensive "end not after start" fallback in utils/ics.js).
+  .superRefine((data, ctx) => {
+    const range = validateDateRange(data.startDate, data.endDate);
+    if (range) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endDate"], message: range });
+    }
+  });
+
+/**
+ * Shared start/end check. Returns an error message when the range is invalid, or
+ * null when it is fine (including when either side is absent — both are optional).
+ * Unparseable dates are ignored here; the route/Prisma layer surfaces those.
+ */
+export function validateDateRange(startDate, endDate) {
+  if (!startDate || !endDate) return null;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  if (end < start) return "End date must be on or after the start date";
+  return null;
+}
 
 // POST /api/events/:id/ticket-types and PUT .../ticket-types/:ticketId.
 // All fields optional/permissive: the route's inline "name/price/quantity

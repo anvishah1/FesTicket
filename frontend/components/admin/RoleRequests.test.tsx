@@ -75,6 +75,60 @@ describe("RoleRequests", () => {
     );
   });
 
+  // --- Search: an admin identifies a request by student name, email, or fest ---
+  describe("search", () => {
+    const loadTwo = async () => {
+      setToken();
+      globalThis.fetch = vi
+        .fn()
+        .mockResolvedValue({ ok: true, json: async () => ({ success: true, data: twoRequests }) }) as unknown as typeof fetch;
+      render(<RoleRequests />);
+      await screen.findByText("Alice");
+    };
+    const search = () => screen.getByLabelText(/search role requests/i);
+
+    it("filters by student NAME", async () => {
+      await loadTwo();
+      await userEvent.type(search(), "bob");
+      expect(screen.queryByText("Alice")).not.toBeInTheDocument();
+      expect(screen.getByText("Bob")).toBeInTheDocument();
+      expect(screen.getByText("1 of 2 requests")).toBeInTheDocument();
+    });
+
+    it("filters by EMAIL", async () => {
+      await loadTwo();
+      await userEvent.type(search(), "alice@x.com");
+      expect(screen.getByText("Alice")).toBeInTheDocument();
+      expect(screen.queryByText("Bob")).not.toBeInTheDocument();
+    });
+
+    it("filters by FEST NAME (and keeps both when they share a fest)", async () => {
+      await loadTwo();
+      await userEvent.type(search(), "techfest");
+      expect(screen.getByText("Alice")).toBeInTheDocument();
+      expect(screen.getByText("Bob")).toBeInTheDocument();
+      expect(screen.getByText("2 of 2 requests")).toBeInTheDocument();
+    });
+
+    it("is case-insensitive and matches partial text", async () => {
+      await loadTwo();
+      await userEvent.type(search(), "AL");
+      expect(screen.getByText("Alice")).toBeInTheDocument();
+      expect(screen.queryByText("Bob")).not.toBeInTheDocument();
+    });
+
+    it("shows a no-match state that can be cleared", async () => {
+      await loadTwo();
+      await userEvent.type(search(), "zzzz");
+      expect(screen.getByText("No matching requests")).toBeInTheDocument();
+      expect(screen.queryByText("Alice")).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /clear search/i }));
+      expect(await screen.findByText("Alice")).toBeInTheDocument();
+      expect(screen.getByText("Bob")).toBeInTheDocument();
+    });
+  });
+
   it("renders the error state when the list request fails", async () => {
     setToken();
     globalThis.fetch = vi

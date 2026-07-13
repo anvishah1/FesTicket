@@ -21,6 +21,7 @@ export default function RoleRequests() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     const token = getAccessToken();
@@ -112,6 +113,18 @@ export default function RoleRequests() {
     );
   }
 
+  // Search across the three identifying fields an admin actually recognises a
+  // request by: the student's name, their email, and the fest (falling back to the
+  // free-text organization, which is what the row renders when festName is absent).
+  const needle = query.trim().toLowerCase();
+  const visible = needle
+    ? requests.filter((req) =>
+        [req.studentName, req.email, req.festName, req.organization].some((field) =>
+          (field || "").toLowerCase().includes(needle)
+        )
+      )
+    : requests;
+
   return (
     <div className="space-y-4">
       {requests.length === 0 ? (
@@ -125,29 +138,73 @@ export default function RoleRequests() {
           <p className="text-sm text-[var(--text-muted)] mt-1">No pending approval requests</p>
         </div>
       ) : (
+        <>
+          {/* Search over the already-loaded list, so filtering is instant and
+              costs no extra request. Matches name / email / fest. */}
+          <div className="relative">
+            <svg
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+            </svg>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="Search role requests by name, email or fest"
+              placeholder="Search by name, email or fest…"
+              className="w-full rounded-xl border border-[var(--border-card)] bg-[var(--surface)] pl-10 pr-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--border-plum)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)]"
+            />
+          </div>
+
+          {visible.length === 0 ? (
+            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-12 text-center shadow-sm">
+              <p className="text-lg font-medium text-[var(--text-primary)]">No matching requests</p>
+              <p className="text-sm text-[var(--text-muted)] mt-1">
+                Nothing matches “{query.trim()}”.
+              </p>
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="mt-4 px-4 py-2 rounded-lg border border-[var(--border-plum)] text-[var(--text-secondary)] text-sm font-medium hover:bg-[var(--surface-slate-100)] transition"
+              >
+                Clear search
+              </button>
+            </div>
+          ) : (
         <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] overflow-hidden shadow-sm">
           <div className="px-6 py-4 border-b border-[var(--border-card)] bg-[color-mix(in_srgb,var(--surface-card)_10%,transparent)]">
-            <p className="font-semibold text-[var(--text-primary)]">{requests.length} Pending Request{requests.length > 1 ? 's' : ''}</p>
+            <p className="font-semibold text-[var(--text-primary)]">
+              {needle
+                ? `${visible.length} of ${requests.length} request${requests.length === 1 ? "" : "s"}`
+                : `${requests.length} Pending Request${requests.length === 1 ? "" : "s"}`}
+            </p>
           </div>
-          
+
           <div className="divide-y divide-[var(--border-card)]">
-            {requests.map((req) => (
+            {visible.map((req) => (
               <div
                 key={req.id}
-                className="flex items-center justify-between px-6 py-5 hover:bg-[color-mix(in_srgb,var(--surface-card)_5%,transparent)] transition-colors"
+                /* Stacks on mobile: side-by-side, the Approve/Deny buttons were
+                   clipped by the card's overflow-hidden and unreachable at 375px. */
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 sm:px-6 py-5 hover:bg-[color-mix(in_srgb,var(--surface-card)_5%,transparent)] transition-colors"
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#29104A] to-[#522C5D] flex items-center justify-center text-white font-bold">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-12 h-12 shrink-0 rounded-full bg-gradient-to-br from-[#29104A] to-[#522C5D] flex items-center justify-center text-white font-bold">
                     {(req.studentName || req.email || "?").charAt(0).toUpperCase()}
                   </div>
-                  <div>
-                    <p className="font-semibold text-[var(--text-primary)]">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-[var(--text-primary)] truncate">
                       {req.studentName}
                     </p>
-                    <p className="text-sm text-[var(--text-muted)]">
+                    <p className="text-sm text-[var(--text-muted)] truncate">
                       {req.email}
                     </p>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
                       <span className="px-2 py-0.5 bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] text-[var(--text-secondary)] rounded text-xs font-medium">
                         {req.requestedRole}
                       </span>
@@ -170,8 +227,8 @@ export default function RoleRequests() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <span className="text-xs text-[var(--text-muted)]">
+                <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0">
+                  <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">
                     {new Date(req.requestDate).toLocaleDateString("en-IN", {
                       day: "numeric",
                       month: "short",
@@ -233,6 +290,8 @@ export default function RoleRequests() {
             ))}
           </div>
         </div>
+          )}
+        </>
       )}
     </div>
   );

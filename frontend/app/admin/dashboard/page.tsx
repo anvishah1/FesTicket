@@ -20,7 +20,11 @@ import Companies from "@/components/admin/Companies";
 import Expenses from "@/components/admin/Expenses";
 import CreateFest from "@/components/admin/CreateFest";
 
-type AdminSection = "events" | "approvals" | "companies" | "expenses" | "createFest";
+// The sidebar is a section switcher. Each section owns its OWN content — the
+// fest-key + analytics block used to render above EVERY section, which pushed the
+// selected section ~1600px below the fold and made the sidebar look broken
+// ("clicking does nothing"). It is now its own "overview" section.
+type AdminSection = "overview" | "events" | "approvals" | "companies" | "expenses" | "createFest";
 
 // ANL-10: ISO instant one hour ago (for the trailing-60-min "sold in last hour").
 // Module-scope so the impure Date.now() isn't called from render scope.
@@ -42,7 +46,7 @@ function istDay(offsetDays = 0) {
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeSection, setActiveSection] =
-    useState<AdminSection>("approvals");
+    useState<AdminSection>("overview");
   const [mounted, setMounted] = useState(false);
   const [festName, setFestName] = useState<string | null>(null);
   const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null);
@@ -362,6 +366,17 @@ export default function AdminDashboardPage() {
 
           <nav className="flex flex-row lg:flex-col gap-2 lg:gap-0 lg:space-y-2 overflow-x-auto lg:overflow-visible -mx-4 px-4 lg:mx-0 lg:px-0">
             <SidebarItem
+              label="Overview"
+              icon={
+                <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              }
+              active={activeSection === "overview"}
+              onClick={() => setActiveSection("overview")}
+            />
+
+            <SidebarItem
               label="Role Approvals"
               icon={
                 <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -441,6 +456,7 @@ export default function AdminDashboardPage() {
         <div className="flex-1 flex flex-col min-w-0">
           <div className="px-4 py-4 lg:px-8 lg:py-6 border-b border-[var(--border-card)] bg-[var(--surface)]">
             <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+              {activeSection === "overview" && "Fest Overview"}
               {activeSection === "events" && "Manage Events"}
               {activeSection === "approvals" && "Role Approval Requests"}
               {activeSection === "companies" && "Sponsor Agreements"}
@@ -448,6 +464,7 @@ export default function AdminDashboardPage() {
               {activeSection === "createFest" && "Create New Fest"}
             </h1>
             <p className="text-sm text-[var(--text-muted)] mt-1">
+              {activeSection === "overview" && "Fest key, sales, settlement and event performance at a glance"}
               {activeSection === "events" && "View and manage all fest events"}
               {activeSection === "approvals" && "Review and approve editor role requests"}
               {activeSection === "companies" && "View sponsor documents and agreements"}
@@ -466,7 +483,11 @@ export default function AdminDashboardPage() {
               </div>
             ) : (
               <>
-                {/* Fest key + financial overview (income/net alongside spend) */}
+                {/* Fest key + financial overview (income/net alongside spend).
+                    Scoped to the "overview" section: rendering it above EVERY
+                    section pushed the selected one far below the fold, so the
+                    sidebar looked like it did nothing when clicked. */}
+                {activeSection === "overview" && (
                 <div className="mb-8 space-y-4">
                   <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
@@ -671,6 +692,7 @@ export default function AdminDashboardPage() {
                     </div>
                   </div>
                 </div>
+                )}
 
                 {activeSection === "events" && <FestEvents festId={managedFestId} />}
                 {activeSection === "approvals" && <RoleRequests />}

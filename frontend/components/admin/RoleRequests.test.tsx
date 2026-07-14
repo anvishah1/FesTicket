@@ -129,10 +129,19 @@ describe("RoleRequests", () => {
     });
   });
 
-  // --- Pending / Approved switcher ---
+  // --- Pending / Approved-Denied switcher ---
   describe("tabs", () => {
-    // Alice is PENDING, Bob is already APPROVED.
-    const mixed = [twoRequests[0], { ...twoRequests[1], status: "APPROVED" }];
+    // Alice is PENDING; Bob is already APPROVED and Carol already DENIED, so both
+    // decided rows belong to the one "Approved / Denied" tab.
+    const carol = {
+      ...twoRequests[1],
+      id: 3,
+      userId: 102,
+      studentName: "Carol",
+      email: "carol@x.com",
+      status: "DENIED",
+    };
+    const mixed = [twoRequests[0], { ...twoRequests[1], status: "APPROVED" }, carol];
     const loadMixed = async () => {
       setToken();
       globalThis.fetch = vi
@@ -141,6 +150,7 @@ describe("RoleRequests", () => {
       render(<RoleRequests />);
       await screen.findByText("Alice");
     };
+    const reviewedTab = () => screen.getByRole("tab", { name: /approved \/ denied/i });
 
     it("requests ALL statuses (the API returns only pending by default)", async () => {
       await loadMixed();
@@ -153,29 +163,42 @@ describe("RoleRequests", () => {
     it("defaults to Pending and keeps the two lists separate", async () => {
       await loadMixed();
       expect(screen.getByRole("tab", { name: /pending \(1\)/i })).toHaveAttribute("aria-selected", "true");
-      expect(screen.getByRole("tab", { name: /approved \(1\)/i })).toHaveAttribute("aria-selected", "false");
+      expect(screen.getByRole("tab", { name: /approved \/ denied \(2\)/i })).toHaveAttribute("aria-selected", "false");
       expect(screen.getByText("Alice")).toBeInTheDocument();
-      expect(screen.queryByText("Bob")).not.toBeInTheDocument(); // approved -> other tab
+      // Decided rows live on the other tab.
+      expect(screen.queryByText("Bob")).not.toBeInTheDocument();
+      expect(screen.queryByText("Carol")).not.toBeInTheDocument();
     });
 
-    it("switches to Approved and shows only approved requests", async () => {
+    it("shows BOTH approved and denied requests under Approved / Denied", async () => {
       await loadMixed();
-      await userEvent.click(screen.getByRole("tab", { name: /approved/i }));
+      await userEvent.click(reviewedTab());
       expect(screen.getByText("Bob")).toBeInTheDocument();
+      expect(screen.getByText("Carol")).toBeInTheDocument();
       expect(screen.queryByText("Alice")).not.toBeInTheDocument();
-      expect(screen.getByText("1 Approved Request")).toBeInTheDocument();
+      expect(screen.getByText("APPROVED")).toBeInTheDocument();
+      expect(screen.getByText("DENIED")).toBeInTheDocument();
+      expect(screen.getByText("2 Approved / Denied Requests")).toBeInTheDocument();
+    });
+
+    it("offers no approve/deny actions on already-decided requests", async () => {
+      await loadMixed();
+      await userEvent.click(reviewedTab());
+      expect(screen.queryByRole("button", { name: /^approve$/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^deny$/i })).not.toBeInTheDocument();
     });
 
     it("scopes the search to the ACTIVE tab", async () => {
       await loadMixed();
-      // Searching for the APPROVED person while on Pending must not surface them.
-      await userEvent.type(screen.getByLabelText(/search role requests/i), "bob");
+      // Searching for a DECIDED person while on Pending must not surface them.
+      await userEvent.type(screen.getByLabelText(/search role requests/i), "carol");
       expect(screen.getByText("No matching requests")).toBeInTheDocument();
-      expect(screen.queryByText("Bob")).not.toBeInTheDocument();
+      expect(screen.queryByText("Carol")).not.toBeInTheDocument();
 
-      // The same query on the Approved tab does find them.
-      await userEvent.click(screen.getByRole("tab", { name: /approved/i }));
-      expect(screen.getByText("Bob")).toBeInTheDocument();
+      // The same query on the Approved / Denied tab does find them.
+      await userEvent.click(reviewedTab());
+      expect(screen.getByText("Carol")).toBeInTheDocument();
+      expect(screen.queryByText("Bob")).not.toBeInTheDocument(); // filtered out by the query
     });
   });
 
@@ -199,7 +222,12 @@ describe("RoleRequests", () => {
     expect(await screen.findByText("All caught up!")).toBeInTheDocument();
   });
 
-  it("approves a request with a PATCH and MOVES the row from Pending to Approved", async () => {
+  // Approving and denying both DECIDE a request, so both move the row out of
+  // Pending and into the Approved / Denied tab.
+  it.each([
+    { action: /^approve$/i, sent: "APPROVED", badge: "APPROVED" },
+    { action: /^deny$/i, sent: "DENIED", badge: "DENIED" },
+  ])("$sent: PATCHes and MOVES the row from Pending to Approved / Denied", async ({ action, sent, badge }) => {
     setToken();
     globalThis.fetch = vi
       .fn()
@@ -208,13 +236,13 @@ describe("RoleRequests", () => {
     render(<RoleRequests />);
     await screen.findByText("Alice");
 
-    await userEvent.click(screen.getByRole("button", { name: /approve/i }));
+    await userEvent.click(screen.getByRole("button", { name: action }));
 
     expect(fetch).toHaveBeenLastCalledWith(
       expect.stringContaining("/api/role-requests/1"),
       expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ status: "APPROVED" }),
+        body: JSON.stringify({ status: sent }),
         headers: expect.objectContaining({ Authorization: "Bearer tok123" }),
       })
     );
@@ -226,35 +254,12 @@ describe("RoleRequests", () => {
     expect(screen.queryByText("Alice")).not.toBeInTheDocument();
     expect(screen.getByText("No pending requests")).toBeInTheDocument();
 
-    // … and shows up under Approved, with no approve/deny actions.
-    await userEvent.click(screen.getByRole("tab", { name: /approved \(1\)/i }));
+    // … and shows up under Approved / Denied, with no further actions.
+    await userEvent.click(screen.getByRole("tab", { name: /approved \/ denied \(1\)/i }));
     expect(screen.getByText("Alice")).toBeInTheDocument();
-    expect(screen.getAllByText("APPROVED").length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
-  });
-
-  it("denies a request with a PATCH and removes it from the list", async () => {
-    setToken();
-    globalThis.fetch = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: oneRequest }) })
-      .mockResolvedValue({ ok: true, json: async () => ({}) }) as unknown as typeof fetch;
-    render(<RoleRequests />);
-    await screen.findByText("Alice");
-
-    await userEvent.click(screen.getByRole("button", { name: /deny/i }));
-
-    expect(fetch).toHaveBeenLastCalledWith(
-      expect.stringContaining("/api/role-requests/1"),
-      expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ status: "DENIED" }),
-      })
-    );
-
-    // removing the only request drops back to the empty state
-    expect(await screen.findByText("All caught up!")).toBeInTheDocument();
-    expect(screen.queryByText("Alice")).not.toBeInTheDocument();
+    expect(screen.getByText(badge)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^approve$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^deny$/i })).not.toBeInTheDocument();
   });
 
   it("surfaces an error when the approve request fails", async () => {

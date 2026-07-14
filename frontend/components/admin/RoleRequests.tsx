@@ -16,7 +16,14 @@ interface RoleRequest {
   status?: string;
 }
 
-type Tab = "pending" | "approved";
+// Everything an admin has already decided on — approved AND denied — shares one
+// tab, so a denial stays visible/auditable instead of vanishing from the page.
+type Tab = "pending" | "reviewed";
+
+const TAB_LABEL: Record<Tab, string> = {
+  pending: "Pending",
+  reviewed: "Approved / Denied",
+};
 
 export default function RoleRequests() {
   const [requests, setRequests] = useState<RoleRequest[]>([]);
@@ -95,7 +102,9 @@ export default function RoleRequests() {
         body: JSON.stringify({ status: "DENIED" }),
       });
       if (!res.ok) throw new Error("Deny failed");
-      setRequests((prev) => prev.filter((req) => req.id !== id));
+      setRequests((prev) =>
+        prev.map((req) => (req.id === id ? { ...req, status: "DENIED" } : req))
+      );
     } catch {
       setError("Failed to deny.");
     }
@@ -118,13 +127,15 @@ export default function RoleRequests() {
     );
   }
 
-  // Pending vs Approved live in separate tabs. handleApprove flips the row's status
-  // in state, so an approved request LEAVES pending and appears under Approved with
-  // no refetch. (DENIED requests are dropped by handleDeny and have no tab.)
+  // Undecided vs decided live in separate tabs. handleApprove/handleDeny flip the
+  // row's status in state, so acting on a request moves it out of Pending and into
+  // Approved / Denied with no refetch.
   const statusOf = (req: RoleRequest) => (req.status || "PENDING").toUpperCase();
   const pending = requests.filter((req) => statusOf(req) === "PENDING");
-  const approved = requests.filter((req) => statusOf(req) === "APPROVED");
-  const active = tab === "pending" ? pending : approved;
+  const reviewed = requests.filter((req) =>
+    ["APPROVED", "DENIED"].includes(statusOf(req))
+  );
+  const active = tab === "pending" ? pending : reviewed;
 
   // Search runs against the ACTIVE tab only, so each section is searched on its own.
   // Matches the three fields an admin recognises a request by — name, email and fest
@@ -153,8 +164,8 @@ export default function RoleRequests() {
         </div>
       ) : (
         <>
-          {/* Pending / Approved switcher. Counts come from the split lists, so an
-              approval visibly moves the row from one tab to the other. */}
+          {/* Pending / Approved-Denied switcher. Counts come from the split lists, so
+              approving or denying visibly moves the row from one tab to the other. */}
           <div
             role="tablist"
             aria-label="Role request status"
@@ -162,8 +173,8 @@ export default function RoleRequests() {
           >
             {(
               [
-                { key: "pending", label: "Pending", count: pending.length },
-                { key: "approved", label: "Approved", count: approved.length },
+                { key: "pending", label: TAB_LABEL.pending, count: pending.length },
+                { key: "reviewed", label: TAB_LABEL.reviewed, count: reviewed.length },
               ] as const
             ).map((t) => (
               <button
@@ -208,19 +219,21 @@ export default function RoleRequests() {
           {active.length === 0 ? (
             <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-12 text-center shadow-sm">
               <p className="text-lg font-medium text-[var(--text-primary)]">
-                {tab === "pending" ? "No pending requests" : "No approved requests yet"}
+                {tab === "pending"
+                  ? "No pending requests"
+                  : "No reviewed requests yet"}
               </p>
               <p className="text-sm text-[var(--text-muted)] mt-1">
                 {tab === "pending"
                   ? "You're all caught up."
-                  : "Requests you approve will appear here."}
+                  : "Requests you approve or deny will appear here."}
               </p>
             </div>
           ) : visible.length === 0 ? (
             <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-12 text-center shadow-sm">
               <p className="text-lg font-medium text-[var(--text-primary)]">No matching requests</p>
               <p className="text-sm text-[var(--text-muted)] mt-1">
-                Nothing in {tab === "pending" ? "Pending" : "Approved"} matches “{query.trim()}”.
+                Nothing in {TAB_LABEL[tab]} matches “{query.trim()}”.
               </p>
               <button
                 type="button"
@@ -236,7 +249,7 @@ export default function RoleRequests() {
             <p className="font-semibold text-[var(--text-primary)]">
               {needle
                 ? `${visible.length} of ${active.length} request${active.length === 1 ? "" : "s"}`
-                : `${active.length} ${tab === "pending" ? "Pending" : "Approved"} Request${active.length === 1 ? "" : "s"}`}
+                : `${active.length} ${TAB_LABEL[tab]} Request${active.length === 1 ? "" : "s"}`}
             </p>
           </div>
 

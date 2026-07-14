@@ -16,12 +16,15 @@ interface RoleRequest {
   status?: string;
 }
 
+type Tab = "pending" | "approved";
+
 export default function RoleRequests() {
   const [requests, setRequests] = useState<RoleRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [query, setQuery] = useState("");
+  const [tab, setTab] = useState<Tab>("pending");
 
   useEffect(() => {
     const token = getAccessToken();
@@ -29,7 +32,9 @@ export default function RoleRequests() {
       setLoading(false);
       return;
     }
-    apiFetch(`${getApiUrl()}/api/role-requests`)
+    // `?status=all` — the API returns ONLY pending by default, so the Approved tab
+    // would otherwise always be empty. We split the two client-side below.
+    apiFetch(`${getApiUrl()}/api/role-requests?status=all`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to load requests");
         return res.json();
@@ -113,17 +118,26 @@ export default function RoleRequests() {
     );
   }
 
-  // Search across the three identifying fields an admin actually recognises a
-  // request by: the student's name, their email, and the fest (falling back to the
-  // free-text organization, which is what the row renders when festName is absent).
+  // Pending vs Approved live in separate tabs. handleApprove flips the row's status
+  // in state, so an approved request LEAVES pending and appears under Approved with
+  // no refetch. (DENIED requests are dropped by handleDeny and have no tab.)
+  const statusOf = (req: RoleRequest) => (req.status || "PENDING").toUpperCase();
+  const pending = requests.filter((req) => statusOf(req) === "PENDING");
+  const approved = requests.filter((req) => statusOf(req) === "APPROVED");
+  const active = tab === "pending" ? pending : approved;
+
+  // Search runs against the ACTIVE tab only, so each section is searched on its own.
+  // Matches the three fields an admin recognises a request by — name, email and fest
+  // — plus the free-text organization, which is what the row renders when festName
+  // is absent.
   const needle = query.trim().toLowerCase();
   const visible = needle
-    ? requests.filter((req) =>
+    ? active.filter((req) =>
         [req.studentName, req.email, req.festName, req.organization].some((field) =>
           (field || "").toLowerCase().includes(needle)
         )
       )
-    : requests;
+    : active;
 
   return (
     <div className="space-y-4">
@@ -139,8 +153,38 @@ export default function RoleRequests() {
         </div>
       ) : (
         <>
+          {/* Pending / Approved switcher. Counts come from the split lists, so an
+              approval visibly moves the row from one tab to the other. */}
+          <div
+            role="tablist"
+            aria-label="Role request status"
+            className="inline-flex rounded-lg border border-[var(--border-card)] bg-[var(--surface)] p-1"
+          >
+            {(
+              [
+                { key: "pending", label: "Pending", count: pending.length },
+                { key: "approved", label: "Approved", count: approved.length },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.key}
+                onClick={() => setTab(t.key)}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  tab === t.key
+                    ? "bg-[var(--fill-plum)] text-white"
+                    : "text-[var(--text-muted)] hover:bg-[var(--surface-slate-100)]"
+                }`}
+              >
+                {t.label} ({t.count})
+              </button>
+            ))}
+          </div>
+
           {/* Search over the already-loaded list, so filtering is instant and
-              costs no extra request. Matches name / email / fest. */}
+              costs no extra request. Scoped to the ACTIVE tab. */}
           <div className="relative">
             <svg
               aria-hidden="true"
@@ -161,11 +205,22 @@ export default function RoleRequests() {
             />
           </div>
 
-          {visible.length === 0 ? (
+          {active.length === 0 ? (
+            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-12 text-center shadow-sm">
+              <p className="text-lg font-medium text-[var(--text-primary)]">
+                {tab === "pending" ? "No pending requests" : "No approved requests yet"}
+              </p>
+              <p className="text-sm text-[var(--text-muted)] mt-1">
+                {tab === "pending"
+                  ? "You're all caught up."
+                  : "Requests you approve will appear here."}
+              </p>
+            </div>
+          ) : visible.length === 0 ? (
             <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-12 text-center shadow-sm">
               <p className="text-lg font-medium text-[var(--text-primary)]">No matching requests</p>
               <p className="text-sm text-[var(--text-muted)] mt-1">
-                Nothing matches “{query.trim()}”.
+                Nothing in {tab === "pending" ? "Pending" : "Approved"} matches “{query.trim()}”.
               </p>
               <button
                 type="button"
@@ -180,8 +235,8 @@ export default function RoleRequests() {
           <div className="px-6 py-4 border-b border-[var(--border-card)] bg-[color-mix(in_srgb,var(--surface-card)_10%,transparent)]">
             <p className="font-semibold text-[var(--text-primary)]">
               {needle
-                ? `${visible.length} of ${requests.length} request${requests.length === 1 ? "" : "s"}`
-                : `${requests.length} Pending Request${requests.length === 1 ? "" : "s"}`}
+                ? `${visible.length} of ${active.length} request${active.length === 1 ? "" : "s"}`
+                : `${active.length} ${tab === "pending" ? "Pending" : "Approved"} Request${active.length === 1 ? "" : "s"}`}
             </p>
           </div>
 
@@ -210,19 +265,6 @@ export default function RoleRequests() {
                       </span>
                       <span className="text-xs text-[#C5BAC4]">•</span>
                       <span className="text-xs text-[var(--text-muted)]">{req.festName || req.organization || "—"}</span>
-                    </div>
-                    <div className="mt-2">
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-semibold ${
-                          req.status === "APPROVED"
-                            ? "bg-green-100 text-green-700"
-                            : req.status === "DENIED"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-yellow-100 text-yellow-700"
-                        }`}
-                      >
-                        {req.status || "PENDING"}
-                      </span>
                     </div>
                   </div>
                 </div>

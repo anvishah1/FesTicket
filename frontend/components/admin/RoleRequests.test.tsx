@@ -129,6 +129,56 @@ describe("RoleRequests", () => {
     });
   });
 
+  // --- Pending / Approved switcher ---
+  describe("tabs", () => {
+    // Alice is PENDING, Bob is already APPROVED.
+    const mixed = [twoRequests[0], { ...twoRequests[1], status: "APPROVED" }];
+    const loadMixed = async () => {
+      setToken();
+      globalThis.fetch = vi
+        .fn()
+        .mockResolvedValue({ ok: true, json: async () => ({ success: true, data: mixed }) }) as unknown as typeof fetch;
+      render(<RoleRequests />);
+      await screen.findByText("Alice");
+    };
+
+    it("requests ALL statuses (the API returns only pending by default)", async () => {
+      await loadMixed();
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining("status=all"),
+        expect.anything()
+      );
+    });
+
+    it("defaults to Pending and keeps the two lists separate", async () => {
+      await loadMixed();
+      expect(screen.getByRole("tab", { name: /pending \(1\)/i })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByRole("tab", { name: /approved \(1\)/i })).toHaveAttribute("aria-selected", "false");
+      expect(screen.getByText("Alice")).toBeInTheDocument();
+      expect(screen.queryByText("Bob")).not.toBeInTheDocument(); // approved -> other tab
+    });
+
+    it("switches to Approved and shows only approved requests", async () => {
+      await loadMixed();
+      await userEvent.click(screen.getByRole("tab", { name: /approved/i }));
+      expect(screen.getByText("Bob")).toBeInTheDocument();
+      expect(screen.queryByText("Alice")).not.toBeInTheDocument();
+      expect(screen.getByText("1 Approved Request")).toBeInTheDocument();
+    });
+
+    it("scopes the search to the ACTIVE tab", async () => {
+      await loadMixed();
+      // Searching for the APPROVED person while on Pending must not surface them.
+      await userEvent.type(screen.getByLabelText(/search role requests/i), "bob");
+      expect(screen.getByText("No matching requests")).toBeInTheDocument();
+      expect(screen.queryByText("Bob")).not.toBeInTheDocument();
+
+      // The same query on the Approved tab does find them.
+      await userEvent.click(screen.getByRole("tab", { name: /approved/i }));
+      expect(screen.getByText("Bob")).toBeInTheDocument();
+    });
+  });
+
   it("renders the error state when the list request fails", async () => {
     setToken();
     globalThis.fetch = vi
@@ -149,7 +199,7 @@ describe("RoleRequests", () => {
     expect(await screen.findByText("All caught up!")).toBeInTheDocument();
   });
 
-  it("approves a request with a PATCH and swaps the row to APPROVED", async () => {
+  it("approves a request with a PATCH and MOVES the row from Pending to Approved", async () => {
     setToken();
     globalThis.fetch = vi
       .fn()
@@ -169,12 +219,18 @@ describe("RoleRequests", () => {
       })
     );
 
+    // It LEAVES the Pending tab (which is the one we're on) …
     await waitFor(() =>
-      expect(
-        screen.queryByRole("button", { name: /approve/i })
-      ).not.toBeInTheDocument()
+      expect(screen.getByRole("tab", { name: /pending \(0\)/i })).toBeInTheDocument()
     );
+    expect(screen.queryByText("Alice")).not.toBeInTheDocument();
+    expect(screen.getByText("No pending requests")).toBeInTheDocument();
+
+    // … and shows up under Approved, with no approve/deny actions.
+    await userEvent.click(screen.getByRole("tab", { name: /approved \(1\)/i }));
+    expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.getAllByText("APPROVED").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
   });
 
   it("denies a request with a PATCH and removes it from the list", async () => {

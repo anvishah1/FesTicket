@@ -16,13 +16,14 @@ interface RoleRequest {
   status?: string;
 }
 
-// Everything an admin has already decided on — approved AND denied — shares one
-// tab, so a denial stays visible/auditable instead of vanishing from the page.
-type Tab = "pending" | "reviewed";
+// "Pending" is the admin's work queue; "All Requests" is the full history —
+// pending, approved AND denied — so a decision (especially a denial) stays
+// visible and auditable instead of vanishing from the page.
+type Tab = "pending" | "all";
 
 const TAB_LABEL: Record<Tab, string> = {
   pending: "Pending",
-  reviewed: "Approved / Denied",
+  all: "All Requests",
 };
 
 export default function RoleRequests() {
@@ -127,15 +128,12 @@ export default function RoleRequests() {
     );
   }
 
-  // Undecided vs decided live in separate tabs. handleApprove/handleDeny flip the
-  // row's status in state, so acting on a request moves it out of Pending and into
-  // Approved / Denied with no refetch.
+  // handleApprove/handleDeny flip the row's status in state rather than dropping it,
+  // so acting on a request drops it out of the Pending queue with no refetch while it
+  // stays on record — with its new status — under All Requests.
   const statusOf = (req: RoleRequest) => (req.status || "PENDING").toUpperCase();
   const pending = requests.filter((req) => statusOf(req) === "PENDING");
-  const reviewed = requests.filter((req) =>
-    ["APPROVED", "DENIED"].includes(statusOf(req))
-  );
-  const active = tab === "pending" ? pending : reviewed;
+  const active = tab === "pending" ? pending : requests;
 
   // Search runs against the ACTIVE tab only, so each section is searched on its own.
   // Matches the three fields an admin recognises a request by — name, email and fest
@@ -164,8 +162,9 @@ export default function RoleRequests() {
         </div>
       ) : (
         <>
-          {/* Pending / Approved-Denied switcher. Counts come from the split lists, so
-              approving or denying visibly moves the row from one tab to the other. */}
+          {/* Pending queue / full history switcher. Counts come from the lists
+              themselves, so approving or denying visibly shrinks the Pending count
+              while the total under All Requests holds steady. */}
           <div
             role="tablist"
             aria-label="Role request status"
@@ -174,7 +173,7 @@ export default function RoleRequests() {
             {(
               [
                 { key: "pending", label: TAB_LABEL.pending, count: pending.length },
-                { key: "reviewed", label: TAB_LABEL.reviewed, count: reviewed.length },
+                { key: "all", label: TAB_LABEL.all, count: requests.length },
               ] as const
             ).map((t) => (
               <button
@@ -219,14 +218,12 @@ export default function RoleRequests() {
           {active.length === 0 ? (
             <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border-card)] p-12 text-center shadow-sm">
               <p className="text-lg font-medium text-[var(--text-primary)]">
-                {tab === "pending"
-                  ? "No pending requests"
-                  : "No reviewed requests yet"}
+                {tab === "pending" ? "No pending requests" : "No requests yet"}
               </p>
               <p className="text-sm text-[var(--text-muted)] mt-1">
                 {tab === "pending"
-                  ? "You're all caught up."
-                  : "Requests you approve or deny will appear here."}
+                  ? "You're all caught up — see All Requests for the ones you've already decided."
+                  : "Role requests for your fest will appear here."}
               </p>
             </div>
           ) : visible.length === 0 ? (
@@ -249,7 +246,9 @@ export default function RoleRequests() {
             <p className="font-semibold text-[var(--text-primary)]">
               {needle
                 ? `${visible.length} of ${active.length} request${active.length === 1 ? "" : "s"}`
-                : `${active.length} ${TAB_LABEL[tab]} Request${active.length === 1 ? "" : "s"}`}
+                : tab === "pending"
+                ? `${active.length} Pending Request${active.length === 1 ? "" : "s"}`
+                : `All ${active.length} Request${active.length === 1 ? "" : "s"}`}
             </p>
           </div>
 

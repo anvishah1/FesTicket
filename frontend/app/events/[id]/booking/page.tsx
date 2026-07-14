@@ -309,6 +309,27 @@ export default function BookingPage() {
     guestInfo.email.trim().length > 0 &&
     questionsValid;
 
+  // Every clause of `isValid` above must have a message here, or the buyer gets a
+  // dead Proceed button with no explanation. Removing an attendee row used to do
+  // exactly that: it fails `attendees.length === requiredAttendees`, which had no
+  // message, so the warning box rendered EMPTY. The trailing catch-all guarantees
+  // we can never silently disable the button again.
+  const validationMessage = (() => {
+    if (overCap)
+      return `⚠ You can book at most ${maxPerOrder} ticket${maxPerOrder === 1 ? "" : "s"} per order`;
+    if (!guestInfo.email.trim()) return "⚠ Please enter your email address";
+    if (attendees.length !== requiredAttendees)
+      return `⚠ Please add details for all ${requiredAttendees} attendee${
+        requiredAttendees === 1 ? "" : "s"
+      } — ${attendees.length} of ${requiredAttendees} added`;
+    if (attendees.some((a) => !a.name.trim()))
+      return "⚠ Please fill in the NAME for all attendees";
+    if (attendees.some((a) => !a.email.trim()))
+      return "⚠ Please fill in the EMAIL for all attendees";
+    if (!questionsValid) return "⚠ Please answer all required questions";
+    return "⚠ Please complete all required fields";
+  })();
+
   const handleProceedToPayment = async () => {
     if (!isValid || submitting) return;
 
@@ -749,20 +770,10 @@ export default function BookingPage() {
               <div className="text-sm text-[var(--text-slate)]">Total to pay</div>
               <div className="text-2xl font-bold text-[var(--text-slate-900)]">{formatPaise(total)}</div>
 
-              {/* Validation message */}
+              {/* Validation message — always non-empty when the button is disabled. */}
               {!isValid && totalTickets > 0 && (
                 <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
-                  {!guestInfo.email.trim() && "⚠ Please enter your email address"}
-                  {guestInfo.email.trim() && attendees.some((a) => !a.name.trim()) &&
-                    "⚠ Please fill in the NAME for all attendees"}
-                  {guestInfo.email.trim() &&
-                    attendees.every((a) => a.name.trim()) &&
-                    attendees.some((a) => !a.email.trim()) &&
-                    "⚠ Please fill in the EMAIL for all attendees"}
-                  {guestInfo.email.trim() &&
-                    attendees.every((a) => a.name.trim() && a.email.trim()) &&
-                    !questionsValid &&
-                    "⚠ Please answer all required questions"}
+                  {validationMessage}
                 </div>
               )}
 

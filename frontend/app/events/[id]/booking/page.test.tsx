@@ -18,20 +18,27 @@ vi.mock("@/components/Footer", () => ({ default: () => <footer /> }));
 // depends only on the piece under test (guest email + custom questions).
 vi.mock("@/components/AttendeeForm", () => ({
   default: ({ requiredCount, onChange }: { requiredCount: number; onChange: (a: any[]) => void }) => (
-    <button
-      type="button"
-      data-testid="fill-attendees"
-      onClick={() =>
-        onChange(
-          Array.from({ length: requiredCount }, (_, i) => ({
-            name: `Attendee ${i + 1}`,
-            email: `attendee${i + 1}@example.com`,
-          }))
-        )
-      }
-    >
-      fill attendees
-    </button>
+    <>
+      <button
+        type="button"
+        data-testid="fill-attendees"
+        onClick={() =>
+          onChange(
+            Array.from({ length: requiredCount }, (_, i) => ({
+              name: `Attendee ${i + 1}`,
+              email: `attendee${i + 1}@example.com`,
+            }))
+          )
+        }
+      >
+        fill attendees
+      </button>
+      {/* The real AttendeeForm has a per-row "Remove" button, which can leave
+          attendees.length < requiredCount. */}
+      <button type="button" data-testid="remove-all-attendees" onClick={() => onChange([])}>
+        remove attendees
+      </button>
+    </>
   ),
 }));
 vi.mock("next/link", () => ({
@@ -102,6 +109,53 @@ describe("BookingPage discount display (M8)", () => {
     );
     expect(screen.queryByTestId("booking-summary-discount")).not.toBeInTheDocument();
     expect(screen.queryByText(/Discount \(/)).not.toBeInTheDocument();
+  });
+});
+
+// A disabled Proceed button MUST always say why. Removing an attendee row fails the
+// `attendees.length === requiredAttendees` clause of isValid, which had no message
+// branch — so the warning box rendered EMPTY and the button was dead with no reason.
+describe("BookingPage submit-blocked messaging", () => {
+  const setup = async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(eventResponse(0));
+    render(<BookingPage />);
+    await screen.findByText("General");
+    await userEvent.click(screen.getByRole("button", { name: /increase general/i }));
+    await userEvent.type(screen.getByPlaceholderText("your@email.com"), "guest@example.com");
+    await userEvent.click(screen.getByTestId("fill-attendees"));
+  };
+  const proceed = () => screen.getAllByRole("button", { name: /Proceed to Payment/i })[0];
+
+  it("explains WHY the button is disabled when an attendee row is removed", async () => {
+    await setup();
+    expect(proceed()).toBeEnabled();
+
+    await userEvent.click(screen.getByTestId("remove-all-attendees"));
+
+    expect(proceed()).toBeDisabled();
+    // Previously: an empty amber box. Now it names the shortfall.
+    expect(screen.getByText(/0 of 1 added/i)).toBeInTheDocument();
+  });
+
+  it("never shows an EMPTY warning box while the button is disabled", async () => {
+    await setup();
+    await userEvent.click(screen.getByTestId("remove-all-attendees"));
+
+    expect(proceed()).toBeDisabled();
+    const box = document.querySelector("div.text-amber-600");
+    expect(box).toBeTruthy();
+    expect(box!.textContent!.trim().length).toBeGreaterThan(0);
+  });
+
+  it("still reports a missing attendee NAME", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(eventResponse(0));
+    render(<BookingPage />);
+    await screen.findByText("General");
+    await userEvent.click(screen.getByRole("button", { name: /increase general/i }));
+    await userEvent.type(screen.getByPlaceholderText("your@email.com"), "guest@example.com");
+    // attendees default to the right COUNT but blank fields
+    expect(proceed()).toBeDisabled();
+    expect(screen.getByText(/fill in the NAME/i)).toBeInTheDocument();
   });
 });
 

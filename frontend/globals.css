@@ -200,14 +200,18 @@ input:focus, select:focus, textarea:focus {
    Accessibility (WCAG 2.1 AA)
 --------------------------------------------------------------------------- */
 
-/* Visible keyboard focus for all interactive elements. :focus-visible only
-   shows for keyboard/programmatic focus, not mouse clicks, so it won't affect
-   the mouse-driven visual design. Placed after other rules so it isn't
-   overridden by any `outline: none`. */
+/* Visible keyboard focus for all interactive elements. Placed after other rules
+   so it isn't overridden by any `outline: none`.
+
+   Do NOT set `border-radius` here. It used to declare `border-radius: 2px`, which
+   is not an outline property — it overwrote the ELEMENT's own radius, so every
+   rounded pill, button and search bar snapped to square corners the moment it took
+   focus (clicking an input is enough to match :focus-visible). Browsers already
+   draw the outline following whatever radius the element has, so the ring is
+   correctly rounded without any help. */
 :focus-visible {
   outline: 2px solid var(--ring-plum);
   outline-offset: 2px;
-  border-radius: 2px;
 }
 
 /* On the dark purple header, a purple ring is invisible — use a light ring. */

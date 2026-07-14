@@ -29,4 +29,34 @@ describe("AddToCalendar (TIX-09)", () => {
     expect(screen.queryByRole("link", { name: /google calendar/i })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /apple \/ outlook/i })).toBeInTheDocument();
   });
+
+  describe("menu behaviour", () => {
+    const openMenu = async () => {
+      render(<AddToCalendar eventId={5} name="Fest" startDate="2026-05-01T00:00:00Z" />);
+      await userEvent.click(screen.getByRole("button", { name: /add to calendar/i }));
+    };
+
+    it("closes on Escape and returns focus to the button", async () => {
+      await openMenu();
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+
+      await userEvent.keyboard("{Escape}");
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /add to calendar/i })).toHaveFocus();
+    });
+
+    it("closes when clicking outside it", async () => {
+      await openMenu();
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+
+      await userEvent.click(document.body);
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    });
+
+    it("stays open when clicking inside it", async () => {
+      await openMenu();
+      await userEvent.click(screen.getByRole("menu"));
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+    });
+  });
 });

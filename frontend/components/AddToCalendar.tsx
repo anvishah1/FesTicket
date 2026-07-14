@@ -40,6 +40,8 @@ export default function AddToCalendar({
   description?: string | null;
 }) {
   const [open, setOpen] = React.useState(false);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
   const icsUrl = `${getApiUrl()}/api/events/${eventId}/calendar.ics`;
 
   let googleUrl = "";
@@ -74,20 +76,52 @@ export default function AddToCalendar({
     }
   }
 
+  // Dismiss on outside click / Escape — the menu had no way to close except
+  // re-clicking the button or picking an item.
+  React.useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (btnRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      btnRef.current?.focus();
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
   return (
-    <div className="relative inline-block">
+    // z-30 so the menu paints over the cards that follow it in the document.
+    <div className="relative inline-block z-30">
       <button
+        ref={btnRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="px-3 py-1.5 rounded-md border text-sm hover:bg-[var(--surface-slate)]"
+        className="px-3 py-1.5 rounded-md border border-[var(--border-card)] text-sm hover:bg-[var(--surface-slate)]"
       >
         Add to calendar ▾
       </button>
       {open && (
-        <div className="absolute z-20 mt-1 w-48 rounded-md bg-[var(--surface)] border shadow-lg py-1 text-sm" role="menu">
-          <a href={icsUrl} className="block px-3 py-2 hover:bg-[var(--surface-slate-100)]" onClick={() => setOpen(false)}>
+        <div
+          ref={menuRef}
+          role="menu"
+          className="absolute left-0 top-full z-30 mt-1 w-48 rounded-md bg-[var(--surface)] border border-[var(--border-card)] shadow-lg py-1 text-sm"
+        >
+          <a
+            href={icsUrl}
+            className="block px-3 py-2 text-[var(--text-primary)] hover:bg-[var(--surface-slate-100)]"
+            onClick={() => setOpen(false)}
+          >
             Apple / Outlook (.ics)
           </a>
           {googleUrl && (
@@ -95,7 +129,7 @@ export default function AddToCalendar({
               href={googleUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="block px-3 py-2 hover:bg-[var(--surface-slate-100)]"
+              className="block px-3 py-2 text-[var(--text-primary)] hover:bg-[var(--surface-slate-100)]"
               onClick={() => setOpen(false)}
             >
               Google Calendar

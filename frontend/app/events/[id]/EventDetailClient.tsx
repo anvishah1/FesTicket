@@ -281,10 +281,12 @@ export default function EventDetailClient({
       <main className="max-w-6xl mx-auto px-4 py-8 grid gap-8 lg:grid-cols-[2fr,1fr]">
         {/* Left: details */}
         <section className="space-y-6">
-          {/* Hero */}
-          <div className="overflow-hidden rounded-2xl border border-[var(--border-card)] bg-[var(--surface)]">
+          {/* Hero. NOT `overflow-hidden`: it used to be, which clipped the
+              Add-to-calendar dropdown inside it to nothing. The banner image is the
+              only thing that needs clipping, so it rounds its own top corners. */}
+          <div className="rounded-2xl border border-[var(--border-card)] bg-[var(--surface)]">
             {event.image && (
-              <div className="relative h-64 w-full overflow-hidden">
+              <div className="relative h-64 w-full overflow-hidden rounded-t-2xl">
                 <PosterImage
                   src={event.image}
                   alt={`Poster for ${event.name}`}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations, useLocale } from "next-intl";
 import { formatPaise } from "@/lib/format";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
@@ -96,6 +97,8 @@ export default function EventDetailClient({
   initialEvent: EventData | null;
 }) {
   const router = useRouter();
+  const t = useTranslations("eventDetail");
+  const locale = useLocale();
 
   const [event, setEvent] = useState<EventData | null>(initialEvent);
   const [loading, setLoading] = useState(!initialEvent);
@@ -186,20 +189,20 @@ export default function EventDetailClient({
   }, [eventId, reloadKey]);
 
   const formatDateRange = (start?: string | null, end?: string | null) => {
-    if (!start) return "Date TBA";
+    if (!start) return t("dateTba");
     const startDate = new Date(start);
     if (!end) {
-      return startDate.toLocaleDateString("en-US", {
+      return startDate.toLocaleDateString(locale, {
         month: "long",
         day: "numeric",
         year: "numeric",
       });
     }
     const endDate = new Date(end);
-    return `${startDate.toLocaleDateString("en-US", {
+    return `${startDate.toLocaleDateString(locale, {
       month: "short",
       day: "numeric",
-    })} – ${endDate.toLocaleDateString("en-US", {
+    })} – ${endDate.toLocaleDateString(locale, {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -228,23 +231,23 @@ export default function EventDetailClient({
         <Header />
         <main className="max-w-6xl mx-auto px-4 py-10 text-center" role="alert">
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-            Couldn&apos;t load this event
+            {t("errorTitle")}
           </h1>
           <p className="mt-2 text-sm text-[var(--text-muted)]">
-            Something went wrong. Please check your connection and try again.
+            {t("errorBody")}
           </p>
           <div className="mt-4 flex items-center justify-center gap-4">
             <button
               onClick={() => setReloadKey((k) => k + 1)}
               className="rounded-lg bg-[var(--fill-plum)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--fill-ink)]"
             >
-              Try again
+              {t("tryAgain")}
             </button>
             <button
               onClick={() => router.push("/fests")}
               className="text-[var(--text-secondary)] hover:underline"
             >
-              ← Back to events
+              {t("backToEvents")}
             </button>
           </div>
         </main>
@@ -258,12 +261,12 @@ export default function EventDetailClient({
       <div className="min-h-screen bg-[var(--surface-tint)]">
         <Header />
         <main className="max-w-6xl mx-auto px-4 py-10 text-center">
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Event not found</h1>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">{t("notFoundTitle")}</h1>
           <button
             onClick={() => router.push("/fests")}
             className="mt-4 text-[var(--text-secondary)] hover:underline"
           >
-            ← Back to events
+            {t("backToEvents")}
           </button>
         </main>
         <Footer />
@@ -272,7 +275,7 @@ export default function EventDetailClient({
   }
 
   const primaryDescription =
-    event.description || event.shortDescription || event.aboutEvent || "No description provided yet.";
+    event.description || event.shortDescription || event.aboutEvent || t("noDescription");
 
   return (
     <div className="min-h-screen bg-[var(--surface-tint)]">
@@ -303,8 +306,7 @@ export default function EventDetailClient({
                   <h1 className="text-2xl font-bold text-[var(--text-primary)]">{event.name}</h1>
                   {event.fest && (
                     <p className="text-sm text-[var(--text-muted)] mt-1">
-                      Part of <span className="font-medium">{event.fest.name}</span> •{" "}
-                      {event.fest.college}
+                      {t("partOf", { festName: event.fest.name, college: event.fest.college })}
                     </p>
                   )}
                 </div>
@@ -314,7 +316,7 @@ export default function EventDetailClient({
                       data-testid="discount-badge"
                       className="inline-flex items-center rounded-full bg-[#E11D48] px-3 py-1 text-xs font-bold text-white"
                     >
-                      {event.discount}% OFF
+                      {t("discountOff", { percent: event.discount })}
                     </span>
                   )}
                   {/* SEO-10: link the category badge to its landing page */}
@@ -338,7 +340,7 @@ export default function EventDetailClient({
                       className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--fill-plum)_10%,transparent)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]"
                     >
                       <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      {event.goingCount} going
+                      {t("going", { count: event.goingCount })}
                     </span>
                   )}
                 </div>
@@ -346,12 +348,12 @@ export default function EventDetailClient({
 
               <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--text-muted)]">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-[var(--text-primary)]">When:</span>
+                  <span className="font-medium text-[var(--text-primary)]">{t("when")}</span>
                   <span>{formatDateRange(event.startDate, event.endDate)}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-[var(--text-primary)]">Where:</span>
-                  <span>{event.venue || "Venue TBA"}</span>
+                  <span className="font-medium text-[var(--text-primary)]">{t("where")}</span>
+                  <span>{event.venue || t("venueTba")}</span>
                 </div>
                 {/* TIX-09 */}
                 {event.startDate && (
@@ -371,13 +373,13 @@ export default function EventDetailClient({
 
           {/* Description */}
           <div className="rounded-2xl border border-[var(--border-card)] bg-[var(--surface)] p-6 space-y-3">
-            <h2 className="text-lg font-semibold text-[var(--text-primary)]">About this event</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">{t("aboutEvent")}</h2>
             <p className="text-sm leading-relaxed text-[var(--text-muted)] whitespace-pre-line">
               {primaryDescription}
             </p>
             {event.audience && (
               <p className="text-sm text-[var(--text-muted)]">
-                <span className="font-medium text-[var(--text-primary)]">Who should attend:</span>{" "}
+                <span className="font-medium text-[var(--text-primary)]">{t("whoShouldAttend")}</span>{" "}
                 {event.audience}
               </p>
             )}
@@ -387,22 +389,20 @@ export default function EventDetailClient({
           {(event.venueAddress || event.venue) && (
             <div className="rounded-2xl border border-[var(--border-card)] bg-[var(--surface)] p-6 space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-[var(--text-primary)]">Venue details</h3>
+                <h3 className="text-base font-semibold text-[var(--text-primary)]">{t("venueDetails")}</h3>
                 <p className="text-sm text-[var(--text-muted)]">
                   {event.venueAddress || event.venue}
                 </p>
               </div>
 
               <div className="space-y-2">
-                <p className="text-xs text-[var(--text-muted)]">Location on map</p>
+                <p className="text-xs text-[var(--text-muted)]">{t("locationOnMap")}</p>
                 <div className="h-64 w-full overflow-hidden rounded-xl border border-[color-mix(in_srgb,var(--border-card)_80%,transparent)] bg-[var(--surface-tint)]">
                   {coords ? (
                     <EventMap lat={coords.lat} lng={coords.lng} />
                   ) : (
                     <div className="flex h-full items-center justify-center text-xs text-[var(--text-muted)] px-4 text-center">
-                      {geocoding
-                        ? "Loading map for this venue…"
-                        : "We couldn't place this venue on the map automatically, but you can still find it using the address above."}
+                      {geocoding ? t("mapLoading") : t("mapUnavailable")}
                     </div>
                   )}
                 </div>
@@ -414,31 +414,31 @@ export default function EventDetailClient({
         {/* Right: tickets & CTA */}
         <aside className="space-y-4">
           <div className="rounded-2xl border border-[var(--border-card)] bg-[var(--surface)] p-5">
-            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-3">Tickets</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-3">{t("ticketsHeading")}</h2>
 
             {event.ticketTypes.length === 0 ? (
-              <p className="text-sm text-[var(--text-muted)]">Tickets are not available yet. Check back soon.</p>
+              <p className="text-sm text-[var(--text-muted)]">{t("ticketsUnavailable")}</p>
             ) : (
               <ul className="space-y-3">
-                {event.ticketTypes.map((t) => {
-                  const available = t.quantity - t.sold;
+                {event.ticketTypes.map((ticket) => {
+                  const available = ticket.quantity - ticket.sold;
                   return (
                     <li
-                      key={t.id}
+                      key={ticket.id}
                       className="flex items-center justify-between rounded-xl border border-[var(--border-card)] px-3 py-3"
                     >
                       <div>
-                        <p className="text-sm font-semibold text-[var(--text-primary)]">{t.name}</p>
-                        {t.description && (
-                          <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2">{t.description}</p>
+                        <p className="text-sm font-semibold text-[var(--text-primary)]">{ticket.name}</p>
+                        {ticket.description && (
+                          <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2">{ticket.description}</p>
                         )}
                         <p className="text-xs text-[var(--text-muted)] mt-1">
-                          {available > 0 ? `${available} tickets left` : "Sold out"}
+                          {available > 0 ? t("ticketsLeft", { count: available }) : t("soldOut")}
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-base font-bold text-[var(--text-primary)]">
-                          <span className="sr-only">Price: </span>{formatPaise(t.price)}
+                          <span className="sr-only">{t("priceSr")}</span>{formatPaise(ticket.price)}
                         </p>
                       </div>
                     </li>
@@ -455,12 +455,12 @@ export default function EventDetailClient({
                 event.ticketTypes.every((t) => t.quantity - t.sold <= 0);
               const disabled = isCancelled || isPast || isSoldOut;
               const label = isCancelled
-                ? "Cancelled"
+                ? t("cancelled")
                 : isPast
-                ? "Event ended"
+                ? t("eventEnded")
                 : isSoldOut
-                ? "Sold out"
-                : "Book tickets";
+                ? t("soldOut")
+                : t("bookTickets");
               return (
                 <button
                   onClick={() => router.push(`/events/${eventId}/booking`)}

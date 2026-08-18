@@ -76,6 +76,10 @@ export default function EventsDiscoverClient({
   const [events, setEvents] = useState<EventItem[]>((initialEvents || []).map(mapEvent));
   const [pagination, setPagination] = useState<Pagination | null>(initialPagination);
   const [loading, setLoading] = useState(initialEvents == null);
+  // Distinguishes "the request failed" from "the request succeeded with zero
+  // results" — both used to collapse into the same empty-state UI.
+  const [error, setError] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
   const didInit = useRef(false);
 
   // Facet state
@@ -134,18 +138,23 @@ export default function EventsDiscoverClient({
 
         const res = await fetch(`${getApiUrl()}/api/events?${qs.toString()}`, { signal: controller.signal });
         const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
+        if (res.ok && json.success && Array.isArray(json.data)) {
           setEvents(json.data.map(mapEvent));
           setPagination(json.pagination ?? null);
+          setError(false);
         } else {
+          // A non-2xx or {success:false} response is a failed request, not a
+          // genuine zero-result search — must not render as "no events match".
           setEvents([]);
           setPagination(null);
+          setError(true);
         }
       } catch (err) {
         if ((err as Error)?.name !== "AbortError") {
           console.error("Failed to load events:", err);
           setEvents([]);
           setPagination(null);
+          setError(true);
         }
       } finally {
         setLoading(false);
@@ -166,6 +175,7 @@ export default function EventsDiscoverClient({
     sort,
     lockedCategory,
     initialEvents,
+    retryTick,
   ]);
 
   const totalPages = pagination?.totalPages ?? 1;
@@ -353,6 +363,17 @@ export default function EventsDiscoverClient({
 
             {loading ? (
               <CardGridSkeleton />
+            ) : error ? (
+              <div role="alert" className="rounded-xl border border-dashed border-[var(--border-card)] p-10 text-center">
+                <p className="text-[var(--text-primary)] font-medium">{t("errorTitle")}</p>
+                <p className="text-sm text-[var(--text-muted)] mt-1">{t("errorBody")}</p>
+                <button
+                  onClick={() => setRetryTick((n) => n + 1)}
+                  className="mt-4 rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-card)]"
+                >
+                  {t("tryAgain")}
+                </button>
+              </div>
             ) : events.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {events.map((event) => (

@@ -19,12 +19,15 @@ const app = makeApp(router, "/api/admin-requests");
 
 beforeEach(resetPrismaMock);
 
+// ARCH-01: this route now emits the same {success,data|error,requestId} envelope
+// as every other route (via res.ok/res.fail), instead of a bare {message}.
 describe("POST /api/admin-requests", () => {
   // ---- validation: email required (checked first) ----
   it("returns 400 when the body is empty (no email)", async () => {
     const res = await request(app).post("/api/admin-requests").send({});
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ message: "Email is required." });
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toEqual({ code: "VALIDATION_ERROR", message: "Email is required." });
     expect(prismaMock.adminRequest.findFirst).not.toHaveBeenCalled();
     expect(prismaMock.adminRequest.create).not.toHaveBeenCalled();
   });
@@ -34,7 +37,7 @@ describe("POST /api/admin-requests", () => {
       .post("/api/admin-requests")
       .send({ festName: "TechFest" });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ message: "Email is required." });
+    expect(res.body.error).toEqual({ code: "VALIDATION_ERROR", message: "Email is required." });
   });
 
   it("returns 400 when email is not a string", async () => {
@@ -42,7 +45,7 @@ describe("POST /api/admin-requests", () => {
       .post("/api/admin-requests")
       .send({ email: 12345, festName: "TechFest" });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ message: "Email is required." });
+    expect(res.body.error).toEqual({ code: "VALIDATION_ERROR", message: "Email is required." });
   });
 
   it("returns 400 when email is only whitespace", async () => {
@@ -50,7 +53,7 @@ describe("POST /api/admin-requests", () => {
       .post("/api/admin-requests")
       .send({ email: "   ", festName: "TechFest" });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ message: "Email is required." });
+    expect(res.body.error).toEqual({ code: "VALIDATION_ERROR", message: "Email is required." });
   });
 
   // ---- validation: festName required (checked second) ----
@@ -59,7 +62,7 @@ describe("POST /api/admin-requests", () => {
       .post("/api/admin-requests")
       .send({ email: "prof@college.edu" });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ message: "Fest name is required." });
+    expect(res.body.error).toEqual({ code: "VALIDATION_ERROR", message: "Fest name is required." });
     expect(prismaMock.adminRequest.findFirst).not.toHaveBeenCalled();
   });
 
@@ -68,7 +71,7 @@ describe("POST /api/admin-requests", () => {
       .post("/api/admin-requests")
       .send({ email: "prof@college.edu", festName: 999 });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ message: "Fest name is required." });
+    expect(res.body.error).toEqual({ code: "VALIDATION_ERROR", message: "Fest name is required." });
   });
 
   it("returns 400 when festName is only whitespace", async () => {
@@ -76,7 +79,7 @@ describe("POST /api/admin-requests", () => {
       .post("/api/admin-requests")
       .send({ email: "prof@college.edu", festName: "   " });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ message: "Fest name is required." });
+    expect(res.body.error).toEqual({ code: "VALIDATION_ERROR", message: "Fest name is required." });
   });
 
   // ---- conflict: existing PENDING request ----
@@ -86,7 +89,7 @@ describe("POST /api/admin-requests", () => {
       .post("/api/admin-requests")
       .send({ email: "prof@college.edu", festName: "TechFest" });
     expect(res.status).toBe(409);
-    expect(res.body).toEqual({ message: "You already have a pending admin request." });
+    expect(res.body.error).toEqual({ code: "CONFLICT", message: "You already have a pending admin request." });
     expect(prismaMock.adminRequest.findFirst).toHaveBeenCalledWith({
       where: { email: "prof@college.edu", status: "PENDING" },
     });
@@ -94,7 +97,7 @@ describe("POST /api/admin-requests", () => {
   });
 
   // ---- happy path ----
-  it("returns 201 with message and id on success (all fields provided)", async () => {
+  it("returns 201 with message and data.id on success (all fields provided)", async () => {
     prismaMock.adminRequest.findFirst.mockResolvedValue(null);
     prismaMock.adminRequest.create.mockResolvedValue({ id: 42, email: "prof@college.edu" });
 
@@ -107,10 +110,9 @@ describe("POST /api/admin-requests", () => {
     });
 
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({
-      message: "Request received. You will be set up with credentials after verification.",
-      id: 42,
-    });
+    expect(res.body.success).toBe(true);
+    expect(res.body.message).toBe("Request received. You will be set up with credentials after verification.");
+    expect(res.body.data).toEqual({ id: 42 });
     expect(prismaMock.adminRequest.create).toHaveBeenCalledWith({
       data: {
         email: "prof@college.edu",
@@ -205,9 +207,10 @@ describe("POST /api/admin-requests", () => {
       name: 123,
     });
     expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe("SERVER_ERROR");
+    expect(res.body.error.message).toBe("Server error");
     // The raw error detail (e.g. ".trim is not a function") must NOT be leaked.
-    expect(res.body).toEqual({ message: "Server error" });
-    expect(res.body.error).toBeUndefined();
+    expect(res.body.error.message).not.toMatch(/trim is not a function/);
   });
 
   // ---- 500: database errors (generic message, no raw detail leaked) ----
@@ -217,7 +220,7 @@ describe("POST /api/admin-requests", () => {
       .post("/api/admin-requests")
       .send({ email: "prof@college.edu", festName: "TechFest" });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ message: "Server error" });
+    expect(res.body.error).toEqual({ code: "SERVER_ERROR", message: "Server error" });
     expect(prismaMock.adminRequest.create).not.toHaveBeenCalled();
   });
 
@@ -228,6 +231,6 @@ describe("POST /api/admin-requests", () => {
       .post("/api/admin-requests")
       .send({ email: "prof@college.edu", festName: "TechFest" });
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ message: "Server error" });
+    expect(res.body.error).toEqual({ code: "SERVER_ERROR", message: "Server error" });
   });
 });

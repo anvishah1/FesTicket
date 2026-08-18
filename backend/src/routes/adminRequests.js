@@ -13,18 +13,16 @@ router.post("/", writeLimiter, async (req, res) => {
   try {
     const { email, name, organization, festName, phone } = req.body || {};
     if (!email || typeof email !== "string" || !email.trim()) {
-      return res.status(400).json({ message: "Email is required." });
+      return res.fail(400, "VALIDATION_ERROR", "Email is required.");
     }
     if (!festName || typeof festName !== "string" || !festName.trim()) {
-      return res.status(400).json({ message: "Fest name is required." });
+      return res.fail(400, "VALIDATION_ERROR", "Fest name is required.");
     }
     const existing = await prisma.adminRequest.findFirst({
       where: { email: email.trim(), status: "PENDING" },
     });
     if (existing) {
-      return res.status(409).json({
-        message: "You already have a pending admin request.",
-      });
+      return res.fail(409, "CONFLICT", "You already have a pending admin request.");
     }
     const request = await prisma.adminRequest.create({
       data: {
@@ -36,13 +34,13 @@ router.post("/", writeLimiter, async (req, res) => {
       },
     });
     req.log.info({ adminRequestId: request.id, email: request.email }, "[admin-requests] Created request");
-    res.status(201).json({
-      message: "Request received. You will be set up with credentials after verification.",
-      id: request.id,
-    });
+    res.ok(
+      { id: request.id },
+      { status: 201, message: "Request received. You will be set up with credentials after verification." }
+    );
   } catch (err) {
     req.log.error({ err }, "Admin request create error");
-    res.status(500).json({ message: "Server error" });
+    res.fail(500, "SERVER_ERROR", "Server error");
   }
 });
 

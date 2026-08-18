@@ -4,11 +4,13 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import cx from "clsx";
 import { getApiUrl, setAuth } from "@/lib/auth";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 
 export default function AuthForm() {
+  const t = useTranslations("auth");
   const router = useRouter();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -81,7 +83,7 @@ export default function AuthForm() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
-        setError(data.error?.message || "Invalid authentication code.");
+        setError(data.error?.message || t("errorInvalidCode"));
         setTwoFABusy(false);
         return;
       }
@@ -89,7 +91,7 @@ export default function AuthForm() {
       setAuth(accessToken, refreshToken, user);
       redirectByRole(user);
     } catch {
-      setError("Could not reach server. Please try again.");
+      setError(t("errorNetwork"));
     }
     setTwoFABusy(false);
   }
@@ -105,7 +107,7 @@ export default function AuthForm() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setError(data.error?.message || "Google sign-in failed.");
+        setError(data.error?.message || t("errorGoogleFailed"));
         return;
       }
       // AUTH-08: a 2FA-enabled account gets a challenge instead of a session.
@@ -117,7 +119,7 @@ export default function AuthForm() {
       setAuth(accessToken, refreshToken, user);
       redirectByRole(user);
     } catch {
-      setError("Could not reach server. Please try again.");
+      setError(t("errorNetwork"));
     }
   }
 
@@ -137,7 +139,7 @@ export default function AuthForm() {
       // Always generic (enumeration-safe), regardless of the response.
       setMagicSent(true);
     } catch {
-      setError("Could not reach server. Please try again.");
+      setError(t("errorNetwork"));
     }
     setMagicBusy(false);
   }
@@ -146,7 +148,7 @@ export default function AuthForm() {
     e.preventDefault();
     setError(null);
     if (!canSubmit) {
-      setError("Please enter email and password.");
+      setError(t("errorMissingFields"));
       return;
     }
     setLoading(true);
@@ -172,7 +174,7 @@ export default function AuthForm() {
             setNowMs(Date.now());
           }
         }
-        setError(data.error?.message || "Invalid email or password.");
+        setError(data.error?.message || t("errorInvalidCredentials"));
         setLoading(false);
         return;
       }
@@ -187,7 +189,7 @@ export default function AuthForm() {
       setAuth(accessToken, refreshToken, user);
       redirectByRole(user);
     } catch {
-      setError("Could not reach server. Please try again.");
+      setError(t("errorNetwork"));
     }
     setLoading(false);
   }
@@ -196,11 +198,9 @@ export default function AuthForm() {
   if (challengeToken) {
     return (
       <form onSubmit={verifyTwoFactor} className="space-y-4" data-testid="twofactor-step">
-        <h2 className="text-lg font-semibold text-[var(--text-primary)]">Two-factor authentication</h2>
+        <h2 className="text-lg font-semibold text-[var(--text-primary)]">{t("twoFactorTitle")}</h2>
         <p className="text-sm text-[var(--text-muted)]">
-          {useBackup
-            ? "Enter one of your backup codes."
-            : "Enter the 6-digit code from your authenticator app."}
+          {useBackup ? t("twoFactorBackupPrompt") : t("twoFactorAppPrompt")}
         </p>
         {error && (
           <div role="alert" className="text-sm text-red-600">
@@ -213,7 +213,7 @@ export default function AuthForm() {
           onChange={(e) => setTwoFACode(e.target.value)}
           inputMode={useBackup ? "text" : "numeric"}
           placeholder={useBackup ? "XXXX-XXXX" : "123456"}
-          aria-label="Authentication code"
+          aria-label={t("twoFactorCodeAria")}
           className="w-full border border-[var(--border-mauve)] rounded-lg px-3 py-2 tracking-widest text-center"
         />
         <button
@@ -221,7 +221,7 @@ export default function AuthForm() {
           disabled={!twoFACode.trim() || twoFABusy}
           className="w-full rounded-lg px-4 py-3 font-medium bg-gradient-to-r from-[#29104A] to-[#522C5D] text-[#DEDCDC] disabled:opacity-50"
         >
-          {twoFABusy ? "Verifying…" : "Verify"}
+          {twoFABusy ? t("verifying") : t("verify")}
         </button>
         <button
           type="button"
@@ -233,7 +233,7 @@ export default function AuthForm() {
           className="w-full text-sm text-[var(--text-primary)] hover:underline"
           data-testid="toggle-backup"
         >
-          {useBackup ? "Use your authenticator app instead" : "Use a backup code instead"}
+          {useBackup ? t("useAuthenticatorInstead") : t("useBackupInstead")}
         </button>
       </form>
     );
@@ -246,7 +246,7 @@ export default function AuthForm() {
 
       <div className="flex items-center gap-3">
         <div className="flex-grow border-t border-[var(--border-mauve)]" />
-        <div className="text-xs text-[var(--text-muted)]">OR</div>
+        <div className="text-xs text-[var(--text-muted)]">{t("or")}</div>
         <div className="flex-grow border-t border-[var(--border-mauve)]" />
       </div>
 
@@ -255,17 +255,17 @@ export default function AuthForm() {
           {error}
           {locked && (
             <div className="mt-1 text-[var(--text-muted)]">
-              Try again in{" "}
-              <span className="font-mono font-semibold" data-testid="lock-countdown">{mmss}</span>. Or{" "}
-              <Link href="/forgot" className="text-[var(--text-primary)] underline">reset your password</Link>{" "}
-              to regain access now.
+              {t("tryAgainIn")}{" "}
+              <span className="font-mono font-semibold" data-testid="lock-countdown">{mmss}</span>. {t("orSentence")}{" "}
+              <Link href="/forgot" className="text-[var(--text-primary)] underline">{t("resetPassword")}</Link>{" "}
+              {t("toRegainAccess")}
             </div>
           )}
         </div>
       )}
 
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-[var(--text-secondary)]">Email</label>
+        <label htmlFor="email" className="block text-sm font-medium text-[var(--text-secondary)]">{t("emailLabel")}</label>
         <input
           id="email"
           type="email"
@@ -275,13 +275,13 @@ export default function AuthForm() {
           aria-required="true"
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? "auth-form-error" : undefined}
-          placeholder="you@school.edu"
+          placeholder={t("emailPlaceholder")}
           className="mt-2 w-full border border-[var(--border-mauve)] rounded-lg px-3 py-2 focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)]"
         />
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-[var(--text-secondary)]">Password</label>
+        <label htmlFor="password" className="block text-sm font-medium text-[var(--text-secondary)]">{t("passwordLabel")}</label>
         <input
           id="password"
           type="password"
@@ -291,13 +291,13 @@ export default function AuthForm() {
           aria-required="true"
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? "auth-form-error" : undefined}
-          placeholder="Password"
+          placeholder={t("passwordPlaceholder")}
           className="mt-2 w-full border border-[var(--border-mauve)] rounded-lg px-3 py-2 focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)]"
         />
       </div>
 
       <div className="flex items-center justify-end text-sm">
-        <Link className="text-[var(--text-primary)] hover:underline" href="/forgot">Forgot password?</Link>
+        <Link className="text-[var(--text-primary)] hover:underline" href="/forgot">{t("forgotPassword")}</Link>
       </div>
 
       {captchaSiteKey && (
@@ -319,7 +319,7 @@ export default function AuthForm() {
               : "bg-[color-mix(in_srgb,var(--fill-mauve)_50%,transparent)] text-[#DEDCDC]/70 cursor-not-allowed"
           )}
         >
-          {loading ? "Signing in…" : locked ? `Locked · ${mmss}` : "Sign In with Email"}
+          {loading ? t("signingIn") : locked ? t("locked", { mmss }) : t("signInWithEmail")}
         </button>
       </div>
 
@@ -327,7 +327,7 @@ export default function AuthForm() {
       <div className="text-center">
         {magicSent ? (
           <p className="text-sm text-green-700" data-testid="magic-sent">
-            If that email exists, a sign-in link is on its way. Check your inbox.
+            {t("magicSent")}
           </p>
         ) : (
           <button
@@ -337,7 +337,7 @@ export default function AuthForm() {
             className="text-sm text-[var(--text-primary)] hover:underline disabled:opacity-50"
             data-testid="magic-link-button"
           >
-            {magicBusy ? "Sending…" : "Email me a sign-in link instead"}
+            {magicBusy ? t("sending") : t("magicLinkButton")}
           </button>
         )}
       </div>
@@ -345,7 +345,7 @@ export default function AuthForm() {
       {/* Divider */}
       <div className="flex items-center gap-3 mt-6">
         <div className="flex-grow border-t border-[var(--border-mauve)]" />
-        <div className="text-xs text-[var(--text-muted)]">OR</div>
+        <div className="text-xs text-[var(--text-muted)]">{t("or")}</div>
         <div className="flex-grow border-t border-[var(--border-mauve)]" />
       </div>
 
@@ -355,7 +355,7 @@ export default function AuthForm() {
           href="/signup"
           className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium transition bg-[var(--fill-mauve)] hover:bg-[var(--fill-plum)] text-[#DEDCDC]"
         >
-          Create a New Account
+          {t("createAccount")}
         </Link>
       </div>
     </form>

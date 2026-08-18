@@ -703,6 +703,22 @@ describe("POST /api/bookings", () => {
     expect(prismaMock.event.findUnique).not.toHaveBeenCalled();
   });
 
+  // ---- Attendee email format is validated at the schema layer ----
+  it("returns 400 when an attendee's email is not a valid email address", async () => {
+    const res = await request(app)
+      .post("/api/bookings")
+      .send({
+        eventId: 1,
+        guestEmail: "g@x.com",
+        tickets: [{ ticketTypeId: 10, quantity: 1 }],
+        attendees: [{ ticketTypeId: 10, name: "Bad Email", email: "not-an-email" }],
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    // Rejected by zod before the route's own logic runs — the event was never loaded.
+    expect(prismaMock.event.findUnique).not.toHaveBeenCalled();
+  });
+
   // ---- C2 ATTENDEE-TICKET: a foreign attendee.ticketTypeId is a 400, not a 500 ----
   it("returns 400 when an attendee's ticketTypeId does not belong to the event", async () => {
     prismaMock.event.findUnique.mockResolvedValue({

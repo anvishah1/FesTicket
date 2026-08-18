@@ -21,6 +21,18 @@ describe("Toaster + showToast", () => {
     expect(screen.getByText("Booking confirmed")).toBeInTheDocument();
   });
 
+  it("positions below the sticky header, not on top of it", () => {
+    render(<Toaster />);
+    act(() => {
+      showToast("Hello", "info");
+    });
+    const container = screen.getByRole("status").parentElement;
+    // The header is h-16 (sticky, z-40) — the toast must clear it (top-20),
+    // not sit at top-4 where it used to cover the header's own controls.
+    expect(container?.className).toContain("top-20");
+    expect(container?.className).not.toContain("top-4 ");
+  });
+
   it("dismisses a toast when its close button is clicked", () => {
     render(<Toaster />);
 

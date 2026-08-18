@@ -17,6 +17,7 @@ export const signupSchema = z.object({
 
   name: z
     .string()
+    .trim()
     .min(2, "Name must be at least 2 characters")
     .max(120, "Name is too long")
     .optional(),
@@ -30,6 +31,7 @@ export const signupSchema = z.object({
     .optional(),
   organizationName: z
     .string()
+    .trim()
     .min(2, "Organization must be at least 2 characters")
     .max(200, "Organization name is too long")
     .optional(),

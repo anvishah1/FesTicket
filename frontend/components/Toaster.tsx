@@ -66,7 +66,11 @@ export default function Toaster() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-3 max-w-[calc(100vw-2rem)] w-full sm:w-auto pointer-events-none">
+    // top-20 (below the sticky header's own h-16 + a gap), not top-4 — a toast
+    // used to sit on top of the header's own controls (language switcher, sign
+    // in, notification bell) for its whole auto-dismiss window and intercept
+    // clicks on them, since it out-ranked the header's z-40.
+    <div className="fixed top-20 right-4 z-[100] flex flex-col gap-3 max-w-[calc(100vw-2rem)] w-full sm:w-auto pointer-events-none">
       {toasts.map((toast) => (
         <div
           key={toast.id}

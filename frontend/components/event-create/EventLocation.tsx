@@ -17,6 +17,17 @@ export interface EventLocationData {
   meetingLink: string;
 }
 
+// The placeholder shows real URL examples, but nothing enforced the format —
+// any non-empty string (e.g. "not a real link") passed straight through.
+function isValidMeetingLink(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export default function EventLocation({ onNext, onChange, initialData }: EventLocationProps) {
   const [formData, setFormData] = useState<EventLocationData>(initialData || {
     locationType: "OFFLINE",
@@ -37,6 +48,10 @@ export default function EventLocation({ onNext, onChange, initialData }: EventLo
     }
     if (formData.locationType === "ONLINE" && !formData.meetingLink.trim()) {
       showToast("Please enter a meeting link", "error");
+      return;
+    }
+    if (formData.locationType === "ONLINE" && !isValidMeetingLink(formData.meetingLink)) {
+      showToast("Please enter a valid meeting link starting with http:// or https://", "error");
       return;
     }
     onNext(formData);

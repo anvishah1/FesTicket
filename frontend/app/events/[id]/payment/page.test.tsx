@@ -81,3 +81,32 @@ describe("PaymentPage discount line", () => {
     expect(within(line).getByText("-₹20.00")).toBeInTheDocument();
   });
 });
+
+describe("PaymentPage fetch failure vs. genuinely missing booking", () => {
+  it("shows a retryable error (not 'Booking not found') on a server error", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ success: false, error: { code: "SERVER_ERROR" } }),
+    });
+
+    render(<PaymentPage />);
+
+    await screen.findByText(/something went wrong/i);
+    expect(screen.queryByText(/booking not found/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it("shows 'Booking not found' (not an error) when the backend genuinely 404s", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ success: false, error: { code: "NOT_FOUND" } }),
+    });
+
+    render(<PaymentPage />);
+
+    await screen.findByText(/booking not found/i);
+    expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument();
+  });
+});

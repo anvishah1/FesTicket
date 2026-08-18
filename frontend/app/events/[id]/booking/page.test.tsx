@@ -38,6 +38,20 @@ vi.mock("@/components/AttendeeForm", () => ({
       <button type="button" data-testid="remove-all-attendees" onClick={() => onChange([])}>
         remove attendees
       </button>
+      <button
+        type="button"
+        data-testid="fill-attendees-bad-email"
+        onClick={() =>
+          onChange(
+            Array.from({ length: requiredCount }, (_, i) => ({
+              name: `Attendee ${i + 1}`,
+              email: "not-an-email",
+            }))
+          )
+        }
+      >
+        fill attendees with a bad email
+      </button>
     </>
   ),
 }));
@@ -156,6 +170,16 @@ describe("BookingPage submit-blocked messaging", () => {
     // attendees default to the right COUNT but blank fields
     expect(proceed()).toBeDisabled();
     expect(screen.getByText(/fill in the NAME/i)).toBeInTheDocument();
+  });
+
+  it("blocks submit and explains WHY when an attendee's email is not a valid address", async () => {
+    await setup();
+    expect(proceed()).toBeEnabled();
+
+    await userEvent.click(screen.getByTestId("fill-attendees-bad-email"));
+
+    expect(proceed()).toBeDisabled();
+    expect(screen.getByText(/valid email address for every attendee/i)).toBeInTheDocument();
   });
 });
 
@@ -290,5 +314,34 @@ describe("BookingPage promo code (PAY-04)", () => {
     );
     const bookingBody = JSON.parse((bookingCall![1] as RequestInit).body as string);
     expect(bookingBody.promoCode).toBe("SAVE20");
+  });
+});
+
+describe("BookingPage fetch failure vs. genuinely missing event", () => {
+  it("shows a retryable error (not 'Event not found') on a server error", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ success: false, error: { code: "SERVER_ERROR" } }),
+    });
+
+    render(<BookingPage />);
+
+    await screen.findByText(/something went wrong/i);
+    expect(screen.queryByText(/event not found/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it("shows 'Event not found' (not an error) when the backend genuinely 404s", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ success: false, error: { code: "NOT_FOUND" } }),
+    });
+
+    render(<BookingPage />);
+
+    await screen.findByText(/event not found/i);
+    expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument();
   });
 });

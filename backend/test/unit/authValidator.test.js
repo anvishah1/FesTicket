@@ -99,6 +99,18 @@ describe("signupSchema", () => {
     expect(fieldError(result, "name")).toBe("Name must be at least 2 characters");
   });
 
+  it("rejects a whitespace-only name (trimmed length must still meet the minimum)", () => {
+    const result = signupSchema.safeParse({ email: "a@b.com", password: "Password1!", name: "   " });
+    expect(result.success).toBe(false);
+    expect(fieldError(result, "name")).toBe("Name must be at least 2 characters");
+  });
+
+  it("trims a valid name with surrounding whitespace", () => {
+    const result = signupSchema.safeParse({ email: "a@b.com", password: "Password1!", name: "  Alice  " });
+    expect(result.success).toBe(true);
+    expect(result.data.name).toBe("Alice");
+  });
+
   it("rejects an empty festKey when provided", () => {
     const result = signupSchema.safeParse({
       email: "a@b.com",

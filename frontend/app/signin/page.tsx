@@ -1,11 +1,13 @@
 // frontend/app/signin/page.tsx
 "use client";
 
+import { useTranslations } from "next-intl";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import AuthForm from "@/components/AuthForm";
 
 export default function SignInPage() {
+  const t = useTranslations("signin");
   return (
     <div className="min-h-screen bg-[var(--surface-page)]">
       <Header />
@@ -20,8 +22,8 @@ export default function SignInPage() {
                 </span>
               </div>
 
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)]">Sign In</h1>
-              <p className="text-sm text-[var(--text-secondary)]">Welcome back — sign in to continue managing your events and tickets.</p>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)]">{t("heading")}</h1>
+              <p className="text-sm text-[var(--text-secondary)]">{t("subtitle")}</p>
             </div>
 
             <div className="mt-6">
@@ -30,7 +32,7 @@ export default function SignInPage() {
           </div>
 
           <div className="mt-6 text-center text-xs text-[var(--text-muted)]">
-            By continuing you agree to our <a className="underline text-[var(--text-primary)]" href="/privacy">Privacy</a> &amp; <a className="underline text-[var(--text-primary)]" href="/terms">Terms</a>.
+            {t("termsPrefix")} <a className="underline text-[var(--text-primary)]" href="/privacy">{t("privacy")}</a> &amp; <a className="underline text-[var(--text-primary)]" href="/terms">{t("terms")}</a>.
           </div>
         </div>
       </main>

@@ -108,7 +108,7 @@ describe("BookingsPage (signed in)", () => {
 
     expect(apiFetch).toHaveBeenCalledWith("/api/bookings/1/request-refund", { method: "POST" });
     expect(showToast).toHaveBeenCalledWith("Booking fully refunded", "success");
-    expect(await screen.findByText("REFUNDED")).toBeInTheDocument();
+    expect(await screen.findByText("Refunded")).toBeInTheDocument();
   });
 
   it("shows an empty state when the user has no bookings", async () => {

@@ -48,9 +48,16 @@ export default function PaymentPage() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  // A transient fetch failure (network error / 5xx) must not render the same
+  // "Booking not found" message as a genuinely missing/invalid booking code.
+  const [fetchError, setFetchError] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     const fetchBooking = async () => {
+      setLoading(true);
+      setFetchError(false);
+
       if (!bookingCode) {
         // Try to get from localStorage
         const pending = localStorage.getItem("pendingBooking");
@@ -61,11 +68,14 @@ export default function PaymentPage() {
           try {
             const res = await fetch(`${getApiUrl()}/api/bookings/code/${data.bookingCode}`);
             const result = await res.json();
-            if (result.success) {
+            if (res.ok && result.success) {
               setBooking(result.data);
+            } else if (res.status !== 404) {
+              setFetchError(true);
             }
           } catch (error) {
             console.error("Failed to fetch booking:", error);
+            setFetchError(true);
           }
         }
         setLoading(false);
@@ -76,18 +86,21 @@ export default function PaymentPage() {
         // Public guest endpoint keyed by the unguessable bookingCode (no auth).
         const res = await fetch(`${getApiUrl()}/api/bookings/code/${bookingCode}`);
         const data = await res.json();
-        if (data.success) {
+        if (res.ok && data.success) {
           setBooking(data.data);
+        } else if (res.status !== 404) {
+          setFetchError(true);
         }
       } catch (error) {
         console.error("Failed to fetch booking:", error);
+        setFetchError(true);
       } finally {
         setLoading(false);
       }
     };
 
     fetchBooking();
-  }, [bookingCode]);
+  }, [bookingCode, retryTick]);
 
   // PAY-05: tick each second so the hold countdown updates while the booking is
   // PENDING (expiresAt present). Computed from the server expiresAt vs now, so
@@ -238,6 +251,26 @@ export default function PaymentPage() {
             <div className="h-8 bg-[var(--surface-slate-200)] rounded w-1/2"></div>
             <div className="h-64 bg-[var(--surface-slate-200)] rounded"></div>
           </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="min-h-screen bg-[var(--bg)]">
+        <Header />
+        <main className="container py-10 text-center" role="alert">
+          <h1 className="text-2xl font-bold">Something went wrong</h1>
+          <p className="text-[var(--text-soft)] mt-2">
+            We couldn&rsquo;t load your booking. Please check your connection and try again.
+          </p>
+          <button
+            onClick={() => setRetryTick((n) => n + 1)}
+            className="mt-4 px-4 py-2 bg-[var(--fill-ink)] text-white rounded-md"
+          >
+            Try again
+          </button>
         </main>
       </div>
     );

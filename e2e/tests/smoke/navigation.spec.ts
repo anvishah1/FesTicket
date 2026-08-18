@@ -20,12 +20,12 @@ test.describe("navigation (smoke)", () => {
     ).toBeVisible();
   });
 
-  test("header 'Fests' link opens the discover-fests page", async ({ page }) => {
+  test("header 'Discover' link opens the discover-fests page", async ({ page }) => {
     await page.goto(ROUTES.home);
 
     await page
       .getByRole("banner")
-      .getByRole("link", { name: "Fests", exact: true })
+      .getByRole("link", { name: "Discover", exact: true })
       .click();
 
     await expect(page).toHaveURL(/\/fests$/);

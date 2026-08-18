@@ -76,6 +76,22 @@ describe("EventLocation", () => {
     expect(onNext).not.toHaveBeenCalled();
   });
 
+  it("blocks online submit and alerts when the meeting link is not a valid URL", async () => {
+    const onNext = vi.fn();
+    render(<EventLocation onNext={onNext} />);
+    await userEvent.click(screen.getByRole("button", { name: "Online" }));
+    await userEvent.type(
+      screen.getByPlaceholderText("https://zoom.us / https://meet.google.com"),
+      "not a real link"
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
+    expect(showToast).toHaveBeenCalledWith(
+      "Please enter a valid meeting link starting with http:// or https://",
+      "error"
+    );
+    expect(onNext).not.toHaveBeenCalled();
+  });
+
   it("submits online data once a meeting link is entered", async () => {
     const onNext = vi.fn();
     render(<EventLocation onNext={onNext} />);

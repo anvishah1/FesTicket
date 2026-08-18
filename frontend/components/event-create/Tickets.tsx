@@ -182,7 +182,11 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
                         updateTicket(
                           ticket.id,
                           "price",
-                          Math.max(0, parseInt(e.target.value) || 0)
+                          // parseFloat (not parseInt) so a fractional rupee price
+                          // like 49.50 survives — the manage page's own price
+                          // edit already preserves decimals; this wizard was
+                          // silently truncating them to whole rupees.
+                          Math.max(0, parseFloat(e.target.value) || 0)
                         )
                       }
                       className="w-full rounded-lg border border-[var(--border-card)] px-3 py-2 focus:border-[var(--border-plum)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--ring-plum)_20%,transparent)] focus:outline-none text-[var(--text-primary)]"
@@ -267,7 +271,14 @@ export default function Tickets({ onNext, onChange, initialData }: TicketsProps)
                 type="number"
                 min={0}
                 value={refundCutoffHours}
-                onChange={(e) => setRefundCutoffHours(e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  // Clamp negatives immediately (matching the price/quantity
+                  // fields above) instead of only catching it as a raw 400 at
+                  // final submit — an empty value stays empty so the field can
+                  // still be cleared while retyping.
+                  setRefundCutoffHours(v === "" ? "" : String(Math.max(0, parseInt(v, 10) || 0)));
+                }}
                 placeholder="48"
                 className="w-40 rounded-lg border border-[var(--border-card)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-plum)] focus:outline-none"
               />

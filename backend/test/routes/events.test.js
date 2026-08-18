@@ -306,6 +306,31 @@ describe("POST /api/events", () => {
     expect(prismaMock.event.create).not.toHaveBeenCalled();
   });
 
+  it("returns 400 when onlineLink is not a valid URL", async () => {
+    const res = await request(app)
+      .post("/api/events")
+      .set(...hostAuth)
+      .send({ name: "Webinar", onlineLink: "not a real link" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.details.onlineLink).toBe("Must be a valid URL");
+    expect(prismaMock.event.create).not.toHaveBeenCalled();
+  });
+
+  it("accepts a real http(s) URL for onlineLink/meetingLink, and an empty string (offline events)", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ managedFestId: null, editorFestId: 3 });
+    prismaMock.event.create.mockResolvedValue({ id: 101 });
+    prismaMock.event.findUnique.mockResolvedValue({ id: 101, name: "Webinar", ticketTypes: [] });
+
+    const res = await request(app)
+      .post("/api/events")
+      .set(...hostAuth)
+      .send({ festId: "3", name: "Webinar", onlineLink: "https://meet.google.com/abc-defg-hij", meetingLink: "" });
+
+    expect(res.status).toBe(201);
+  });
+
   it("creates an event (201) with hostId from the token and encodes the field-mapping quirks", async () => {
     // HOST owns editorFestId; the requested festId must match it.
     prismaMock.user.findUnique.mockResolvedValue({ managedFestId: null, editorFestId: 3 });
@@ -2622,6 +2647,28 @@ describe("promo codes CRUD", () => {
     );
   });
 
+  it("400 when percentOff is over 100 — rejected, not silently clamped", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 10, festId: 3 });
+    const res = await request(app)
+      .post("/api/events/promo-codes")
+      .set(...hostAuth)
+      .send({ eventId: 5, code: "TOOBIG", kind: "PERCENT", percentOff: 150 });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(prismaMock.promoCode.create).not.toHaveBeenCalled();
+  });
+
+  it("400 when percentOff is negative", async () => {
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 10, festId: 3 });
+    const res = await request(app)
+      .post("/api/events/promo-codes")
+      .set(...hostAuth)
+      .send({ eventId: 5, code: "NEG", kind: "PERCENT", percentOff: -10 });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(prismaMock.promoCode.create).not.toHaveBeenCalled();
+  });
+
   it("403 when creating a code for an event the caller does not manage", async () => {
     prismaMock.event.findUnique.mockResolvedValue({ hostId: 999, festId: 3 });
     const res = await request(app)
@@ -2675,6 +2722,18 @@ describe("promo codes CRUD", () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(1);
     expect(prismaMock.promoCode.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { eventId: 5 } }));
+  });
+
+  it("PATCH 400s when percentOff is over 100 — the update path had no bounds check at all before", async () => {
+    prismaMock.promoCode.findUnique.mockResolvedValue({ id: 1, eventId: 5, festId: null });
+    prismaMock.event.findUnique.mockResolvedValue({ hostId: 10, festId: 3 });
+    const res = await request(app)
+      .patch("/api/events/promo-codes/1")
+      .set(...hostAuth)
+      .send({ percentOff: 150 });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(prismaMock.promoCode.update).not.toHaveBeenCalled();
   });
 
   it("deletes a code the caller manages", async () => {

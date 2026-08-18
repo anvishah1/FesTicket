@@ -7,19 +7,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { THEME_STORAGE_KEY, THEME_EVENT, getCurrentTheme as currentTheme } from "@/lib/theme";
 
-export const THEME_STORAGE_KEY = "FesTicket-theme";
-
-/** The theme currently applied to <html>, resolving the system default. */
-function currentTheme(): "light" | "dark" {
-  if (typeof document === "undefined") return "light";
-  const forced = document.documentElement.getAttribute("data-theme");
-  if (forced === "dark" || forced === "light") return forced;
-  const prefersDark =
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches;
-  return prefersDark ? "dark" : "light";
-}
+export { THEME_STORAGE_KEY };
 
 export default function ThemeToggle({ className = "" }: { className?: string }) {
   const t = useTranslations("theme");
@@ -47,6 +37,9 @@ export default function ThemeToggle({ className = "" }: { className?: string }) 
     } catch {
       /* storage may be unavailable (private mode) — the attribute still applies */
     }
+    // Same-tab listeners (e.g. the venue map's dark-mode filter) can't rely on
+    // the "storage" event — that only fires in OTHER tabs.
+    window.dispatchEvent(new Event(THEME_EVENT));
     setTheme(next);
   }, []);
 

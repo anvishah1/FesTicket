@@ -14,6 +14,7 @@ import { apiFetch, getApiUrl } from "@/lib/auth";
 import { showToast } from "@/lib/toast";
 import { refundPolicyText } from "@/lib/refundPolicy";
 import { formatPaise } from "@/lib/format";
+import { isValidEmail } from "@/lib/email";
 
 type TicketType = {
   id: string;
@@ -66,6 +67,12 @@ export default function BookingPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  // Distinguishes a genuinely nonexistent event (backend 404) from a transient
+  // fetch failure (network error / 5xx) — the two must not render the same
+  // "Event not found" message, or a real outage looks like a broken link.
+  const [notFound, setNotFound] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
 
   // local state: selected ticket quantities
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -89,10 +96,13 @@ export default function BookingPage() {
   // Fetch event data
   useEffect(() => {
     const fetchEvent = async () => {
+      setLoading(true);
+      setNotFound(false);
+      setFetchError(false);
       try {
         const res = await fetch(`${getApiUrl()}/api/events/${eventId}`);
         const data = await res.json();
-        if (data.success && data.data) {
+        if (res.ok && data.success && data.data) {
           setEvent(data.data);
           // Initialize quantities for each ticket type
           const initialQty: Record<string, number> = {};
@@ -100,16 +110,21 @@ export default function BookingPage() {
             initialQty[t.id.toString()] = 0;
           });
           setQuantities(initialQty);
+        } else if (res.status === 404) {
+          setNotFound(true);
+        } else {
+          setFetchError(true);
         }
       } catch (error) {
         console.error("Failed to fetch event:", error);
+        setFetchError(true);
       } finally {
         setLoading(false);
       }
     };
 
     fetchEvent();
-  }, [eventId]);
+  }, [eventId, retryTick]);
 
   // Update attendees when quantities change
   useEffect(() => {
@@ -305,7 +320,7 @@ export default function BookingPage() {
     totalTickets > 0 &&
     !overCap &&
     attendees.length === requiredAttendees &&
-    attendees.every((a) => a.name.trim().length > 0 && a.email.trim().length > 0) &&
+    attendees.every((a) => a.name.trim().length > 0 && isValidEmail(a.email)) &&
     guestInfo.email.trim().length > 0 &&
     questionsValid;
 
@@ -326,6 +341,8 @@ export default function BookingPage() {
       return "⚠ Please fill in the NAME for all attendees";
     if (attendees.some((a) => !a.email.trim()))
       return "⚠ Please fill in the EMAIL for all attendees";
+    if (attendees.some((a) => !isValidEmail(a.email)))
+      return "⚠ Please enter a valid email address for every attendee";
     if (!questionsValid) return "⚠ Please answer all required questions";
     return "⚠ Please complete all required fields";
   })();
@@ -439,7 +456,27 @@ export default function BookingPage() {
     );
   }
 
-  if (!event) {
+  if (fetchError) {
+    return (
+      <div className="min-h-screen">
+        <Header />
+        <main className="container py-10 text-center" role="alert">
+          <h1 className="text-2xl font-bold">Something went wrong</h1>
+          <p className="text-[var(--text-muted)] mt-2">
+            We couldn&rsquo;t load this event. Please check your connection and try again.
+          </p>
+          <button
+            onClick={() => setRetryTick((n) => n + 1)}
+            className="mt-4 rounded-lg border border-[var(--border-card)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-card)]"
+          >
+            Try again
+          </button>
+        </main>
+      </div>
+    );
+  }
+
+  if (!event || notFound) {
     return (
       <div className="min-h-screen">
         <Header />

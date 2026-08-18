@@ -22,7 +22,12 @@ const attendeeSchema = z
   .object({
     ticketTypeId: intLike.optional(),
     name: z.string().max(200, "Attendee name is too long").optional().nullable(),
-    email: z.string().max(254, "Attendee email is too long").optional().nullable(),
+    email: z
+      .string()
+      .max(254, "Attendee email is too long")
+      .email("Attendee email must be a valid email address")
+      .optional()
+      .nullable(),
   })
   .passthrough();
 

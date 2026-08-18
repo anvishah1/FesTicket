@@ -227,8 +227,11 @@ export default function SignUpPage() {
             <div className="w-full max-w-md bg-[var(--fill-ink)] rounded-2xl shadow-md p-8 border border-[#3D1B5C]">
               <h2 className="text-2xl font-bold text-center mb-4 text-white">Sign Up</h2>
 
-              {/* AUTH-05: real Google sign-up (disabled affordance when unconfigured). */}
-              <GoogleSignInButton onCredential={handleGoogleCredential} />
+              {/* AUTH-05: real Google sign-up (disabled affordance when unconfigured).
+                  This panel is always dark-purple regardless of theme, so force the
+                  disabled label's fixed light color rather than the (theme-following,
+                  dark-in-light-mode) default. */}
+              <GoogleSignInButton onCredential={handleGoogleCredential} onDarkSurface />
 
               <div className="flex items-center gap-3 mt-4">
                 <div className="flex-grow border-t border-white/30" />

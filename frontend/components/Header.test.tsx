@@ -64,6 +64,17 @@ describe("Header", () => {
     expect(within(menu).getByRole("menuitem", { name: /log out/i })).toBeInTheDocument();
   });
 
+  it("renders the notification bell for a signed-in user with no responsive 'hidden' wrapper (mobile must reach it too)", () => {
+    storeUser("VIEWER", "Ada Lovelace");
+    render(<Header />);
+
+    const bell = screen.getByTestId("notification-bell");
+    expect(bell).toBeInTheDocument();
+    // Previously wrapped in a `hidden sm:block` div, making it unreachable on
+    // mobile viewports with no alternative entry point.
+    expect(bell.closest(".hidden")).toBeNull();
+  });
+
   it("links ADMIN users to the admin dashboard", () => {
     storeUser("ADMIN", "Prof X");
     render(<Header />);

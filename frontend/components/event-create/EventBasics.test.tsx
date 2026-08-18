@@ -15,7 +15,6 @@ const filledData: EventBasicsData = {
   startDate: "",
   endDate: "",
   visibility: "PRIVATE",
-  eventType: "OFFLINE",
 };
 
 describe("EventBasics", () => {
@@ -67,7 +66,6 @@ describe("EventBasics", () => {
     expect(onNext.mock.calls[0][0]).toMatchObject({
       name: "Hackathon",
       visibility: "PRIVATE",
-      eventType: "OFFLINE",
     });
   });
 
@@ -81,18 +79,6 @@ describe("EventBasics", () => {
     await userEvent.click(screen.getByRole("button", { name: "Public" }));
     await userEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
     expect(onNext.mock.calls[0][0].visibility).toBe("PUBLIC");
-  });
-
-  it("toggles event type to ONLINE", async () => {
-    const onNext = vi.fn();
-    render(<EventBasics onNext={onNext} />);
-    await userEvent.type(
-      screen.getByPlaceholderText("eg: KSUM Investor's Meet"),
-      "Webinar"
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Online" }));
-    await userEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
-    expect(onNext.mock.calls[0][0].eventType).toBe("ONLINE");
   });
 
   it("reveals the default image grid and selects an image", async () => {
@@ -222,7 +208,7 @@ describe("EventBasics", () => {
     expect(end.value).toBe("2099-12-31T12:00");
   });
 
-  it("exposes visibility and event-type options as pressable toggles", () => {
+  it("exposes visibility options as pressable toggles", () => {
     render(<EventBasics onNext={() => {}} />);
     expect(screen.getByRole("button", { name: "Private" })).toHaveAttribute(
       "aria-pressed",
@@ -231,10 +217,6 @@ describe("EventBasics", () => {
     expect(screen.getByRole("button", { name: "Public" })).toHaveAttribute(
       "aria-pressed",
       "false"
-    );
-    expect(screen.getByRole("button", { name: "Offline" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
     );
   });
 

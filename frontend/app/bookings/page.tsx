@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations, useLocale } from "next-intl";
 import { formatPaise } from "@/lib/format";
 import Link from "next/link";
 import Header from "@/components/Header";
@@ -24,9 +25,9 @@ interface BookingListItem {
   items?: Array<{ quantity: number; ticketType: { name: string; price: number } }>;
 }
 
-function formatDate(dateStr?: string) {
-  if (!dateStr) return "Date TBA";
-  return new Date(dateStr).toLocaleDateString("en-US", {
+function formatDate(dateStr: string | undefined, locale: string, dateTba: string) {
+  if (!dateStr) return dateTba;
+  return new Date(dateStr).toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -40,14 +41,23 @@ const statusStyles: Record<string, string> = {
   REFUNDED: "bg-blue-100 text-blue-700",
 };
 
+const statusLabelKeys: Record<string, string> = {
+  COMPLETED: "statusCompleted",
+  PENDING: "statusPending",
+  CANCELLED: "statusCancelled",
+  REFUNDED: "statusRefunded",
+};
+
 function StatusBadge({ status }: { status: string }) {
+  const t = useTranslations("bookings");
+  const key = statusLabelKeys[status];
   return (
     <span
       className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
         statusStyles[status] || "bg-[var(--surface-slate-100)] text-[var(--text-slate)]"
       }`}
     >
-      {status}
+      {key ? t(key) : status}
     </span>
   );
 }
@@ -59,6 +69,8 @@ function BookingCard({
   booking: BookingListItem;
   onChanged: (b: BookingListItem) => void;
 }) {
+  const t = useTranslations("bookings");
+  const locale = useLocale();
   const [busy, setBusy] = useState(false);
   const totalTickets = (booking.items || []).reduce((s, i) => s + i.quantity, 0);
   // PAY-06: a PENDING booking can be cancelled; a COMPLETED one can request a
@@ -68,20 +80,19 @@ function BookingCard({
 
   const act = async () => {
     if (busy) return;
-    const verb = canCancel ? "cancel" : "request a refund for";
-    if (!window.confirm(`Are you sure you want to ${verb} this booking?`)) return;
+    if (!window.confirm(canCancel ? t("confirmCancel") : t("confirmRefund"))) return;
     setBusy(true);
     try {
       const res = await apiFetch(`/api/bookings/${booking.id}/request-refund`, { method: "POST" });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast(data.message || "Done", "success");
+        showToast(data.message || t("actionDone"), "success");
         onChanged({ ...booking, status: data.data?.status || (canCancel ? "CANCELLED" : "REFUNDED") });
       } else {
-        showToast(data.error?.message || "Request could not be completed", "error");
+        showToast(data.error?.message || t("actionFailed"), "error");
       }
     } catch {
-      showToast("Request failed. Please try again.", "error");
+      showToast(t("actionError"), "error");
     } finally {
       setBusy(false);
     }
@@ -98,9 +109,9 @@ function BookingCard({
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="font-semibold">{booking.event?.name || "Event"}</h3>
+            <h3 className="font-semibold">{booking.event?.name || t("eventFallback")}</h3>
             <p className="text-sm text-[var(--text-soft)] mt-0.5">
-              {formatDate(booking.event?.startDate)}
+              {formatDate(booking.event?.startDate, locale, t("dateTba"))}
               {booking.event?.venue ? ` · ${booking.event.venue}` : ""}
             </p>
             <p className="text-xs text-[var(--text-faint)] mt-1 font-mono">{booking.bookingCode}</p>
@@ -110,7 +121,7 @@ function BookingCard({
             <div className="font-bold mt-2">{formatPaise(booking.total ?? 0)}</div>
             {totalTickets > 0 && (
               <div className="text-xs text-[var(--text-soft)]">
-                {totalTickets} ticket{totalTickets === 1 ? "" : "s"}
+                {t("ticketCount", { count: totalTickets })}
               </div>
             )}
           </div>
@@ -125,7 +136,7 @@ function BookingCard({
               className="text-sm px-3 py-1.5 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white font-semibold"
               data-testid="complete-payment"
             >
-              Complete payment
+              {t("completePayment")}
             </Link>
           )}
           <button
@@ -134,7 +145,7 @@ function BookingCard({
             disabled={busy}
             className="text-sm px-3 py-1.5 rounded-md border border-[var(--border-slate)] text-[var(--text-strong)] hover:bg-[var(--surface-slate)] disabled:opacity-50"
           >
-            {busy ? "Processing…" : canCancel ? "Cancel booking" : "Request refund"}
+            {busy ? t("processing") : canCancel ? t("cancelBooking") : t("requestRefund")}
           </button>
         </div>
       )}
@@ -143,6 +154,7 @@ function BookingCard({
 }
 
 export default function BookingsPage() {
+  const t = useTranslations("bookings");
   const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState<BookingListItem[]>([]);
@@ -166,16 +178,19 @@ export default function BookingsPage() {
         const res = await apiFetch(`/api/bookings/user/${user.id}`);
         const data = await res.json();
         if (data.success) setBookings(data.data || []);
-        else showToast(data.error?.message || "Could not load your bookings", "error");
+        else showToast(data.error?.message || t("loadError"), "error");
       } catch (error) {
         console.error("Failed to fetch bookings:", error);
-        showToast("Could not load your bookings", "error");
+        showToast(t("loadError"), "error");
       } finally {
         setLoading(false);
       }
     };
 
     fetchBookings();
+    // Runs once on mount only — `t` is intentionally excluded so switching the
+    // locale mid-visit doesn't re-trigger a bookings refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const lookupByCode = async (e: React.FormEvent) => {
@@ -190,11 +205,11 @@ export default function BookingsPage() {
       if (res.ok && data.success) {
         window.location.href = `/booking-confirmation?bookingCode=${encodeURIComponent(trimmed)}`;
       } else {
-        showToast(data.error?.message || "No booking found for that code", "error");
+        showToast(data.error?.message || t("lookupNotFound"), "error");
       }
     } catch (error) {
       console.error("Lookup failed:", error);
-      showToast("Lookup failed. Please try again.", "error");
+      showToast(t("lookupError"), "error");
     } finally {
       setLookupLoading(false);
     }
@@ -207,9 +222,9 @@ export default function BookingsPage() {
       <main className="container py-10">
         <div className="max-w-3xl mx-auto space-y-6">
           <div className="flex items-center justify-between gap-4">
-            <h1 className="text-2xl font-extrabold">My bookings</h1>
+            <h1 className="text-2xl font-extrabold">{t("heading")}</h1>
             <Link href="/fests" className="text-sm text-[var(--text-primary)] hover:underline">
-              Discover events →
+              {t("discoverEvents")}
             </Link>
           </div>
 
@@ -222,15 +237,15 @@ export default function BookingsPage() {
               </div>
             ) : bookings.length === 0 ? (
               <div className="rounded-lg bg-[var(--surface)] border p-10 text-center shadow-sm" data-testid="empty-state">
-                <h2 className="text-lg font-semibold">No bookings yet</h2>
+                <h2 className="text-lg font-semibold">{t("emptyTitle")}</h2>
                 <p className="text-sm text-[var(--text-soft)] mt-1">
-                  When you book tickets, they&apos;ll show up here.
+                  {t("emptyBody")}
                 </p>
                 <Link
                   href="/fests"
                   className="inline-block mt-4 px-4 py-2 bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] text-white rounded-md font-semibold"
                 >
-                  Discover events
+                  {t("emptyCta")}
                 </Link>
               </div>
             ) : (
@@ -249,21 +264,21 @@ export default function BookingsPage() {
           ) : (
             /* Guest: look up by booking code */
             <div className="rounded-lg bg-[var(--surface)] border p-6 shadow-sm">
-              <h2 className="text-lg font-semibold">Look up a booking</h2>
+              <h2 className="text-lg font-semibold">{t("lookupTitle")}</h2>
               <p className="text-sm text-[var(--text-soft)] mt-1 mb-4">
-                Enter your booking code to view your tickets. Or{" "}
+                {t("lookupBodyPrefix")}{" "}
                 <Link href="/signin" className="text-[var(--text-primary)] hover:underline">
-                  sign in
+                  {t("signIn")}
                 </Link>{" "}
-                to see all your bookings.
+                {t("lookupBodySuffix")}
               </p>
               <form onSubmit={lookupByCode} className="flex flex-col sm:flex-row gap-3">
                 <input
                   type="text"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  placeholder="Your booking code"
-                  aria-label="Booking code"
+                  placeholder={t("bookingCodePlaceholder")}
+                  aria-label={t("bookingCodeAria")}
                   className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-[var(--ring-plum)] focus:border-[var(--border-plum)] font-mono"
                 />
                 <button
@@ -271,7 +286,7 @@ export default function BookingsPage() {
                   disabled={!code.trim() || lookupLoading}
                   className="px-4 py-2 rounded-md bg-[var(--fill-ink)] hover:bg-[var(--fill-ink)] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold"
                 >
-                  {lookupLoading ? "Looking up…" : "Find booking"}
+                  {lookupLoading ? t("lookingUp") : t("findBooking")}
                 </button>
               </form>
             </div>

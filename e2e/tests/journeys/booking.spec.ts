@@ -56,9 +56,31 @@ test.describe("booking journey", () => {
     await expect(payBtn).toBeVisible();
     await payBtn.click();
 
+    // With RAZORPAY_KEY_* configured (this backend/.env may have real test-mode
+    // keys), the app correctly opens Razorpay's own hosted checkout widget
+    // instead of the demo flow — that's the app working as designed, but driving
+    // a live third-party payment UI is out of scope here, so detect and skip.
+    let mode: "demo" | "razorpay" | null = null;
+    const deadline = Date.now() + 20_000;
+    while (Date.now() < deadline) {
+      if (/\/booking-confirmation/.test(new URL(page.url()).pathname)) {
+        mode = "demo";
+        break;
+      }
+      if (page.frames().some((f) => f.url().includes("razorpay"))) {
+        mode = "razorpay";
+        break;
+      }
+      await page.waitForTimeout(250);
+    }
+    test.skip(
+      mode === "razorpay",
+      "RAZORPAY_KEY_* configured in this env — real Razorpay checkout opened instead of the demo flow"
+    );
+    expect(mode, "payment should either settle via the demo flow or open Razorpay").toBe("demo");
+
     // The demo flow completes the booking then redirects to the confirmation
     // page (showing the booking code) instead of the old alert()+/fests redirect.
-    await page.waitForURL(/\/booking-confirmation/, { timeout: 20_000 });
     await expect(page.getByRole("heading", { name: /booking confirmed/i })).toBeVisible();
 
     // Sanity-check via the API that the booking is now COMPLETED. The booking

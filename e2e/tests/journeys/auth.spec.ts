@@ -22,8 +22,19 @@ test.describe("auth journey (signup -> signin)", () => {
     await expect(signupBtn).toBeEnabled();
     await signupBtn.click();
 
-    // Non-editor signup shows a success confirmation screen.
-    await expect(page.getByText(/account created/i)).toBeVisible();
+    // Non-editor signup shows one of two confirmation screens depending on
+    // whether email verification is enforced (AUTH-01: enforced only when a
+    // mail provider is configured). This backend's .env may have a real SMTP
+    // provider wired up, in which case sign-in is correctly blocked until the
+    // account is verified (AUTH-01) — skip the sign-in portion below rather
+    // than asserting a specific mail-provider configuration for this env.
+    const accountCreated = page.getByRole("heading", { name: /account created/i });
+    const needsVerification = page.getByRole("heading", { name: /verify your email/i });
+    await expect(accountCreated.or(needsVerification)).toBeVisible();
+    test.skip(
+      await needsVerification.isVisible(),
+      "mail provider configured in this env — sign-in is blocked pending email verification (AUTH-01)"
+    );
 
     // ---- Sign in via the UI ----
     await page.goto(ROUTES.signin);

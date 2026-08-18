@@ -34,7 +34,7 @@ export default function AdminSignUpPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const msg = data.error || data.message || "Request failed.";
+        const msg = data.error?.message || "Request failed.";
         setError(msg);
         setLoading(false);
         return;

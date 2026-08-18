@@ -12,7 +12,18 @@ type GisId = {
 };
 type GoogleWindow = Window & { google?: { accounts?: { id?: GisId } } };
 
-export default function GoogleSignInButton({ onCredential }: { onCredential: (idToken: string) => void }) {
+export default function GoogleSignInButton({
+  onCredential,
+  onDarkSurface,
+}: {
+  onCredential: (idToken: string) => void;
+  // Some callers (e.g. the signup page) place this button inside a panel that's
+  // always dark-purple (`--fill-ink`) regardless of the app's light/dark theme.
+  // The default label color is a theme token, which reads fine everywhere else
+  // (including a theme-following dark surface) but goes dark-on-dark there in
+  // light theme — set this to force a fixed light label instead.
+  onDarkSurface?: boolean;
+}) {
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const divRef = useRef<HTMLDivElement>(null);
   const cbRef = useRef(onCredential);
@@ -68,7 +79,9 @@ export default function GoogleSignInButton({ onCredential }: { onCredential: (id
         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden className="inline-block">
           <path fill="#EA4335" d="M12 11v3h6.5c-.3 1.7-1.8 5-6.5 5a7 7 0 1 1 0-14c1.9 0 3.2.8 4.1 1.6l2.8-2.9C18.9 2 15.9 1 12 1 6.5 1 2 5.5 2 11s4.5 10 10 10c5.7 0 9.9-4.1 9.9-9.9 0-.7-.1-1.4-.3-2H12z" />
         </svg>
-        <span className="text-sm font-medium">Sign in with Google (coming soon)</span>
+        <span className={`text-sm font-medium ${onDarkSurface ? "text-[#DEDCDC]" : "text-[var(--text-primary)]"}`}>
+          Sign in with Google (coming soon)
+        </span>
       </button>
     );
   }

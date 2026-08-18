@@ -267,6 +267,14 @@ header :focus-visible {
   }
 }
 
+/* Venue map dark-mode treatment (components/EventMap.tsx). OSM's raster tiles
+   have no built-in dark variant, so we invert just the tile pane's luminance —
+   a sibling of the marker pane in Leaflet's own DOM structure, so the marker
+   pin itself is never touched and keeps its normal color. */
+.map-dark-tiles .leaflet-tile-pane {
+  filter: invert(90%) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;

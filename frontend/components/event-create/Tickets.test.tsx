@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Tickets, { type TicketsData } from "@/components/event-create/Tickets";
 import { showToast } from "@/lib/toast";
@@ -71,6 +71,15 @@ describe("Tickets", () => {
     expect(payload.isPaid).toBe(true);
     expect(payload.tickets).toHaveLength(1);
     expect(payload.tickets[0]).toMatchObject({ name: "VIP", price: 500 });
+  });
+
+  it("preserves a fractional rupee price instead of truncating it to a whole number", async () => {
+    const onNext = vi.fn();
+    render(<Tickets onNext={onNext} />);
+    await userEvent.type(screen.getByPlaceholderText("Price (₹)"), "49.50");
+    await userEvent.click(screen.getByRole("button", { name: "Save & Continue" }));
+    const payload = onNext.mock.calls[0][0] as TicketsData;
+    expect(payload.tickets[0].price).toBe(49.5);
   });
 
   it("forces price to 0 when submitting in free mode", async () => {
@@ -214,5 +223,17 @@ describe("Tickets", () => {
     const payload = onNext.mock.calls[0][0] as TicketsData;
     expect(payload.refundPolicy).toBe("FULL_UNTIL_CUTOFF");
     expect(payload.refundCutoffHours).toBe("72");
+  });
+
+  it("clamps a negative refund cutoff to 0 instead of letting it reach submit (PAY-06)", async () => {
+    const onNext = vi.fn();
+    render(<Tickets onNext={onNext} />);
+    await userEvent.selectOptions(screen.getByLabelText("Refund policy"), "FULL_UNTIL_CUTOFF");
+    const cutoff = screen.getByLabelText(/Refund cutoff/i) as HTMLInputElement;
+    await userEvent.clear(cutoff);
+    // fireEvent (not userEvent.type) so the browser-blocked "-" keystroke isn't
+    // needed to reproduce a negative value reaching onChange.
+    fireEvent.change(cutoff, { target: { value: "-10" } });
+    expect(cutoff.value).toBe("0");
   });
 });

@@ -36,6 +36,10 @@ test.describe("privileged dashboards", () => {
 
     // The admin shell (sidebar) is present regardless of fest assignment.
     await expect(page.getByText(/admin panel/i)).toBeVisible();
+
+    // "Role Approval Requests" lives under its own sidebar section (not the
+    // default Overview tab) — switch to it before asserting the heading.
+    await page.getByRole("button", { name: "Role Approvals" }).click();
     await expect(
       page.getByRole("heading", { name: /role approval requests/i })
     ).toBeVisible();

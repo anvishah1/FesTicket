@@ -991,6 +991,25 @@ router.get("/analytics/fest/:festId/settlement", authenticateUser, async (req, r
 const PROMO_KINDS = ["PERCENT", "FLAT"];
 const promoNum = (v) => (v == null || v === "" ? null : Math.round(Number(v)));
 
+// Validates the promo-code numeric fields actually present in `b` (only the
+// keys the caller supplied — PATCH is partial, so an omitted field is left
+// alone). Returns an error message, or null if everything present is in
+// range. A percentOff outside 0..100 is rejected outright rather than
+// silently clamped, so a host who mistypes 150 gets told, instead of the
+// code quietly saving as 100% with no feedback.
+function promoNumberError(b) {
+  if (b.percentOff !== undefined && b.percentOff !== null) {
+    const pct = promoNum(b.percentOff);
+    if (pct == null || pct < 0 || pct > 100) return "percentOff must be a number between 0 and 100";
+  }
+  for (const key of ["flatOffPaise", "maxDiscountPaise", "minSubtotalPaise", "maxRedemptions"]) {
+    if (b[key] === undefined || b[key] === null) continue;
+    const n = promoNum(b[key]);
+    if (n == null || n < 0) return `${key} must be a non-negative number`;
+  }
+  return null;
+}
+
 // A promo is scoped to a single event OR a fest; the caller must manage that scope.
 async function callerCanManagePromo(req, { eventId, festId }) {
   if (eventId != null) {
@@ -1043,13 +1062,15 @@ router.post("/promo-codes", authenticateUser, authorizeRoles("EDITOR", "HOST", "
     if (!code) return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Code is required" } });
     const kind = String(b.kind || "").toUpperCase();
     if (!PROMO_KINDS.includes(kind)) return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "kind must be PERCENT or FLAT" } });
+    const numError = promoNumberError(b);
+    if (numError) return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: numError } });
     const created = await prisma.promoCode.create({
       data: {
         code,
         festId,
         eventId,
         kind,
-        percentOff: kind === "PERCENT" ? Math.max(0, Math.min(100, promoNum(b.percentOff) ?? 0)) : null,
+        percentOff: kind === "PERCENT" ? (promoNum(b.percentOff) ?? 0) : null,
         flatOffPaise: kind === "FLAT" ? Math.max(0, promoNum(b.flatOffPaise) ?? 0) : null,
         maxDiscountPaise: promoNum(b.maxDiscountPaise),
         minSubtotalPaise: promoNum(b.minSubtotalPaise),
@@ -1077,6 +1098,8 @@ router.patch("/promo-codes/:id", authenticateUser, authorizeRoles("EDITOR", "HOS
     if (!promo) return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Promo code not found" } });
     if (!(await callerCanManagePromo(req, { eventId: promo.eventId, festId: promo.festId }))) return forbid(res);
     const b = req.body || {};
+    const numError = promoNumberError(b);
+    if (numError) return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: numError } });
     const opt = (v) => (v === undefined ? undefined : promoNum(v));
     const updated = await prisma.promoCode.update({
       where: { id },

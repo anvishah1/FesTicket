@@ -83,7 +83,6 @@ export interface EventBasicsData {
   startDate: string;
   endDate: string;
   visibility: "PRIVATE" | "PUBLIC";
-  eventType: "OFFLINE" | "ONLINE";
 }
 
 const defaultImages = [
@@ -137,7 +136,6 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
     startDate: "",
     endDate: "",
     visibility: "PRIVATE",
-    eventType: "OFFLINE",
   });
 
   // Report every edit up so switching steps via the Sidebar never loses input.
@@ -534,25 +532,6 @@ export default function EventBasics({ onNext, onChange, initialData }: EventBasi
               label="Public" 
               active={formData.visibility === "PUBLIC"} 
               onClick={() => setFormData({ ...formData, visibility: "PUBLIC" })}
-            />
-          </div>
-        </div>
-
-        {/* Event Type */}
-        <div>
-          <span id="event-type-label" className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
-            Event Type
-          </span>
-          <div className="flex gap-4" role="group" aria-labelledby="event-type-label">
-            <OptionButton
-              label="Offline" 
-              active={formData.eventType === "OFFLINE"} 
-              onClick={() => setFormData({ ...formData, eventType: "OFFLINE" })}
-            />
-            <OptionButton 
-              label="Online" 
-              active={formData.eventType === "ONLINE"} 
-              onClick={() => setFormData({ ...formData, eventType: "ONLINE" })}
             />
           </div>
         </div>

@@ -202,12 +202,10 @@ export default function Header() {
             {t("nav.support")}
           </Link>
 
-          {/* NOTIF-08: in-app notification bell (desktop, logged-in only). */}
-          {mounted && showUser && (
-            <div className="hidden sm:block">
-              <NotificationBell />
-            </div>
-          )}
+          {/* NOTIF-08: in-app notification bell (logged-in only). Visible at every
+              breakpoint — it used to be desktop-only with no mobile equivalent,
+              leaving signed-in mobile users with no way to reach it at all. */}
+          {mounted && showUser && <NotificationBell />}
 
           {/* Auth-dependent action (desktop). Rendered only after mount. */}
           {!mounted ? null : showUser ? (

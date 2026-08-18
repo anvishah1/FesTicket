@@ -12,4 +12,16 @@ describe("GoogleSignInButton (AUTH-05)", () => {
     expect(btn).toHaveTextContent(/coming soon/i);
     expect(screen.queryByTestId("google-signin")).not.toBeInTheDocument();
   });
+
+  it("uses the theme-following label color by default (correct on a theme-following card, e.g. signin)", () => {
+    render(<GoogleSignInButton onCredential={vi.fn()} />);
+    const label = screen.getByText(/coming soon/i);
+    expect(label.className).toContain("text-[var(--text-primary)]");
+  });
+
+  it("forces a fixed light label color on an always-dark surface (e.g. the signup panel)", () => {
+    render(<GoogleSignInButton onCredential={vi.fn()} onDarkSurface />);
+    const label = screen.getByText(/coming soon/i);
+    expect(label.className).toContain("text-[#DEDCDC]");
+  });
 });

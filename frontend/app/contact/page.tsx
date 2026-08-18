@@ -2,7 +2,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
 export const metadata = {
-  title: "Contact · FesTicket",
+  title: "Contact",
   description: "How to reach the FesTicket team.",
 };
 

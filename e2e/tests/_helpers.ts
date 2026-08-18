@@ -5,6 +5,7 @@
 
 import { APIRequestContext, Page, request } from "@playwright/test";
 import crypto from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
@@ -178,10 +179,27 @@ export async function signupPrimedSession(
 // (must match backend/.env JWT_SECRET). authMiddleware does jwt.verify(token, JWT_SECRET).
 // Must equal the backend's JWT_SECRET or authMiddleware 401s every minted token.
 // Prefer an explicit E2E_JWT_SECRET, then fall back to the JWT_SECRET the backend
-// itself runs with (CI sets this at the job level), then the local-dev default.
+// itself runs with (CI sets this at the job level, which both this process and
+// the backend's child process inherit). Locally, though, JWT_SECRET normally
+// lives ONLY in backend/.env, loaded by dotenv INSIDE the backend's own child
+// process (spawned by playwright.config.ts's webServer) — it is never visible
+// on this process's `process.env`. Without reading it directly, the hardcoded
+// default below silently wins and every minted token is rejected by the real
+// backend (401 on everything), so read backend/.env directly as a third tier.
+function loadBackendJwtSecret(): string | undefined {
+  try {
+    const envPath = path.join(backendDir, ".env");
+    const match = fs.readFileSync(envPath, "utf8").match(/^JWT_SECRET=(.*)$/m);
+    return match?.[1]?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const E2E_JWT_SECRET =
   process.env.E2E_JWT_SECRET ||
   process.env.JWT_SECRET ||
+  loadBackendJwtSecret() ||
   "e2e-local-jwt-secret-at-least-32-characters-long!!";
 
 // Optional `tokenVersion` is only embedded when provided: authMiddleware compares

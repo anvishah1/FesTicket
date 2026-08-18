@@ -209,6 +209,7 @@ export default function AttendeeForm({
                 aria-label={`Name for attendee ${i + 1}`}
               />
               <input
+                type="email"
                 value={a.email}
                 onChange={(e) => update(i, "email", e.target.value)}
                 placeholder="Email address"

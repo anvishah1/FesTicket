@@ -16,13 +16,19 @@ export default function ForgotPasswordPage() {
     setStatus("sending");
 
     try {
-      await fetch(`${getApiUrl()}/api/auth/forgot-password`, {
+      const res = await fetch(`${getApiUrl()}/api/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      // Backend always returns a generic 200 to avoid email enumeration,
-      // so show the success state regardless of whether the email exists.
+      if (!res.ok) {
+        setError("Something went wrong. Please try again.");
+        setStatus("idle");
+        return;
+      }
+      // A successful response is a generic message regardless of whether the
+      // email exists, to avoid email enumeration — but a genuine server error
+      // (caught above) must still surface as an error, not a false success.
       setStatus("sent");
     } catch {
       setError("Could not reach server. Try again.");

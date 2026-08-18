@@ -98,6 +98,11 @@ const refundCutoffHoursLike = z.union([
   z.string().trim().regex(/^\d+$/, "refundCutoffHours must be a non-negative integer"),
 ]);
 
+// An online event's meeting link: empty (offline events send none) or a real
+// http(s) URL — a bare string like "not a real link" used to pass straight
+// through with no format check at all.
+const optionalUrl = z.union([z.literal(""), z.string().max(2000).url("Must be a valid URL")]).optional().nullable();
+
 // TIX-10: max tickets per order — a positive integer (>= 1) or null (no cap).
 const maxTicketsPerOrderLike = z.union([
   z.number().int("maxTicketsPerOrder must be an integer").positive("maxTicketsPerOrder must be >= 1"),
@@ -150,8 +155,8 @@ export const createEventSchema = z
     venue: z.string().max(300).optional().nullable(),
     venueAddress: z.string().max(500).optional().nullable(),
     address: z.string().max(500).optional().nullable(),
-    onlineLink: z.string().max(2000).optional().nullable(),
-    meetingLink: z.string().max(2000).optional().nullable(),
+    onlineLink: optionalUrl,
+    meetingLink: optionalUrl,
     eventType: z.string().max(50).optional().nullable(),
     festId: intLike.optional().nullable(),
     discount: discountLike.optional().nullable(),

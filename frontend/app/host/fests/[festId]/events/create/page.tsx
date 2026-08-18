@@ -268,7 +268,8 @@ export default function EventCreatePage() {
           startTime: fullEventData.basics?.startDate?.split("T")[1] || null,
           endTime: fullEventData.basics?.endDate?.split("T")[1] || null,
           visibility: fullEventData.basics?.visibility,
-          // Location type — not EventBasics.eventType — decides online/offline.
+          // The Event Location step's Location Type is the single source of
+          // truth for online/offline (Event Basics no longer asks this too).
           isOnline,
           eventType: isOnline ? "ONLINE" : "OFFLINE",
           venue: isOnline ? null : loc.venue || null,

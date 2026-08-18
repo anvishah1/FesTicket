@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import ContactPage from "./page";
+import ContactPage, { metadata } from "./page";
 
 describe("ContactPage", () => {
   it("renders the contact heading and support email link", () => {
@@ -10,5 +10,9 @@ describe("ContactPage", () => {
       "href",
       "mailto:support@FesTicket.events"
     );
+  });
+
+  it("does not duplicate the brand suffix in its own title (the root layout template already appends it)", () => {
+    expect(metadata.title).toBe("Contact");
   });
 });

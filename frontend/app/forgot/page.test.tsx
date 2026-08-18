@@ -43,4 +43,20 @@ describe("ForgotPasswordPage", () => {
 
     await screen.findByText(/could not reach server/i);
   });
+
+  it("shows an error state instead of a false success when the backend returns a real error", async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({ success: false, error: { code: "SERVER_ERROR", message: "Server error" } }),
+    });
+
+    render(<ForgotPasswordPage />);
+
+    await userEvent.type(screen.getByPlaceholderText("you@school.edu"), "student@example.com");
+    await userEvent.click(screen.getByRole("button", { name: /send reset email/i }));
+
+    await screen.findByText(/something went wrong/i);
+    expect(screen.queryByText(/if an account exists for that email/i)).not.toBeInTheDocument();
+  });
 });

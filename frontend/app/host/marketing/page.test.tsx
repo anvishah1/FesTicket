@@ -13,17 +13,22 @@ const resp = (body: unknown, ok = true) =>
   Promise.resolve({ ok, status: ok ? 200 : 500, json: async () => body }) as unknown as Promise<Response>;
 
 function installFetch() {
-  globalThis.fetch = vi.fn((url: unknown) => {
+  globalThis.fetch = vi.fn((url: unknown, init?: RequestInit) => {
     const u = String(url);
+    const isPost = init?.method === "POST";
+    // A create POST echoes back {id, ...postedFields}, matching the real backend
+    // contract — returning an empty array here (as a bare GET would) would leave
+    // the newly-created row's `id` undefined and break the table's row `key`.
+    const created = () => resp({ success: true, data: { id: 999, ...JSON.parse((init!.body as string)) } });
     // This host owns no rows of its own...
-    if (u.includes("/api/events/marketing/host/3/sponsors")) return resp({ success: true, data: [] });
-    if (u.includes("/api/events/marketing/host/3/expenses")) return resp({ success: true, data: [] });
+    if (u.includes("/api/events/marketing/host/3/sponsors")) return isPost ? created() : resp({ success: true, data: [] });
+    if (u.includes("/api/events/marketing/host/3/expenses")) return isPost ? created() : resp({ success: true, data: [] });
     // ...but the fest-wide totals are non-zero (another editor's data).
     // Amounts are INTEGER PAISE (PAY-03): 1000000 paise = ₹10,000.00.
     if (u.includes("/api/events/marketing/fest/7/sponsors"))
-      return resp({ success: true, data: [{ receivedAmount: 1000000, sponsorshipAmount: 2000000 }] });
+      return resp({ success: true, data: [{ id: 101, companyName: "Acme", contactPerson: "Alice", receivedAmount: 1000000, sponsorshipAmount: 2000000 }] });
     if (u.includes("/api/events/marketing/fest/7/expenses"))
-      return resp({ success: true, data: [{ amount: 300000 }] });
+      return resp({ success: true, data: [{ id: 201, description: "Sound system", vendor: "Acme AV", amount: 300000 }] });
     return resp({ success: true, data: [] });
   }) as unknown as typeof fetch;
 }
